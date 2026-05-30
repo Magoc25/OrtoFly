@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.6.2] — Maio 2026
+
+### 🐛 Correções
+- **Visualização 2D de GeoTIFF/COG:** cores corrigidas (saíam verde/rosa) — o app agora mapeia explicitamente **banda 0/1/2 como R/G/B**, com transparência por alpha/nodata e auto-escala 8/16-bit (combina com a cor natural do QGIS).
+- O status do raster mostra o **tamanho do arquivo** (GeoTIFFs grandes podem demorar a decodificar no navegador — é esperado).
+
+---
+
 ## [1.6.1] — Maio 2026
 
 ### ✨ Melhorado — Rumo estimado pelo trajeto GPS
