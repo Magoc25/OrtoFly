@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.6.1] — Maio 2026
+
+### ✨ Melhorado — Rumo estimado pelo trajeto GPS
+
+- Quando o EXIF **não traz o rumo (yaw)**, o app agora **estima a direção de cada foto pelo trajeto** (direção de uma foto para a próxima no tempo) e gira as fotos corretamente. Antes, sem yaw, todas ficavam "norte acima" e o mosaico saía estilhaçado.
+- O status mostra a origem do rumo: **rumo EXIF**, **rumo do trajeto** ou **sem rumo**.
+
+---
+
 ## [1.6.0] — Maio 2026
 
 ### ✨ Melhorado — Mosaico rápido mais limpo

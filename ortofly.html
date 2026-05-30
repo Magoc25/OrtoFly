@@ -367,7 +367,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.6.0</span>
+  <span id="appVersion">© MGC · v1.6.1</span>
 </footer>
 
 <!-- PIX modal -->
@@ -484,8 +484,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.6.0 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.6.0';
+/* ═══════════════ OrtoFly v1.6.1 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.6.1';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1076,15 +1076,17 @@ async function generateMosaic(){
     const relList=gps.map(p=>p.relAlt).filter(v=>v!=null&&isFinite(v)).sort((a,b)=>a-b);
     const fallbackAlt=relList.length?relList[Math.floor(relList.length/2)]:(+$('altNum').value||100);
     const f=localFrame(gps.map(p=>[p.lat,p.lon]));
-    const items=[]; let xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity;
-    for(const p of gps){
+    const items=[]; let trackUsed=0; let xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity;
+    for(let i=0;i<gps.length;i++){ const p=gps[i];
       const alt=(p.relAlt!=null&&isFinite(p.relAlt))?Math.abs(p.relAlt):fallbackAlt;
       const iw=p.w||cam.iw, ih=p.h||cam.ih;
       const focal=(p.focal>0)?p.focal:cam.focal;
       let sw=cam.sw; if(p.focal>0&&p.focal35>0){ const diag=43.2666*p.focal/p.focal35; sw=diag*iw/Math.hypot(iw,ih); }
       const gsdM=(sw*alt)/(focal*iw);                  // m/px — câmera do EXIF (reserva: drone selecionado)
       const W=gsdM*iw, H=gsdM*ih;                       // across, along (m)
-      const th=(useYaw&&p.yaw!=null&&isFinite(p.yaw))?p.yaw*Math.PI/180:0;
+      let yaw=(p.yaw!=null&&isFinite(p.yaw))?p.yaw:null;
+      if(yaw==null && useYaw && gps.length>1){ const a=(i<gps.length-1)?gps[i]:gps[i-1], b=(i<gps.length-1)?gps[i+1]:gps[i]; const A=f.toXY([a.lat,a.lon]), B=f.toXY([b.lat,b.lon]); if(Math.hypot(B[0]-A[0],B[1]-A[1])>0.5){ yaw=(Math.atan2(B[0]-A[0],B[1]-A[1])*180/Math.PI+360)%360; trackUsed++; } }
+      const th=(useYaw&&yaw!=null&&isFinite(yaw))?yaw*Math.PI/180:0;
       const fw=[Math.sin(th),Math.cos(th)], rg=[Math.cos(th),-Math.sin(th)];
       const c=f.toXY([p.lat,p.lon]); const hw=W/2, hh=H/2;
       const corners={
@@ -1128,7 +1130,8 @@ async function generateMosaic(){
     _mosaicMeta={cw,ch,tlLL,brLL,blob};
     $('mosaicExportBtn').classList.remove('hidden'); $('mosaicClearBtn').classList.remove('hidden'); $('mosaicOpacityRow').classList.remove('hidden');
     const wy=gps.filter(p=>p.yaw!=null&&isFinite(p.yaw)).length;
-    mosaicStatus(`${items.length} foto(s) · ${cw}×${ch} px · ~${mPerPx.toFixed(2)} m/px · rumo ${wy}/${items.length}`);
+    const rumoTxt=wy>0?`rumo EXIF ${wy}/${items.length}`:(trackUsed>0?`rumo do trajeto ${trackUsed}/${items.length}`:'sem rumo');
+    mosaicStatus(`${items.length} foto(s) · ${cw}×${ch} px · ~${mPerPx.toFixed(2)} m/px · ${rumoTxt}`);
     toast('Mosaico rápido gerado ✅');
   }catch(e){ console.error('[Mosaico]',e); toast('Erro ao gerar mosaico: '+e.message,'error'); }
   finally{ _mosaicBusy=false; }
@@ -1340,7 +1343,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now()})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.6.0', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.6.1', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));
