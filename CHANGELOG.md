@@ -5,6 +5,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.4.1] — Maio 2026
+
+### 🐛 Correções
+- "Área p/ envoltória" (gerar AOI a partir das fotos) não dependia mais de um diálogo de confirmação que podia ser cancelado por engano — agora cria a área direto, vai para a aba ✈️ Voo e avisa.
+
+---
+
 ## [1.4.0] — Maio 2026
 
 ### ✨ Melhorado — Interface em abas
