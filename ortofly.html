@@ -367,7 +367,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.5.0</span>
+  <span id="appVersion">© MGC · v1.6.0</span>
 </footer>
 
 <!-- PIX modal -->
@@ -484,8 +484,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.5.0 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.5.0';
+/* ═══════════════ OrtoFly v1.6.0 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.6.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -985,7 +985,7 @@ async function handlePhotoFiles(fileList){
     try{ const x=await exifr.parse(f,{tiff:true,exif:true,gps:true,xmp:true})||{};
       rec.lat=x.latitude; rec.lon=x.longitude;
       rec.relAlt=(x.RelativeAltitude!=null)?parseFloat(x.RelativeAltitude):null;
-      rec.yaw=(x.GimbalYawDegree!=null)?parseFloat(x.GimbalYawDegree):((x.FlightYawDegree!=null)?parseFloat(x.FlightYawDegree):null);
+      rec.yaw=(x.GimbalYawDegree!=null)?parseFloat(x.GimbalYawDegree):((x.FlightYawDegree!=null)?parseFloat(x.FlightYawDegree):((x.GPSImgDirection!=null)?parseFloat(x.GPSImgDirection):null));
       rec.alt=(x.GPSAltitude!=null)?+x.GPSAltitude:null;
       if(x.DateTimeOriginal){ const d=new Date(x.DateTimeOriginal); if(isFinite(+d)) rec.time=+d; }
       rec.model=x.Model||x.model||''; rec.focal=(x.FocalLength!=null)?+x.FocalLength:null;
@@ -1110,7 +1110,9 @@ async function generateMosaic(){
         const iw=bm.width, ih=bm.height;
         const tl=[X(it.corners.tl[0]),Y(it.corners.tl[1])], tr=[X(it.corners.tr[0]),Y(it.corners.tr[1])], bl=[X(it.corners.bl[0]),Y(it.corners.bl[1])];
         const a=(tr[0]-tl[0])/iw, b=(tr[1]-tl[1])/iw, cc=(bl[0]-tl[0])/ih, d=(bl[1]-tl[1])/ih;
-        ctx.setTransform(a,b,cc,d,tl[0],tl[1]); ctx.drawImage(bm,0,0); if(bm.close) bm.close();
+        ctx.save(); ctx.setTransform(a,b,cc,d,tl[0],tl[1]);
+        ctx.beginPath(); ctx.rect(iw*0.1, ih*0.1, iw*0.8, ih*0.8); ctx.clip();   // usa só o miolo da foto (menos distorção/borda)
+        ctx.drawImage(bm,0,0); ctx.restore(); if(bm.close) bm.close();
       }catch(err){ console.warn('[Mosaico]',it.p.name,err); }
       done++; if(done%5===0||done===items.length) mosaicStatus(done+'/'+items.length+'…');
     }
@@ -1125,7 +1127,8 @@ async function generateMosaic(){
     map.fitBounds(bounds,{padding:[30,30]});
     _mosaicMeta={cw,ch,tlLL,brLL,blob};
     $('mosaicExportBtn').classList.remove('hidden'); $('mosaicClearBtn').classList.remove('hidden'); $('mosaicOpacityRow').classList.remove('hidden');
-    mosaicStatus(`${items.length} foto(s) · ${cw}×${ch} px · ~${mPerPx.toFixed(2)} m/px`);
+    const wy=gps.filter(p=>p.yaw!=null&&isFinite(p.yaw)).length;
+    mosaicStatus(`${items.length} foto(s) · ${cw}×${ch} px · ~${mPerPx.toFixed(2)} m/px · rumo ${wy}/${items.length}`);
     toast('Mosaico rápido gerado ✅');
   }catch(e){ console.error('[Mosaico]',e); toast('Erro ao gerar mosaico: '+e.message,'error'); }
   finally{ _mosaicBusy=false; }
@@ -1337,7 +1340,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now()})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.5.0', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.6.0', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));
