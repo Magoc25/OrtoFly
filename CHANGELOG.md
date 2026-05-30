@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.4.0] — Maio 2026
+
+### ✨ Melhorado — Interface em abas
+
+- Painel lateral reorganizado em **3 abas** (✈️ Voo · 📷 Imagens · 🗺️ Visualizar), com **barra de Projeto fixa** no topo (nome + salvar + novo). Ao planejar, os controles de voo voltam para o topo.
+- Lista de projetos e **exportar/importar JSON** movidos para o modal **📂 Projetos** (header).
+
+---
+
 ## [1.3.3] — Maio 2026
 
 ### 🐛 Correções

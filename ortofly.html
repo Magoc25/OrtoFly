@@ -59,6 +59,13 @@ header .grow{flex:1}
 }
 .card{background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:12px; margin-bottom:12px}
 .card h2{margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted)}
+.proj-bar{display:flex;gap:6px;align-items:center;margin-bottom:10px}
+.proj-bar input{flex:1}
+.proj-bar .btn{padding:8px 11px}
+.tabs{display:flex;gap:4px;margin-bottom:12px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:4px}
+.tab{flex:1;padding:8px 4px;border:none;background:transparent;color:var(--muted);border-radius:9px;cursor:pointer;font-size:12.5px;font-weight:700;font-family:inherit}
+.tab:hover{color:var(--text)}
+.tab.active{background:linear-gradient(180deg,var(--accent),#0f9c73);color:#04160f}
 .row{display:flex; gap:8px; align-items:center; margin-bottom:9px}
 .row:last-child{margin-bottom:0}
 .field{display:flex; flex-direction:column; gap:4px; flex:1}
@@ -178,20 +185,23 @@ footer{
   </div>
 
   <aside class="panel">
-    <!-- Projeto -->
-    <div class="card">
-      <h2>Projeto</h2>
-      <div class="row">
-        <div class="field"><label for="projName">Nome</label><input id="projName" type="text" maxlength="60" placeholder="Meu voo" /></div>
-      </div>
-      <div class="btn-grid">
-        <button class="btn sm" onclick="saveProject()">💾 Salvar</button>
-        <button class="btn sm" onclick="newProject()">✨ Novo</button>
-        <button class="btn sm" onclick="exportProjectJSON()">⬇ JSON</button>
-        <button class="btn sm" onclick="document.getElementById('importJson').click()">⬆ JSON</button>
-      </div>
-      <input type="file" id="importJson" accept=".json,.geojson" class="hidden" />
+    <!-- Barra de projeto (sempre visível) -->
+    <div class="proj-bar">
+      <input id="projName" type="text" maxlength="60" placeholder="Nome do projeto" aria-label="Nome do projeto" />
+      <button class="btn sm" onclick="saveProject()" title="Salvar projeto">💾</button>
+      <button class="btn sm" onclick="newProject()" title="Novo projeto">✨</button>
     </div>
+    <input type="file" id="importJson" accept=".json,.geojson" class="hidden" />
+
+    <!-- Abas -->
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-tab="voo" onclick="setTab('voo')">✈️ Voo</button>
+      <button class="tab" data-tab="imagens" onclick="setTab('imagens')">📷 Imagens</button>
+      <button class="tab" data-tab="ver" onclick="setTab('ver')">🗺️ Visualizar</button>
+    </div>
+
+    <!-- ABA: Imagens -->
+    <div id="tab-imagens" class="tab-panel hidden">
 
     <!-- Imagens & EXIF -->
     <div class="card">
@@ -230,7 +240,10 @@ footer{
         <button class="btn sm hidden" id="mosaicClearBtn" onclick="clearMosaic()">🗑️ Remover</button>
       </div>
     </div>
+    </div><!-- /tab-imagens -->
 
+    <!-- ABA: Visualizar -->
+    <div id="tab-ver" class="tab-panel hidden">
     <!-- Visualizar resultados -->
     <div class="card">
       <h2>🗺️ Visualizar resultados</h2>
@@ -250,7 +263,10 @@ footer{
       </div>
       <p class="hint">2D: ortomosaico/DSM (GeoTIFF/COG) no mapa. 3D: nuvem LAS/PLY ou malha OBJ/glTF/GLB. (.laz comprimido ainda não — exporte LAS/PLY.)</p>
     </div>
+    </div><!-- /tab-ver -->
 
+    <!-- ABA: Voo -->
+    <div id="tab-voo" class="tab-panel">
     <!-- Drone / câmera -->
     <div class="card">
       <h2>Drone / Câmera</h2>
@@ -339,6 +355,7 @@ footer{
       </div>
       <p class="hint">KMZ (WPML) importa no <b>DJI Pilot 2</b> (drones Enterprise). Para <b>DJI Fly</b> (Mini/Air), prefira KML ou CSV. Ferramenta de planejamento — confira ANAC/DECEA antes de voar.</p>
     </div>
+    </div><!-- /tab-voo -->
   </aside>
 </div>
 
@@ -350,7 +367,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.3.3</span>
+  <span id="appVersion">© MGC · v1.4.0</span>
 </footer>
 
 <!-- PIX modal -->
@@ -408,6 +425,11 @@ footer{
   <div class="modal-content">
     <div class="modal-header"><div class="modal-title">📂 Projetos salvos</div><button class="modal-close-btn" type="button" onclick="closeProjects()">✕</button></div>
     <div id="projectsList"></div>
+    <hr style="border-color:var(--border);margin:.6rem 0" />
+    <div class="btn-grid">
+      <button class="btn sm" onclick="exportProjectJSON()">⬇ Exportar JSON</button>
+      <button class="btn sm" onclick="document.getElementById('importJson').click()">⬆ Importar JSON</button>
+    </div>
   </div>
 </div>
 
@@ -462,8 +484,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.3.3 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.3.3';
+/* ═══════════════ OrtoFly v1.4.0 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.4.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -929,6 +951,12 @@ function wire(){
 }
 function openAbout(){ $('aboutModal').classList.remove('hidden'); }
 function closeAbout(){ $('aboutModal').classList.add('hidden'); }
+function setTab(name){
+  ['voo','imagens','ver'].forEach(t=>{
+    const p=$('tab-'+t); if(p) p.classList.toggle('hidden', t!==name);
+    const b=document.querySelector('.tab[data-tab="'+t+'"]'); if(b) b.classList.toggle('active', t===name);
+  });
+}
 
 /* primeira execução: AOI de exemplo para demonstração */
 function loadSampleIfEmpty(){
@@ -1307,7 +1335,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now()})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.3.3', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.4.0', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));
