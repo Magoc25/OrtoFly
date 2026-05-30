@@ -205,6 +205,27 @@ footer{
       <p class="hint">Lê GPS, altitude, data e modelo das fotos e plota os centros no mapa. As imagens ficam só nesta sessão — não são enviadas nem salvas.</p>
     </div>
 
+    <!-- Mosaico rápido -->
+    <div class="card">
+      <h2>🧩 Mosaico rápido (GPS)</h2>
+      <p class="hint" style="margin-top:0">Pré-mosaico <b>não métrico</b>: posiciona as fotos importadas pelo GPS, rumo e altitude, usando a câmera selecionada em <b>Drone/Câmera</b>.</p>
+      <div class="row" style="margin-top:8px">
+        <div class="field"><label for="mosaicRes">Resolução</label>
+          <select id="mosaicRes"><option value="rapida">Rápida</option><option value="media" selected>Média</option><option value="alta">Alta</option></select>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;align-self:flex-end;white-space:nowrap"><input type="checkbox" id="mosaicYaw" checked style="width:auto" /> Usar rumo</label>
+      </div>
+      <button class="btn primary block" onclick="generateMosaic()" style="margin-top:4px">🧩 Gerar mosaico</button>
+      <div class="row hidden" id="mosaicOpacityRow" style="margin-top:8px">
+        <div class="field"><label>Opacidade — <span id="mosaicOpacityVal">100%</span></label><input id="mosaicOpacity" type="range" min="20" max="100" value="100" /></div>
+      </div>
+      <div id="mosaicStatus" class="spec" style="margin-top:6px"></div>
+      <div class="btn-grid" style="margin-top:8px">
+        <button class="btn sm hidden" id="mosaicExportBtn" onclick="exportMosaic()">⬇ PNG + world file</button>
+        <button class="btn sm hidden" id="mosaicClearBtn" onclick="clearMosaic()">🗑️ Remover</button>
+      </div>
+    </div>
+
     <!-- Drone / câmera -->
     <div class="card">
       <h2>Drone / Câmera</h2>
@@ -304,7 +325,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.1.0</span>
+  <span id="appVersion">© MGC · v1.2.0</span>
 </footer>
 
 <!-- PIX modal -->
@@ -389,8 +410,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.1.0 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.1.0';
+/* ═══════════════ OrtoFly v1.2.0 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.2.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -842,6 +863,7 @@ function wire(){
   $('cross').addEventListener('change',recompute);
   $('importJson').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(f) importProjectFile(f); e.target.value=''; });
   $('photoInput').addEventListener('change',e=>{ const fs=e.target.files; if(fs&&fs.length) handlePhotoFiles(fs); e.target.value=''; });
+  $('mosaicOpacity').addEventListener('input',()=>{ $('mosaicOpacityVal').textContent=$('mosaicOpacity').value+'%'; setMosaicOpacity(); });
   document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(drawing) cancelDraw(); document.querySelectorAll('.modal:not(.hidden)').forEach(m=>m.classList.add('hidden')); } });
   onDroneChange(true); syncRangeLabels(); updateDirUI();
 }
@@ -877,6 +899,7 @@ async function handlePhotoFiles(fileList){
     try{ const x=await exifr.parse(f,{tiff:true,exif:true,gps:true,xmp:true})||{};
       rec.lat=x.latitude; rec.lon=x.longitude;
       rec.relAlt=(x.RelativeAltitude!=null)?parseFloat(x.RelativeAltitude):null;
+      rec.yaw=(x.GimbalYawDegree!=null)?parseFloat(x.GimbalYawDegree):((x.FlightYawDegree!=null)?parseFloat(x.FlightYawDegree):null);
       rec.alt=(x.GPSAltitude!=null)?+x.GPSAltitude:null;
       if(x.DateTimeOriginal){ const d=new Date(x.DateTimeOriginal); if(isFinite(+d)) rec.time=+d; }
       rec.model=x.Model||x.model||''; rec.focal=(x.FocalLength!=null)?+x.FocalLength:null;
@@ -947,6 +970,92 @@ function convexHull(pts){ if(pts.length<3) return pts.slice();
 function aoiFromPhotos(){ const gps=gpsPhotos(); if(gps.length<3){ toast('Precisa de ≥ 3 fotos com GPS','error'); return; }
   if(state.polygon.length>=3 && !confirm('Substituir a área atual pela envoltória das fotos?')) return;
   state.polygon=convexHull(gps.map(p=>[p.lat,p.lon])); renderAOI(); fitAOI(); recompute(); toast('Área definida pela envoltória das fotos ✅'); }
+
+/* ═══════════════ MOSAICO RÁPIDO (GPS/EXIF) — Fase 3 ═══════════════ */
+let mosaicOverlay=null, _mosaicUrl=null, _mosaicMeta=null, _mosaicBusy=false;
+function mosaicStatus(t){ const e=$('mosaicStatus'); if(e) e.textContent=t||''; }
+function setMosaicOpacity(){ if(mosaicOverlay) mosaicOverlay.setOpacity((+$('mosaicOpacity').value||100)/100); }
+function clearMosaic(){ if(mosaicOverlay){ mosaicOverlay.remove(); mosaicOverlay=null; } if(_mosaicUrl){ URL.revokeObjectURL(_mosaicUrl); _mosaicUrl=null; } _mosaicMeta=null;
+  $('mosaicExportBtn').classList.add('hidden'); $('mosaicClearBtn').classList.add('hidden'); $('mosaicOpacityRow').classList.add('hidden'); mosaicStatus(''); }
+
+async function generateMosaic(){
+  if(_mosaicBusy) return;
+  const gps=gpsPhotos();
+  if(gps.length<1){ toast('Importe fotos com GPS primeiro','error'); return; }
+  if(!map){ toast('Mapa indisponível','error'); return; }
+  _mosaicBusy=true;
+  try{
+    const cam=activeCam(); const useYaw=$('mosaicYaw').checked;
+    const MAXPX={rapida:1600,media:2600,alta:3600}[$('mosaicRes').value]||2600;
+    const relList=gps.map(p=>p.relAlt).filter(v=>v!=null&&isFinite(v)).sort((a,b)=>a-b);
+    const fallbackAlt=relList.length?relList[Math.floor(relList.length/2)]:(+$('altNum').value||100);
+    const f=localFrame(gps.map(p=>[p.lat,p.lon]));
+    const items=[]; let xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity;
+    for(const p of gps){
+      const alt=(p.relAlt!=null&&isFinite(p.relAlt))?Math.abs(p.relAlt):fallbackAlt;
+      const iw=p.w||cam.iw, ih=p.h||cam.ih;
+      const gsdM=(cam.sw*alt)/(cam.focal*iw);          // m/px
+      const W=gsdM*iw, H=gsdM*ih;                       // across, along (m)
+      const th=(useYaw&&p.yaw!=null&&isFinite(p.yaw))?p.yaw*Math.PI/180:0;
+      const fw=[Math.sin(th),Math.cos(th)], rg=[Math.cos(th),-Math.sin(th)];
+      const c=f.toXY([p.lat,p.lon]); const hw=W/2, hh=H/2;
+      const corners={
+        tl:[c[0]+hh*fw[0]-hw*rg[0], c[1]+hh*fw[1]-hw*rg[1]],
+        tr:[c[0]+hh*fw[0]+hw*rg[0], c[1]+hh*fw[1]+hw*rg[1]],
+        bl:[c[0]-hh*fw[0]-hw*rg[0], c[1]-hh*fw[1]-hw*rg[1]]
+      };
+      const br=[c[0]-hh*fw[0]+hw*rg[0], c[1]-hh*fw[1]+hw*rg[1]];
+      [corners.tl,corners.tr,corners.bl,br].forEach(q=>{ xmin=Math.min(xmin,q[0]);xmax=Math.max(xmax,q[0]);ymin=Math.min(ymin,q[1]);ymax=Math.max(ymax,q[1]); });
+      items.push({p,corners});
+    }
+    const bw=xmax-xmin, bh=ymax-ymin; if(!(bw>0&&bh>0)){ toast('Área das fotos inválida','error'); return; }
+    const mPerPx=Math.max(bw,bh)/MAXPX;
+    const cw=Math.max(1,Math.round(bw/mPerPx)), ch=Math.max(1,Math.round(bh/mPerPx));
+    const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
+    const ctx=cv.getContext('2d'); ctx.imageSmoothingQuality='high';
+    const X=e=>(e-xmin)/mPerPx, Y=n=>(ymax-n)/mPerPx;
+    toast('Gerando mosaico de '+items.length+' foto(s)…'); mosaicStatus('0/'+items.length+'…');
+    let done=0;
+    for(const it of items){
+      try{
+        const bm=await createImageBitmap(it.p.file,{resizeWidth:Math.min(1280,it.p.w||1280),resizeQuality:'medium'});
+        const iw=bm.width, ih=bm.height;
+        const tl=[X(it.corners.tl[0]),Y(it.corners.tl[1])], tr=[X(it.corners.tr[0]),Y(it.corners.tr[1])], bl=[X(it.corners.bl[0]),Y(it.corners.bl[1])];
+        const a=(tr[0]-tl[0])/iw, b=(tr[1]-tl[1])/iw, cc=(bl[0]-tl[0])/ih, d=(bl[1]-tl[1])/ih;
+        ctx.setTransform(a,b,cc,d,tl[0],tl[1]); ctx.drawImage(bm,0,0); if(bm.close) bm.close();
+      }catch(err){ console.warn('[Mosaico]',it.p.name,err); }
+      done++; if(done%5===0||done===items.length) mosaicStatus(done+'/'+items.length+'…');
+    }
+    ctx.setTransform(1,0,0,1,0,0);
+    const tlLL=f.toLL(xmin,ymax), brLL=f.toLL(xmax,ymin);
+    const bounds=[[tlLL[0],tlLL[1]],[brLL[0],brLL[1]]];
+    if(_mosaicUrl){ URL.revokeObjectURL(_mosaicUrl); _mosaicUrl=null; }
+    const blob=await new Promise(res=>cv.toBlob(res,'image/png'));
+    _mosaicUrl=URL.createObjectURL(blob);
+    if(mosaicOverlay){ mosaicOverlay.remove(); mosaicOverlay=null; }
+    mosaicOverlay=L.imageOverlay(_mosaicUrl,bounds,{opacity:(+$('mosaicOpacity').value||100)/100}).addTo(map);
+    map.fitBounds(bounds,{padding:[30,30]});
+    _mosaicMeta={cw,ch,tlLL,brLL,blob};
+    $('mosaicExportBtn').classList.remove('hidden'); $('mosaicClearBtn').classList.remove('hidden'); $('mosaicOpacityRow').classList.remove('hidden');
+    mosaicStatus(`${items.length} foto(s) · ${cw}×${ch} px · ~${mPerPx.toFixed(2)} m/px`);
+    toast('Mosaico rápido gerado ✅');
+  }catch(e){ console.error('[Mosaico]',e); toast('Erro ao gerar mosaico: '+e.message,'error'); }
+  finally{ _mosaicBusy=false; }
+}
+async function exportMosaic(){
+  if(!_mosaicMeta){ toast('Gere o mosaico primeiro','error'); return; }
+  const {cw,ch,tlLL,brLL,blob}=_mosaicMeta;
+  const A=(brLL[1]-tlLL[1])/cw, E=(brLL[0]-tlLL[0])/ch, C=tlLL[1]+A/2, F=tlLL[0]+E/2;
+  const wld=[A,0,0,E,C,F].map(v=>v.toFixed(12)).join('\n')+'\n';
+  const base='ortofly_mosaico_'+planName();
+  try{
+    const zip=new JSZip(); zip.file(base+'.png',blob); zip.file(base+'.pgw',wld);
+    zip.file('LEIAME.txt','Mosaico rapido OrtoFly (nao metrico) — posicionamento por GPS/EXIF.\nCRS: EPSG:4326 (WGS84, graus). Abra o .png no QGIS; o .pgw faz o georreferenciamento.\nPara analise metrica, use processamento fotogrametrico rigoroso (ortomosaico).');
+    const out=await zip.generateAsync({type:'blob'});
+    downloadBlob(out, base+'.zip');
+    toast('Mosaico exportado (PNG + world file) ✅');
+  }catch(e){ console.error(e); toast('Erro ao exportar: '+e.message,'error'); }
+}
 
 /* ═══════════════ PIX ═══════════════ */
 const PIX_KEY='4c6086a2-4bb8-474b-a4cf-ced8c8d82189', PIX_NAME='MGC Dev', PIX_CITY='Sao Raimundo';
@@ -1022,7 +1131,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now()})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.1.0', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.2.0', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));
