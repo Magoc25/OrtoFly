@@ -5,6 +5,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.3.1] — Maio 2026
+
+### 🐛 Correções
+- Título da página alinhado ao nome do app (manifest) — remove a duplicação "título/subtítulo" no PWA instalado.
+
+---
+
 ## [1.3.0] — Maio 2026
 
 ### 🆕 Adicionado — Fase 4: Visualizador 2D/3D
