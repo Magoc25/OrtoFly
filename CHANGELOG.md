@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.6.4] — Maio 2026
+
+### ✨ Melhorado — GeoTIFF YCbCr (JPEG)
+
+- A visualização 2D agora **detecta GeoTIFF/COG em YCbCr** (compressão JPEG — comum em orthos grandes, ex.: OpenAerialMap) e faz a **conversão YCbCr→RGB**, corrigindo o "verde/rosa". GeoTIFF RGB normal continua igual.
+
+---
+
 ## [1.6.3] — Maio 2026
 
 ### 🐛 Correções

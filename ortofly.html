@@ -367,7 +367,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.6.3</span>
+  <span id="appVersion">© MGC · v1.6.4</span>
 </footer>
 
 <!-- PIX modal -->
@@ -484,8 +484,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.6.3 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.6.3';
+/* ═══════════════ OrtoFly v1.6.4 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.6.4';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1163,12 +1163,14 @@ function cmapCSS(t,name){ const c=cmapRGB(t,name); return `rgb(${c[0]*255|0},${c
 let rasterLayer=null, _rasterMeta=null;
 function rasterStatus(t){ const e=$('rasterStatus'); if(e) e.textContent=t||''; }
 function openRaster(){ $('rasterInput').click(); }
-function buildRasterLayer(){ const {gr,mn,mx,bands}=_rasterMeta; const o={georaster:gr,opacity:(+$('rasterOpacity').value||100)/100,resolution:256};
+function tiffPhotometric(ab){ try{ const dv=new DataView(ab); const le=dv.getUint16(0,false)===0x4949; const g16=o=>dv.getUint16(o,le),g32=o=>dv.getUint32(o,le); if(g16(2)!==42) return null; const ifd=g32(4),n=g16(ifd); for(let i=0;i<n;i++){ const o=ifd+2+i*12; if(g16(o)===262) return (g16(o+2)===3)?g16(o+8):g32(o+8); } return null; }catch(e){ return null; } }
+function buildRasterLayer(){ const {gr,mn,mx,bands,ycc}=_rasterMeta; const o={georaster:gr,opacity:(+$('rasterOpacity').value||100)/100,resolution:256};
   if(bands<3){ o.pixelValuesToColorFn=v=>{ const val=Array.isArray(v)?v[0]:v; if(val==null||isNaN(val)||val===gr.noDataValue) return null; return cmapCSS((val-mn)/((mx-mn)||1),$('rasterCmap').value); }; }
   else { // RGB explícito: banda 0=R, 1=G, 2=B; alpha/nodata transparente; auto-escala 8/16-bit
     const mxs=(gr.maxs||[]).slice(0,3).filter(x=>x!=null&&isFinite(x)); const peak=mxs.length?Math.max(...mxs):255; const sc=peak>255?255/peak:1;
     o.pixelValuesToColorFn=v=>{ if(!v) return null; const a=(bands>=4)?v[3]:255; if(a===0) return null;
-      const r=v[0],g=v[1],b=v[2]; if(r==null&&g==null&&b==null) return null; if(gr.noDataValue!=null&&r===gr.noDataValue&&g===gr.noDataValue&&b===gr.noDataValue) return null;
+      let r=v[0],g=v[1],b=v[2]; if(r==null&&g==null&&b==null) return null; if(gr.noDataValue!=null&&r===gr.noDataValue&&g===gr.noDataValue&&b===gr.noDataValue) return null;
+      if(ycc){ const Y=r,Cb=g-128,Cr=b-128; r=Y+1.402*Cr; g=Y-0.344136*Cb-0.714136*Cr; b=Y+1.772*Cb; }   // YCbCr -> RGB
       const c=x=>Math.max(0,Math.min(255,Math.round((x||0)*sc))); return `rgb(${c(r)},${c(g)},${c(b)})`; };
   }
   return new window.GeoRasterLayer(o); }
@@ -1177,10 +1179,10 @@ async function handleRasterFile(file){
   if(!PG||!window.GeoRasterLayer){ toast('Biblioteca de raster não carregou (sem conexão?)','error'); return; }
   if(!map){ toast('Mapa indisponível','error'); return; }
   try{ rasterStatus('Lendo '+file.name+' ('+(file.size/1048576).toFixed(0)+' MB)…');
-    const gr=await PG(await file.arrayBuffer());
+    const ab=await file.arrayBuffer(); const gr=await PG(ab); const ycc=tiffPhotometric(ab)===6;
     const bands=gr.numberOfRasters||1;
     const mn=(gr.mins&&gr.mins[0]!=null)?gr.mins[0]:gr.minValue, mx=(gr.maxs&&gr.maxs[0]!=null)?gr.maxs[0]:gr.maxValue;
-    _rasterMeta={gr,bands,mn,mx};
+    _rasterMeta={gr,bands,mn,mx,ycc};
     if(rasterLayer) rasterLayer.remove();
     rasterLayer=buildRasterLayer().addTo(map);
     try{ map.fitBounds(rasterLayer.getBounds()); }catch(e){}
@@ -1349,7 +1351,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&c.app===APP_VERSION&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now(),app:APP_VERSION})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.6.3', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.6.4', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));
