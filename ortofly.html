@@ -93,6 +93,13 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent); o
 .note{font-size:12px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);color:#fde68a;border-radius:8px;padding:7px 9px;margin-top:8px}
 .spec{font-size:11.5px;color:var(--muted);margin-top:4px}
 .empty{color:var(--hint);font-size:12.5px;text-align:center;padding:6px 0}
+.photo-list{max-height:148px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;margin-top:8px;background:var(--bg)}
+.photo-row{display:flex;gap:8px;align-items:center;font-size:12px;padding:5px 8px;border-bottom:1px solid var(--border);cursor:pointer}
+.photo-row:last-child{border-bottom:none}
+.photo-row:hover{background:rgba(255,255,255,.05)}
+.photo-row .pn{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.photo-row .pm{color:var(--hint);font-variant-numeric:tabular-nums;flex-shrink:0}
+.photo-row.nogps .pn{color:var(--hint);opacity:.7}
 /* footer */
 footer{
   display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;
@@ -179,6 +186,23 @@ footer{
         <button class="btn sm" onclick="document.getElementById('importJson').click()">⬆ JSON</button>
       </div>
       <input type="file" id="importJson" accept=".json,.geojson" class="hidden" />
+    </div>
+
+    <!-- Imagens & EXIF -->
+    <div class="card">
+      <h2>📷 Imagens &amp; EXIF</h2>
+      <button class="btn primary block" onclick="importPhotos()">⬆ Importar fotos DJI</button>
+      <input type="file" id="photoInput" accept="image/*,.dng,.tif,.tiff" multiple class="hidden" />
+      <div id="photoSummary" class="spec" style="margin-top:8px"></div>
+      <div id="photoList" class="photo-list hidden"></div>
+      <div id="photoActions" class="btn-grid hidden" style="margin-top:8px">
+        <button class="btn sm" onclick="fitPhotos()">🎯 Centralizar</button>
+        <button class="btn sm" id="photoToggleBtn" onclick="togglePhotos()">👁️ Ocultar</button>
+        <button class="btn sm" onclick="aoiFromPhotos()">⬛ Área p/ envoltória</button>
+        <button class="btn sm" onclick="exportPhotoCenters()">🗺️ Centros GeoJSON</button>
+      </div>
+      <button class="btn sm block hidden" id="photoClearBtn" onclick="clearPhotos()" style="margin-top:8px">🗑️ Limpar imagens</button>
+      <p class="hint">Lê GPS, altitude, data e modelo das fotos e plota os centros no mapa. As imagens ficam só nesta sessão — não são enviadas nem salvas.</p>
     </div>
 
     <!-- Drone / câmera -->
@@ -280,7 +304,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.0.0</span>
+  <span id="appVersion">© MGC · v1.1.0</span>
 </footer>
 
 <!-- PIX modal -->
@@ -363,9 +387,10 @@ footer{
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.0.0 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.0.0';
+/* ═══════════════ OrtoFly v1.1.0 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.1.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -404,7 +429,7 @@ const DRONES = [
 const state = { polygon:[], droneId:'mavic3', name:'', lastPlan:null };
 
 /* ═══════════════ MAPA ═══════════════ */
-let map, aoiLayer=null, vtxLayers=[], gridLayer=null;
+let map, aoiLayer=null, vtxLayers=[], gridLayer=null, photoLayer=null;
 const vtxIcon = L.divIcon({className:'', html:'<div class="vtx"></div>', iconSize:[14,14], iconAnchor:[7,7]});
 
 function initMap(){
@@ -418,6 +443,7 @@ function initMap(){
   map.on('click', onMapClick);
   map.on('dblclick', e=>{ if(drawing){ L.DomEvent.stop(e); finishDraw(); } });
   gridLayer = L.layerGroup().addTo(map);
+  photoLayer = L.layerGroup().addTo(map);
   setTimeout(()=>map.invalidateSize(),200);
   window.addEventListener('resize', ()=>map.invalidateSize());
 }
@@ -815,6 +841,7 @@ function wire(){
   $('dirDeg').addEventListener('input',scheduleRecompute);
   $('cross').addEventListener('change',recompute);
   $('importJson').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(f) importProjectFile(f); e.target.value=''; });
+  $('photoInput').addEventListener('change',e=>{ const fs=e.target.files; if(fs&&fs.length) handlePhotoFiles(fs); e.target.value=''; });
   document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(drawing) cancelDraw(); document.querySelectorAll('.modal:not(.hidden)').forEach(m=>m.classList.add('hidden')); } });
   onDroneChange(true); syncRangeLabels(); updateDirUI();
 }
@@ -831,6 +858,95 @@ function loadSampleIfEmpty(){
   try{ localStorage.setItem(LS+'_seen','1'); }catch(e){}
   setTimeout(()=>toast('Exemplo carregado — edite os vértices ou desenhe a sua área (✏️)'),700);
 }
+
+/* ═══════════════ IMAGENS / EXIF (Fase 2) ═══════════════ */
+let photos=[];            // {name,file,lat,lon,alt,relAlt,time,model,focal,w,h,error,_m}
+let photosVisible=true;
+let _photoUrls=new Set();
+
+function importPhotos(){ $('photoInput').click(); }
+
+async function handlePhotoFiles(fileList){
+  if(typeof exifr==='undefined'){ toast('Leitor de EXIF não carregou (sem conexão?)','error'); return; }
+  const files=[...fileList].filter(f=>/^image\//.test(f.type)||/\.(jpe?g|tiff?|dng|png|heic)$/i.test(f.name));
+  if(!files.length){ toast('Nenhuma imagem reconhecida','error'); return; }
+  toast('Lendo EXIF de '+files.length+' imagem(ns)…');
+  const out=[]; let i=0; const N=Math.min(6,files.length);
+  async function worker(){ while(i<files.length){ const f=files[i++];
+    const rec={name:f.name,file:f,time:f.lastModified||0};
+    try{ const x=await exifr.parse(f,{tiff:true,exif:true,gps:true,xmp:true})||{};
+      rec.lat=x.latitude; rec.lon=x.longitude;
+      rec.relAlt=(x.RelativeAltitude!=null)?parseFloat(x.RelativeAltitude):null;
+      rec.alt=(x.GPSAltitude!=null)?+x.GPSAltitude:null;
+      if(x.DateTimeOriginal){ const d=new Date(x.DateTimeOriginal); if(isFinite(+d)) rec.time=+d; }
+      rec.model=x.Model||x.model||''; rec.focal=(x.FocalLength!=null)?+x.FocalLength:null;
+      rec.w=x.ExifImageWidth||x.ImageWidth||null; rec.h=x.ExifImageHeight||x.ImageHeight||null;
+    }catch(e){ rec.error=true; }
+    out.push(rec); } }
+  await Promise.all(Array.from({length:N},worker));
+  photos=photos.concat(out).sort((a,b)=>(a.time||0)-(b.time||0));
+  renderPhotos();
+  const wg=gpsPhotos().length;
+  toast(`${out.length} imagem(ns) lida(s) · ${wg} com GPS`);
+  if(wg) fitPhotos();
+}
+function gpsPhotos(){ return photos.filter(p=>isFinite(p.lat)&&isFinite(p.lon)); }
+
+function renderPhotos(){
+  renderPhotoSummary(); renderPhotoList();
+  const has=photos.length>0;
+  $('photoActions').classList.toggle('hidden',!has);
+  $('photoClearBtn').classList.toggle('hidden',!has);
+  $('photoList').classList.toggle('hidden',!has);
+  if(!photoLayer) return;
+  photoLayer.clearLayers();
+  if(!photosVisible) return;
+  const gps=gpsPhotos();
+  if(gps.length>1) L.polyline(gps.map(p=>[p.lat,p.lon]),{color:'#60a5fa',weight:1.5,opacity:.55,dashArray:'4,5'}).addTo(photoLayer);
+  gps.forEach(p=>{ const m=L.circleMarker([p.lat,p.lon],{radius:3.4,color:'#0b2a3f',weight:1,fillColor:'#60a5fa',fillOpacity:.95}).addTo(photoLayer); m.on('click',()=>showPhotoPopup(m,p)); p._m=m; });
+}
+function showPhotoPopup(m,p){
+  const url=URL.createObjectURL(p.file); _photoUrls.add(url);
+  const altTxt=p.relAlt!=null?(p.relAlt.toFixed(0)+' m (rel.)'):(p.alt!=null?p.alt.toFixed(0)+' m':'—');
+  const when=p.time?new Date(p.time).toLocaleString('pt-BR'):'';
+  m.bindPopup(`<div style="font:12px system-ui;max-width:200px"><img src="${url}" style="width:100%;border-radius:6px;margin-bottom:5px" alt=""/><b>${esc(p.name)}</b><br>${p.model?esc(p.model)+'<br>':''}Altura: ${esc(altTxt)}<br>${esc(when)}</div>`,{maxWidth:220}).openPopup();
+  m.once('popupclose',()=>{ URL.revokeObjectURL(url); _photoUrls.delete(url); });
+}
+function renderPhotoSummary(){
+  const box=$('photoSummary'); if(!photos.length){ box.textContent=''; return; }
+  const gps=gpsPhotos(); const models=[...new Set(photos.map(p=>p.model).filter(Boolean))];
+  const ts=photos.map(p=>p.time).filter(Boolean).sort((a,b)=>a-b);
+  const alts=gps.map(p=>p.relAlt!=null?p.relAlt:p.alt).filter(v=>v!=null&&isFinite(v));
+  let s=`${photos.length} imagem(ns) · ${gps.length} com GPS`;
+  if(models.length) s+=` · ${models.slice(0,2).join(', ')}${models.length>2?'…':''}`;
+  if(alts.length){ s+=` · alt ${Math.min(...alts).toFixed(0)}–${Math.max(...alts).toFixed(0)} m`; }
+  if(ts.length) s+=` · ${new Date(ts[0]).toLocaleDateString('pt-BR')}`;
+  box.textContent=s;
+}
+function renderPhotoList(){
+  const box=$('photoList'); if(!photos.length){ box.innerHTML=''; return; }
+  box.innerHTML=photos.map((p,i)=>{ const g=isFinite(p.lat)&&isFinite(p.lon); const alt=p.relAlt!=null?p.relAlt:p.alt;
+    const t=p.time?new Date(p.time).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
+    return `<div class="photo-row${g?'':' nogps'}" onclick="flyToPhoto(${i})"><span class="pn">${g?'📍':'⚠️'} ${esc(p.name)}</span><span class="pm">${(alt!=null&&isFinite(alt))?alt.toFixed(0)+'m ':''}${esc(t)}</span></div>`; }).join('');
+}
+function flyToPhoto(i){ const p=photos[i]; if(!p||!isFinite(p.lat)||!isFinite(p.lon)){ toast('Sem GPS nesta imagem'); return; } if(map){ map.setView([p.lat,p.lon],Math.max(map.getZoom(),17)); if(p._m) showPhotoPopup(p._m,p); } }
+function fitPhotos(){ const gps=gpsPhotos(); if(!map||!gps.length){ toast('Sem fotos com GPS'); return; } map.fitBounds(L.latLngBounds(gps.map(p=>[p.lat,p.lon])),{padding:[40,40]}); }
+function togglePhotos(){ photosVisible=!photosVisible; $('photoToggleBtn').textContent=photosVisible?'👁️ Ocultar':'👁️ Mostrar'; renderPhotos(); }
+function clearPhotos(){ if(photos.length&&!confirm('Remover as imagens importadas desta sessão?')) return; photos=[]; _photoUrls.forEach(u=>URL.revokeObjectURL(u)); _photoUrls.clear(); renderPhotos(); }
+function exportPhotoCenters(){ const gps=gpsPhotos(); if(!gps.length){ toast('Sem fotos com GPS','error'); return; }
+  const gj={type:'FeatureCollection',properties:{app:'OrtoFly',tipo:'centros_de_foto',total:gps.length},features:gps.map(p=>({type:'Feature',properties:{nome:p.name,modelo:p.model||null,altura_m:(p.relAlt!=null?p.relAlt:p.alt),data:p.time?new Date(p.time).toISOString():null},geometry:{type:'Point',coordinates:[p.lon,p.lat]}}))};
+  downloadBlob(new Blob([JSON.stringify(gj,null,2)],{type:'application/geo+json'}),'ortofly_centros_'+planName()+'.geojson'); toast('Centros exportados (GeoJSON) ✅'); }
+function convexHull(pts){ if(pts.length<3) return pts.slice();
+  const f=localFrame(pts); const P=pts.map(p=>({xy:f.toXY(p),ll:p}));
+  P.sort((a,b)=>a.xy[0]-b.xy[0]||a.xy[1]-b.xy[1]);
+  const cr=(o,a,b)=>(a.xy[0]-o.xy[0])*(b.xy[1]-o.xy[1])-(a.xy[1]-o.xy[1])*(b.xy[0]-o.xy[0]);
+  const lo=[]; for(const p of P){ while(lo.length>=2&&cr(lo[lo.length-2],lo[lo.length-1],p)<=0) lo.pop(); lo.push(p); }
+  const up=[]; for(let i=P.length-1;i>=0;i--){ const p=P[i]; while(up.length>=2&&cr(up[up.length-2],up[up.length-1],p)<=0) up.pop(); up.push(p); }
+  lo.pop(); up.pop(); return lo.concat(up).map(p=>p.ll);
+}
+function aoiFromPhotos(){ const gps=gpsPhotos(); if(gps.length<3){ toast('Precisa de ≥ 3 fotos com GPS','error'); return; }
+  if(state.polygon.length>=3 && !confirm('Substituir a área atual pela envoltória das fotos?')) return;
+  state.polygon=convexHull(gps.map(p=>[p.lat,p.lon])); renderAOI(); fitAOI(); recompute(); toast('Área definida pela envoltória das fotos ✅'); }
 
 /* ═══════════════ PIX ═══════════════ */
 const PIX_KEY='4c6086a2-4bb8-474b-a4cf-ced8c8d82189', PIX_NAME='MGC Dev', PIX_CITY='Sao Raimundo';
@@ -906,7 +1022,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now()})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.0.0', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.1.0', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));

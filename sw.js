@@ -1,6 +1,6 @@
-/* OrtoFly — Service Worker v1.0.0 */
+/* OrtoFly — Service Worker v1.1.0 */
 
-const CACHE_NAME = 'ortofly-v1';
+const CACHE_NAME = 'ortofly-v2';
 
 self.addEventListener('install', event => {
   self.skipWaiting();

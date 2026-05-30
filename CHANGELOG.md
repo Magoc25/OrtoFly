@@ -5,6 +5,20 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.1.0] — Maio 2026
+
+### 🆕 Adicionado — Fase 2: Importação de imagens & EXIF
+
+- Importação de fotos de drones DJI (múltiplos arquivos) com leitura de **EXIF/GPS** via `exifr`.
+- Plotagem dos **centros das fotos no mapa** + **trilha de voo** (ordem temporal) e popup com miniatura, modelo, altura e data.
+- Resumo das imagens (nº com GPS, modelos, faixa de altura e data) e lista clicável que centraliza a foto no mapa.
+- **Definir a área (AOI) pela envoltória convexa** das fotos — útil para replanejar voos sobre a mesma região.
+- Exportação dos **centros de foto em GeoJSON**.
+
+> As imagens são lidas localmente no navegador (não são enviadas a servidores) e mantidas apenas durante a sessão.
+
+---
+
 ## [1.0.0] — Maio 2026
 
 ### 🚀 Lançamento inicial — Módulo de Planejamento de Voo
