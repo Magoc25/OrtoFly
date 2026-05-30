@@ -367,7 +367,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.6.4</span>
+  <span id="appVersion">© MGC · v1.6.5</span>
 </footer>
 
 <!-- PIX modal -->
@@ -484,8 +484,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.6.4 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.6.4';
+/* ═══════════════ OrtoFly v1.6.5 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.6.5';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -540,6 +540,7 @@ function initMap(){
   map.on('dblclick', e=>{ if(drawing){ L.DomEvent.stop(e); finishDraw(); } });
   gridLayer = L.layerGroup().addTo(map);
   photoLayer = L.layerGroup().addTo(map);
+  map.createPane('rasterPane'); map.getPane('rasterPane').style.zIndex=350;   // raster acima de qualquer mapa-base
   // impede que cliques nos botões sobre o mapa virem vértices/pan no Leaflet
   ['.map-tools','#drawBar'].forEach(sel=>{ const el=document.querySelector(sel); if(el){ L.DomEvent.disableClickPropagation(el); L.DomEvent.on(el,'click',L.DomEvent.stopPropagation); } });
   setTimeout(()=>map.invalidateSize(),200);
@@ -1164,7 +1165,7 @@ let rasterLayer=null, _rasterMeta=null;
 function rasterStatus(t){ const e=$('rasterStatus'); if(e) e.textContent=t||''; }
 function openRaster(){ $('rasterInput').click(); }
 function tiffPhotometric(ab){ try{ const dv=new DataView(ab); const le=dv.getUint16(0,false)===0x4949; const g16=o=>dv.getUint16(o,le),g32=o=>dv.getUint32(o,le); if(g16(2)!==42) return null; const ifd=g32(4),n=g16(ifd); for(let i=0;i<n;i++){ const o=ifd+2+i*12; if(g16(o)===262) return (g16(o+2)===3)?g16(o+8):g32(o+8); } return null; }catch(e){ return null; } }
-function buildRasterLayer(){ const {gr,mn,mx,bands,ycc}=_rasterMeta; const o={georaster:gr,opacity:(+$('rasterOpacity').value||100)/100,resolution:256};
+function buildRasterLayer(){ const {gr,mn,mx,bands,ycc}=_rasterMeta; const o={georaster:gr,opacity:(+$('rasterOpacity').value||100)/100,resolution:256,pane:'rasterPane'};
   if(bands<3){ o.pixelValuesToColorFn=v=>{ const val=Array.isArray(v)?v[0]:v; if(val==null||isNaN(val)||val===gr.noDataValue) return null; return cmapCSS((val-mn)/((mx-mn)||1),$('rasterCmap').value); }; }
   else { // RGB explícito: banda 0=R, 1=G, 2=B; alpha/nodata transparente; auto-escala 8/16-bit
     const mxs=(gr.maxs||[]).slice(0,3).filter(x=>x!=null&&isFinite(x)); const peak=mxs.length?Math.max(...mxs):255; const sc=peak>255?255/peak:1;
@@ -1351,7 +1352,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&c.app===APP_VERSION&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now(),app:APP_VERSION})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.6.4', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.6.5', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));

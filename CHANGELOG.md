@@ -5,6 +5,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.6.5] — Maio 2026
+
+### 🐛 Correções
+- O **raster (GeoTIFF) sumia ao trocar para o mapa OSM** — agora ele fica numa camada própria **acima de qualquer mapa-base**, então dá para sobrepor o raster tanto no **Satélite (Esri)** quanto no **Mapa (OSM)**.
+
+---
+
 ## [1.6.4] — Maio 2026
 
 ### ✨ Melhorado — GeoTIFF YCbCr (JPEG)
