@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<!--
+  OrtoFly — Planejamento de Voo e Ortomosaico para Drones DJI
+  © 2026 MGC Dev — Marlon Gomes da Costa
+  Projeto pessoal. Proibido uso comercial sem autorização.
+  https://github.com/Magoc25/OrtoFly
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>OrtoFly — Planejamento de Voo para Drones DJI</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co; worker-src 'self' blob:; manifest-src 'self'; font-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none';" />
+<meta name="description" content="Planeje voos fotogramétricos, calcule GSD e sobreposição e exporte missões (KMZ/WPML, KML, CSV) para drones DJI — no navegador, offline." />
+<meta name="theme-color" content="#0e7c63" />
+<link rel="manifest" href="./manifest.json" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="OrtoFly" />
+<link rel="apple-touch-icon" href="./icon-192.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<style>
+:root{
+  --bg:#0a141d; --surface:#10212e; --surface2:#16293a; --border:rgba(148,163,184,.18);
+  --text:#e8eff5; --muted:#9fb3c2; --hint:#6b8092;
+  --accent:#14b88a; --accent2:#36d399; --navy:#0b2a3f; --danger:#f87171; --warn:#fbbf24;
+  --radius:14px; --radius-sm:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:linear-gradient(180deg,var(--navy) 0,var(--bg) 220px);
+  color:var(--text); font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:14px; line-height:1.45; display:flex; flex-direction:column; min-height:100dvh;
+}
+a{color:var(--accent2)}
+.hidden{display:none !important}
+button{font-family:inherit}
+header{
+  display:flex; align-items:center; gap:10px; padding:8px 14px; flex-shrink:0;
+  border-bottom:1px solid var(--border);
+}
+header .logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px;letter-spacing:.2px}
+header .logo img{width:26px;height:26px;border-radius:6px}
+header .grow{flex:1}
+.icon-btn{
+  background:rgba(255,255,255,.06); border:1px solid var(--border); color:var(--text);
+  width:38px;height:38px;min-width:38px; border-radius:10px; cursor:pointer; font-size:16px;
+  display:inline-flex;align-items:center;justify-content:center;
+}
+.icon-btn:hover{background:rgba(255,255,255,.12)}
+.wrap{display:flex; flex:1; min-height:0}
+#map{flex:1; min-height:0; background:#0d1b26; z-index:0}
+.panel{
+  width:392px; max-width:100%; flex-shrink:0; overflow-y:auto; padding:12px 12px 18px;
+  background:var(--surface); border-left:1px solid var(--border);
+}
+.card{background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:12px; margin-bottom:12px}
+.card h2{margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted)}
+.row{display:flex; gap:8px; align-items:center; margin-bottom:9px}
+.row:last-child{margin-bottom:0}
+.field{display:flex; flex-direction:column; gap:4px; flex:1}
+.field label{font-size:12px; color:var(--muted)}
+input,select{
+  width:100%; background:var(--bg); color:var(--text); border:1px solid var(--border);
+  border-radius:var(--radius-sm); padding:8px 9px; font-size:14px;
+}
+input[type=range]{padding:0; accent-color:var(--accent)}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.range-row{display:flex;align-items:center;gap:8px}
+.range-row input[type=range]{flex:1}
+.range-val{min-width:54px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.btn{
+  background:rgba(255,255,255,.06); border:1px solid var(--border); color:var(--text);
+  border-radius:var(--radius-sm); padding:9px 12px; cursor:pointer; font-size:13.5px; font-weight:600;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+}
+.btn:hover{background:rgba(255,255,255,.12)}
+.btn.primary{background:linear-gradient(180deg,var(--accent),#0f9c73); border-color:transparent; color:#04160f}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.block{width:100%}
+.btn.sm{padding:7px 9px;font-size:12.5px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out .o{background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:8px 9px}
+.out .o .k{font-size:11px;color:var(--hint)}
+.out .o .v{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+.out .o .u{font-size:11px;color:var(--muted);font-weight:500}
+.hint{font-size:11.5px;color:var(--hint);margin:6px 0 0}
+.note{font-size:12px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);color:#fde68a;border-radius:8px;padding:7px 9px;margin-top:8px}
+.spec{font-size:11.5px;color:var(--muted);margin-top:4px}
+.empty{color:var(--hint);font-size:12.5px;text-align:center;padding:6px 0}
+/* footer */
+footer{
+  display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;
+  padding:8px 10px; border-top:1px solid var(--border); flex-shrink:0; background:var(--surface);
+}
+.footer-btn{
+  font-size:11.5px; padding:5px 11px; border-radius:14px; border:1px solid var(--border);
+  background:rgba(255,255,255,.04); color:var(--muted); cursor:pointer;
+}
+.footer-btn:hover{background:rgba(255,255,255,.1);color:var(--text)}
+#appVersion{font-size:10px;color:var(--hint);user-select:none;margin-left:2px}
+/* map controls */
+.map-tools{position:absolute; top:10px; left:10px; z-index:500; display:flex; flex-direction:column; gap:6px}
+.map-tools .icon-btn{box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.draw-bar{
+  position:absolute; bottom:14px; left:50%; transform:translateX(-50%); z-index:500;
+  background:var(--surface2); border:1px solid var(--border); border-radius:30px; padding:6px 8px;
+  display:none; gap:6px; align-items:center; box-shadow:0 4px 16px rgba(0,0,0,.5);
+}
+.draw-bar.active{display:flex}
+.draw-bar span{font-size:12.5px;color:var(--muted);padding:0 6px}
+.vtx{width:14px;height:14px;border-radius:50%;background:var(--accent);border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.5)}
+.leaflet-container{font-family:inherit}
+/* modals */
+.modal{position:fixed; inset:0; z-index:2000; display:flex; align-items:center; justify-content:center; padding:16px}
+.modal-backdrop{position:absolute; inset:0; background:rgba(3,9,14,.72); backdrop-filter:blur(2px)}
+.modal-content{position:relative; background:var(--surface); border:1px solid var(--border); border-radius:16px; width:100%; max-width:420px; max-height:88dvh; overflow-y:auto; padding:16px}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.modal-title{font-weight:700;font-size:16px}
+.modal-close-btn{background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1}
+.primary-btn{background:linear-gradient(180deg,var(--accent),#0f9c73);color:#04160f;border:none;border-radius:10px;padding:11px;font-weight:700;cursor:pointer;font-size:14px}
+.secondary-btn{background:rgba(255,255,255,.06);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px;font-weight:600;cursor:pointer}
+.review{border:1px solid var(--border);border-radius:10px;padding:9px 10px;margin-bottom:8px;background:var(--surface2)}
+.review-h{display:flex;align-items:center;gap:7px;font-size:13px}
+.review-stars{color:#facc15;letter-spacing:1px}
+.review-c{font-size:13px;color:var(--muted);margin-top:4px;white-space:pre-wrap;word-break:break-word}
+.muted{color:var(--muted)}
+.proj-item{display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:7px;background:var(--surface2)}
+.proj-item .pn{flex:1;font-weight:600;font-size:13.5px;cursor:pointer;word-break:break-word}
+.proj-item .pd{font-size:11px;color:var(--hint)}
+#toast{position:fixed;bottom:64px;left:50%;transform:translateX(-50%) translateY(20px);z-index:3000;background:var(--navy);border:1px solid var(--border);color:var(--text);padding:10px 16px;border-radius:24px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;max-width:90vw;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.error{background:#3b1414;border-color:rgba(248,113,113,.5)}
+@media (max-width:860px){
+  .wrap{flex-direction:column}
+  #map{height:46dvh;flex:none}
+  .panel{width:100%;border-left:none;border-top:1px solid var(--border)}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><img src="./icon-192.png" alt="OrtoFly" /> OrtoFly</div>
+  <div class="grow"></div>
+  <button class="icon-btn" title="Projetos salvos" onclick="openProjects()">📂</button>
+  <button class="icon-btn" title="Como usar" onclick="openAbout()">❓</button>
+</header>
+
+<div class="wrap">
+  <div id="map">
+    <div class="map-tools">
+      <button class="icon-btn" title="Desenhar área" onclick="startDraw()">✏️</button>
+      <button class="icon-btn" title="Limpar área" onclick="clearArea()">🗑️</button>
+      <button class="icon-btn" title="Minha localização" onclick="locateMe()">📍</button>
+    </div>
+    <div class="draw-bar" id="drawBar">
+      <span>Toque no mapa para marcar os vértices · <b id="drawCount">0</b> ponto(s)</span>
+      <button class="btn sm primary" onclick="finishDraw()">Concluir</button>
+      <button class="btn sm" onclick="cancelDraw()">Cancelar</button>
+    </div>
+  </div>
+
+  <aside class="panel">
+    <!-- Projeto -->
+    <div class="card">
+      <h2>Projeto</h2>
+      <div class="row">
+        <div class="field"><label for="projName">Nome</label><input id="projName" type="text" maxlength="60" placeholder="Meu voo" /></div>
+      </div>
+      <div class="btn-grid">
+        <button class="btn sm" onclick="saveProject()">💾 Salvar</button>
+        <button class="btn sm" onclick="newProject()">✨ Novo</button>
+        <button class="btn sm" onclick="exportProjectJSON()">⬇ JSON</button>
+        <button class="btn sm" onclick="document.getElementById('importJson').click()">⬆ JSON</button>
+      </div>
+      <input type="file" id="importJson" accept=".json,.geojson" class="hidden" />
+    </div>
+
+    <!-- Drone / câmera -->
+    <div class="card">
+      <h2>Drone / Câmera</h2>
+      <div class="row"><div class="field"><label for="drone">Modelo</label><select id="drone"></select></div></div>
+      <div id="customCam" class="hidden">
+        <div class="row">
+          <div class="field"><label>Sensor L (mm)</label><input id="cSw" type="number" step="0.01" /></div>
+          <div class="field"><label>Sensor A (mm)</label><input id="cSh" type="number" step="0.01" /></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Focal (mm)</label><input id="cFocal" type="number" step="0.01" /></div>
+          <div class="field"><label>Imagem L (px)</label><input id="cIw" type="number" step="1" /></div>
+          <div class="field"><label>Imagem A (px)</label><input id="cIh" type="number" step="1" /></div>
+        </div>
+      </div>
+      <div class="spec" id="camSpec"></div>
+    </div>
+
+    <!-- Parâmetros de voo -->
+    <div class="card">
+      <h2>Parâmetros de voo</h2>
+      <div class="field" style="margin-bottom:9px">
+        <label for="alt">Altura de voo (m) — <span id="altGsd">—</span></label>
+        <div class="range-row">
+          <input id="alt" type="range" min="10" max="500" step="1" value="100" />
+          <input id="altNum" type="number" min="5" max="1500" step="1" value="100" style="width:78px" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field"><label for="gsdTarget">GSD desejado (cm/px)</label><input id="gsdTarget" type="number" step="0.1" placeholder="ex: 3.0" /></div>
+        <button class="btn sm" style="align-self:flex-end" onclick="applyTargetGsd()">↳ altura</button>
+      </div>
+      <div class="field" style="margin:4px 0 9px">
+        <label>Sobreposição frontal — <span id="foVal">75%</span></label>
+        <input id="fo" type="range" min="50" max="90" step="1" value="75" />
+      </div>
+      <div class="field" style="margin-bottom:9px">
+        <label>Sobreposição lateral — <span id="soVal">65%</span></label>
+        <input id="so" type="range" min="40" max="85" step="1" value="65" />
+      </div>
+      <div class="row">
+        <div class="field"><label for="speed">Velocidade (m/s)</label><input id="speed" type="number" min="1" max="20" step="0.5" value="7" /></div>
+        <div class="field"><label for="dir">Direção das linhas</label>
+          <select id="dir">
+            <option value="auto">Automática (lado maior)</option>
+            <option value="0">Norte–Sul (0°)</option>
+            <option value="90">Leste–Oeste (90°)</option>
+            <option value="custom">Personalizada…</option>
+          </select>
+        </div>
+      </div>
+      <div class="row" id="customDirRow" style="display:none">
+        <div class="field"><label for="dirDeg">Ângulo (°)</label><input id="dirDeg" type="number" min="0" max="359" step="1" value="0" /></div>
+      </div>
+      <div class="row">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer">
+          <input type="checkbox" id="cross" style="width:auto" /> Grade cruzada (cross-grid, melhor 3D)
+        </label>
+      </div>
+    </div>
+
+    <!-- Resultados -->
+    <div class="card">
+      <h2>Resultados</h2>
+      <div class="out" id="outputs">
+        <div class="o"><div class="k">Área</div><div class="v" id="oArea">—</div><div class="u" id="oAreaU">ha</div></div>
+        <div class="o"><div class="k">GSD</div><div class="v" id="oGsd">—</div><div class="u">cm/px</div></div>
+        <div class="o"><div class="k">Pegada no solo</div><div class="v" id="oFoot">—</div><div class="u">L × A (m)</div></div>
+        <div class="o"><div class="k">Fotos</div><div class="v" id="oPhotos">—</div><div class="u" id="oLines">— linhas</div></div>
+        <div class="o"><div class="k">Espaço fotos / linhas</div><div class="v" id="oSpacing">—</div><div class="u">m</div></div>
+        <div class="o"><div class="k">Distância</div><div class="v" id="oDist">—</div><div class="u">km</div></div>
+        <div class="o"><div class="k">Tempo de voo</div><div class="v" id="oTime">—</div><div class="u">min (est.)</div></div>
+        <div class="o"><div class="k">Baterias</div><div class="v" id="oBatt">—</div><div class="u">≈</div></div>
+      </div>
+      <div id="planNote"></div>
+    </div>
+
+    <!-- Exportar -->
+    <div class="card">
+      <h2>Exportar missão</h2>
+      <div class="btn-grid">
+        <button class="btn primary" onclick="exportKMZ()">📦 KMZ (WPML)</button>
+        <button class="btn" onclick="exportKML()">🌍 KML</button>
+        <button class="btn" onclick="exportGeoJSON()">🗺️ GeoJSON</button>
+        <button class="btn" onclick="exportCSV()">📄 CSV (Litchi)</button>
+      </div>
+      <p class="hint">KMZ (WPML) importa no <b>DJI Pilot 2</b> (drones Enterprise). Para <b>DJI Fly</b> (Mini/Air), prefira KML ou CSV. Ferramenta de planejamento — confira ANAC/DECEA antes de voar.</p>
+    </div>
+  </aside>
+</div>
+
+<footer>
+  <button class="footer-btn" onclick="window.open('https://github.com/Magoc25/OrtoFly','_blank')" title="GitHub">
+    <svg aria-hidden="true" viewBox="0 0 16 16" width="13" height="13" fill="currentColor" style="vertical-align:-.15em;margin-right:3px">
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+    </svg>GitHub
+  </button>
+  <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
+  <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
+  <span id="appVersion">© MGC · v1.0.0</span>
+</footer>
+
+<!-- PIX modal -->
+<div id="pixModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closePixModal()"></div>
+  <div class="modal-content">
+    <div class="modal-header"><div class="modal-title">☕ Apoiar o Projeto</div><button class="modal-close-btn" type="button" onclick="closePixModal()">✕</button></div>
+    <p style="font-size:.85rem;color:var(--muted);margin:0 0 12px">O OrtoFly é gratuito. Se foi útil, considere apoiar via PIX.</p>
+    <div id="pixQrContainer" style="text-align:center;margin-bottom:.75rem;min-height:210px;display:flex;align-items:center;justify-content:center"></div>
+    <div style="text-align:center;margin-bottom:1rem"><button type="button" id="pixCopyBtn" onclick="copyPixCode()" class="secondary-btn">Copiar código PIX</button></div>
+    <hr style="border-color:var(--border);margin:.75rem 0" />
+    <button type="button" onclick="closePixModal();openReviewsModal('form')" class="primary-btn" style="width:100%">✅ Já fiz o PIX — quero avaliar</button>
+  </div>
+</div>
+
+<!-- Reviews modal -->
+<div id="reviewsModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closeReviewsModal()"></div>
+  <div class="modal-content">
+    <div class="modal-header"><div class="modal-title">⭐ Avaliações</div><button class="modal-close-btn" type="button" onclick="closeReviewsModal()">✕</button></div>
+    <div id="reviewListMode">
+      <div id="reviewsList" style="max-height:300px;overflow-y:auto;margin-bottom:.75rem"></div>
+      <hr style="border-color:var(--border);margin:.5rem 0 .75rem" />
+      <button type="button" onclick="closeReviewsModal();openPixModal()" class="primary-btn" style="width:100%">☕ Apoiar via PIX para avaliar</button>
+    </div>
+    <div id="reviewFormMode" class="hidden">
+      <p style="font-size:.82rem;color:var(--muted);margin-bottom:.75rem">Obrigado pelo apoio! Deixe sua avaliação.</p>
+      <div style="text-align:center;margin-bottom:.5rem">
+        <span class="star-btn" onclick="setReviewStar(1)" style="font-size:1.8rem;cursor:pointer;color:#4b5563">★</span>
+        <span class="star-btn" onclick="setReviewStar(2)" style="font-size:1.8rem;cursor:pointer;color:#4b5563">★</span>
+        <span class="star-btn" onclick="setReviewStar(3)" style="font-size:1.8rem;cursor:pointer;color:#4b5563">★</span>
+        <span class="star-btn" onclick="setReviewStar(4)" style="font-size:1.8rem;cursor:pointer;color:#4b5563">★</span>
+        <span class="star-btn" onclick="setReviewStar(5)" style="font-size:1.8rem;cursor:pointer;color:#4b5563">★</span>
+      </div>
+      <input type="hidden" id="reviewStarInput" value="0" />
+      <div style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:.5rem">
+        <label style="font-size:.85rem">Seu nome *<input id="reviewNameInput" type="text" maxlength="40" placeholder="Ex: João" /></label>
+        <label style="font-size:.85rem">Comentário (opcional)<textarea id="reviewCommentInput" rows="2" maxlength="200" placeholder="O que achou do app?" style="resize:none;width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px"></textarea></label>
+        <label style="display:flex;flex-direction:row;align-items:center;gap:.5rem;font-size:.82rem"><input type="checkbox" id="reviewDonatedCheck" checked style="width:auto" /> Já apoiei via PIX ☕</label>
+      </div>
+      <button type="button" onclick="submitReview()" class="primary-btn" style="width:100%">Enviar avaliação</button>
+    </div>
+    <div id="reviewThankYou" class="hidden" style="text-align:center;padding:1rem 0">
+      <p style="font-size:1.5rem;margin-bottom:.5rem">🎉</p>
+      <p style="font-weight:600;margin-bottom:.25rem">Obrigado pela avaliação!</p>
+      <p style="font-size:.82rem;color:var(--muted);margin-bottom:1rem">Sua opinião ajuda outros usuários a conhecer o app.</p>
+      <button type="button" onclick="openReviewsModal('list')" class="secondary-btn">Ver todas as avaliações</button>
+    </div>
+  </div>
+</div>
+
+<!-- Projects modal -->
+<div id="projectsModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closeProjects()"></div>
+  <div class="modal-content">
+    <div class="modal-header"><div class="modal-title">📂 Projetos salvos</div><button class="modal-close-btn" type="button" onclick="closeProjects()">✕</button></div>
+    <div id="projectsList"></div>
+  </div>
+</div>
+
+<!-- About modal -->
+<div id="aboutModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closeAbout()"></div>
+  <div class="modal-content">
+    <div class="modal-header"><div class="modal-title">❓ Como usar o OrtoFly</div><button class="modal-close-btn" type="button" onclick="closeAbout()">✕</button></div>
+    <ol style="padding-left:18px;font-size:13.5px;color:var(--text);line-height:1.6">
+      <li>Toque em <b>✏️</b> e marque os vértices da área a mapear. Toque em <b>Concluir</b>.</li>
+      <li>Escolha o <b>drone</b> e ajuste <b>altura</b>, <b>GSD</b> e <b>sobreposições</b>.</li>
+      <li>Veja os <b>resultados</b> (GSD, fotos, tempo, baterias) atualizarem em tempo real.</li>
+      <li><b>Exporte</b> a missão: KMZ (Pilot 2), KML, GeoJSON ou CSV (Litchi).</li>
+      <li><b>Salve</b> o projeto — fica no seu dispositivo. Exporte em JSON para backup.</li>
+    </ol>
+    <div class="note" style="margin-top:6px">🚦 O OrtoFly não controla o drone. A operação é responsabilidade do piloto — verifique o cadastro no <b>SISANT (ANAC)</b> e a autorização no <b>SARPAS (DECEA)</b> antes de voar.</div>
+    <p class="hint" style="margin-top:10px">Documentos: <a href="./PRIVACY.md" target="_blank">Privacidade</a> · <a href="./TERMS.md" target="_blank">Termos</a> · <a href="./SECURITY.md" target="_blank">Segurança</a> · <a href="./ACCESSIBILITY.md" target="_blank">Acessibilidade</a></p>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ═══════════════ OrtoFly v1.0.0 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.0.0';
+const APP_NAME    = 'OrtoFly';
+const LS = 'ortofly';
+
+/* ---------- utils ---------- */
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+const $ = id => document.getElementById(id);
+const fmt = (n,d=0) => (isFinite(n) ? Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d}) : '—');
+let _toastT;
+function toast(msg, type){ const t=$('toast'); t.textContent=msg; t.className='show'+(type==='error'?' error':''); clearTimeout(_toastT); _toastT=setTimeout(()=>t.className='',2600); }
+function downloadBlob(blob, filename){
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url; a.download=filename; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+const slug = s => String(s||'voo').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'').slice(0,40) || 'voo';
+
+/* ---------- banco de drones DJI ---------- */
+/* sw/sh = sensor (mm), focal (mm), iw/ih = imagem (px), fmin = autonomia (min), cruise = veloc. padrão (m/s)
+   wpml = {drone:[enum,sub], payload:[enum,idx]} quando há mapeamento oficial (Pilot 2/Enterprise) */
+const DRONES = [
+  {id:'mini3pro', name:'DJI Mini 3 Pro',         sw:9.6,  sh:7.2,  focal:6.72,  iw:8064, ih:6048, fmin:34, cruise:6},
+  {id:'mini4pro', name:'DJI Mini 4 Pro',         sw:9.6,  sh:7.2,  focal:6.72,  iw:8064, ih:6048, fmin:45, cruise:6},
+  {id:'air3',     name:'DJI Air 3 (grande-ang.)',sw:9.6,  sh:7.2,  focal:6.72,  iw:8064, ih:6048, fmin:46, cruise:8},
+  {id:'air3s',    name:'DJI Air 3S (1")',         sw:13.2, sh:8.8,  focal:8.8,   iw:8192, ih:6144, fmin:45, cruise:8},
+  {id:'mavic3',   name:'DJI Mavic 3 / Classic',  sw:17.3, sh:13.0, focal:12.29, iw:5280, ih:3956, fmin:46, cruise:8},
+  {id:'mavic3pro',name:'DJI Mavic 3 Pro (Hassel.)',sw:17.3,sh:13.0, focal:12.29, iw:5280, ih:3956, fmin:43, cruise:8},
+  {id:'mavic3e',  name:'DJI Mavic 3E (Enterprise)',sw:17.3,sh:13.0, focal:12.29, iw:5280, ih:3956, fmin:45, cruise:9, wpml:{drone:[77,0],payload:[66,0]}},
+  {id:'m30',      name:'DJI M30 (Enterprise)',   sw:6.4,  sh:4.8,  focal:4.5,   iw:8000, ih:6000, fmin:41, cruise:9, wpml:{drone:[67,0],payload:[52,0]}},
+  {id:'phantom4rtk',name:'DJI Phantom 4 RTK / Pro',sw:13.2,sh:8.8, focal:8.8,   iw:5472, ih:3648, fmin:30, cruise:7},
+  {id:'mavic2pro',name:'DJI Mavic 2 Pro (1")',    sw:13.2, sh:8.8,  focal:10.26, iw:5472, ih:3648, fmin:31, cruise:7},
+  {id:'mini2',    name:'DJI Mini 2 / SE',         sw:6.17, sh:4.55, focal:4.49,  iw:4000, ih:3000, fmin:31, cruise:6},
+  {id:'custom',   name:'Personalizado…',          sw:13.2, sh:8.8,  focal:8.8,   iw:5472, ih:3648, fmin:30, cruise:7}
+];
+
+/* ---------- estado ---------- */
+const state = { polygon:[], droneId:'mavic3', name:'', lastPlan:null };
+
+/* ═══════════════ MAPA ═══════════════ */
+let map, aoiLayer=null, vtxLayers=[], gridLayer=null;
+const vtxIcon = L.divIcon({className:'', html:'<div class="vtx"></div>', iconSize:[14,14], iconAnchor:[7,7]});
+
+function initMap(){
+  map = L.map('map',{zoomControl:true, doubleClickZoom:true, attributionControl:true}).setView([-7.019,-45.480], 16);
+  const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {maxZoom:21, maxNativeZoom:19, attribution:'Tiles © Esri'});
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {maxZoom:19, attribution:'© OpenStreetMap'});
+  esri.addTo(map);
+  L.control.layers({'Satélite (Esri)':esri,'Mapa (OSM)':osm}, null, {position:'topright'}).addTo(map);
+  map.on('click', onMapClick);
+  map.on('dblclick', e=>{ if(drawing){ L.DomEvent.stop(e); finishDraw(); } });
+  gridLayer = L.layerGroup().addTo(map);
+  setTimeout(()=>map.invalidateSize(),200);
+  window.addEventListener('resize', ()=>map.invalidateSize());
+}
+
+/* ---------- desenho da AOI ---------- */
+let drawing=false, draftPts=[], draftLayer=null;
+function startDraw(){ if(!map){ toast('Mapa indisponível','error'); return; } clearArea(); drawing=true; draftPts=[]; map.doubleClickZoom.disable(); $('drawBar').classList.add('active'); $('drawCount').textContent='0'; map.getContainer().style.cursor='crosshair'; }
+function onMapClick(e){ if(!drawing) return; draftPts.push([e.latlng.lat,e.latlng.lng]); updateDraft(); }
+function updateDraft(){ if(draftLayer){draftLayer.remove();draftLayer=null;} if(draftPts.length){ draftLayer=L.polygon(draftPts,{color:'#14b88a',weight:2,dashArray:'5,6',fillOpacity:.06}).addTo(map);} $('drawCount').textContent=draftPts.length; }
+function finishDraw(){ if(draftPts.length<3){ toast('Marque pelo menos 3 vértices'); return; } state.polygon=draftPts.slice(); endDraw(); renderAOI(); fitAOI(); recompute(); toast('Área definida ✅'); }
+function cancelDraw(){ endDraw(); }
+function endDraw(){ drawing=false; draftPts=[]; if(draftLayer){draftLayer.remove();draftLayer=null;} $('drawBar').classList.remove('active'); map.getContainer().style.cursor=''; try{map.doubleClickZoom.enable();}catch(e){} }
+function clearArea(){ state.polygon=[]; clearAOILayers(); if(gridLayer) gridLayer.clearLayers(); state.lastPlan=null; renderOutputs(null); }
+function clearAOILayers(){ if(aoiLayer){aoiLayer.remove();aoiLayer=null;} vtxLayers.forEach(m=>m.remove()); vtxLayers=[]; }
+function renderAOI(){
+  if(!map) return;
+  clearAOILayers(); if(state.polygon.length<3) return;
+  aoiLayer = L.polygon(state.polygon,{color:'#36d399',weight:2,fillColor:'#14b88a',fillOpacity:.07}).addTo(map);
+  state.polygon.forEach((p,i)=>{
+    const m=L.marker(p,{draggable:true,icon:vtxIcon,keyboard:false}).addTo(map);
+    m.on('drag', ev=>{ state.polygon[i]=[ev.latlng.lat,ev.latlng.lng]; if(aoiLayer) aoiLayer.setLatLngs(state.polygon); scheduleRecompute(); });
+    m.on('dragend', recompute);
+    m.on('dblclick', ev=>{ L.DomEvent.stop(ev); if(state.polygon.length>3){ state.polygon.splice(i,1); renderAOI(); recompute(); } });
+    vtxLayers.push(m);
+  });
+}
+function fitAOI(){ if(!map||state.polygon.length<3) return; map.fitBounds(L.polygon(state.polygon).getBounds(),{padding:[40,40]}); }
+function locateMe(){ if(!map) return; map.locate({setView:true,maxZoom:17}); map.once('locationerror',()=>toast('Não foi possível obter a localização','error')); }
+
+/* ═══════════════ GEOMETRIA / PLANEJAMENTO ═══════════════ */
+function localFrame(poly){
+  let lat0=0,lon0=0; poly.forEach(p=>{lat0+=p[0];lon0+=p[1];}); lat0/=poly.length; lon0/=poly.length;
+  const mLat=110540, mLon=111320*Math.cos(lat0*Math.PI/180);
+  return {
+    toXY:p=>[(p[1]-lon0)*mLon,(p[0]-lat0)*mLat],
+    toLL:(x,y)=>[lat0+y/mLat, lon0+x/mLon]
+  };
+}
+function polyAreaM2(poly){ // shoelace em metros locais
+  if(poly.length<3) return 0;
+  const f=localFrame(poly); const xy=poly.map(f.toXY); let a=0;
+  for(let i=0;i<xy.length;i++){ const j=(i+1)%xy.length; a += xy[i][0]*xy[j][1]-xy[j][0]*xy[i][1]; }
+  return Math.abs(a/2);
+}
+function autoBearing(poly){ // direção do lado mais longo (graus, 0=N)
+  const f=localFrame(poly); const xy=poly.map(f.toXY); let best=0,bl=-1;
+  for(let i=0;i<xy.length;i++){ const j=(i+1)%xy.length; const dx=xy[j][0]-xy[i][0], dy=xy[j][1]-xy[i][1]; const l=Math.hypot(dx,dy); if(l>bl){bl=l; best=(Math.atan2(dx,dy)*180/Math.PI+360)%360;} }
+  return best;
+}
+function generateGrid(poly, lineSpacing, photoSpacing, bearingDeg){
+  if(poly.length<3 || lineSpacing<=0 || photoSpacing<=0) return null;
+  const f=localFrame(poly); const P=poly.map(f.toXY);
+  const b=bearingDeg*Math.PI/180; const dv=[Math.sin(b),Math.cos(b)]; const av=[Math.cos(b),-Math.sin(b)];
+  const dot=(p,v)=>p[0]*v[0]+p[1]*v[1];
+  let aMin=Infinity,aMax=-Infinity; P.forEach(p=>{const a=dot(p,av); if(a<aMin)aMin=a; if(a>aMax)aMax=a;});
+  if((aMax-aMin)/lineSpacing > 2500) return {tooBig:true};
+  const segs=[];
+  for(let off=aMin+lineSpacing/2; off<aMax; off+=lineSpacing){
+    const hits=[];
+    for(let i=0;i<P.length;i++){
+      const V1=P[i], V2=P[(i+1)%P.length]; const a1=dot(V1,av), a2=dot(V2,av); const den=a2-a1;
+      if(Math.abs(den)<1e-9) continue; const t=(off-a1)/den;
+      if(t>=0 && t<1){ const Pt=[V1[0]+t*(V2[0]-V1[0]), V1[1]+t*(V2[1]-V1[1])]; hits.push([dot(Pt,dv),Pt]); }
+    }
+    if(hits.length<2) continue; hits.sort((m,n)=>m[0]-n[0]);
+    for(let k=0;k+1<hits.length;k+=2) segs.push({A:hits[k][1], B:hits[k+1][1]});
+  }
+  // ordena os spans por offset já garantido; monta waypoints boustrophedon
+  const waypoints=[], pathLL=[], pathXY=[], lineGroups=[]; let flip=false, idx=0, lenTotal=0, prev=null;
+  for(const s of segs){
+    let A=s.A, B=s.B; if(flip){const t=A;A=B;B=t;}
+    const dx=B[0]-A[0], dy=B[1]-A[1]; const len=Math.hypot(dx,dy); if(len<0.5){flip=!flip;continue;}
+    const heading=(Math.atan2(dx,dy)*180/Math.PI+360)%360; const ux=dx/len, uy=dy/len;
+    const grp=[];
+    const pushPt=(x,y)=>{ const ll=f.toLL(x,y); waypoints.push({idx:idx++,lat:ll[0],lon:ll[1],heading}); pathLL.push(ll); if(prev) lenTotal+=Math.hypot(x-prev[0],y-prev[1]); prev=[x,y]; pathXY.push([x,y]); grp.push(ll); };
+    for(let d=0; d<len; d+=photoSpacing) pushPt(A[0]+ux*d, A[1]+uy*d);
+    pushPt(B[0],B[1]);
+    lineGroups.push(grp); flip=!flip;
+  }
+  return {waypoints, pathLL, lineGroups, nLines:segs.length, lengthM:lenTotal};
+}
+
+let _recT;
+function scheduleRecompute(){ clearTimeout(_recT); _recT=setTimeout(recompute,140); }
+
+function activeCam(){
+  const d=DRONES.find(x=>x.id===state.droneId)||DRONES[0];
+  if(d.id==='custom'){
+    return {...d, sw:+$('cSw').value||d.sw, sh:+$('cSh').value||d.sh, focal:+$('cFocal').value||d.focal, iw:+$('cIw').value||d.iw, ih:+$('cIh').value||d.ih};
+  }
+  return d;
+}
+function currentBearing(poly){
+  const dir=$('dir').value;
+  if(dir==='auto') return poly.length>=3 ? autoBearing(poly) : 0;
+  if(dir==='custom') return (+$('dirDeg').value||0);
+  return +dir;
+}
+function gsdFor(cam, alt){ return (cam.sw*alt*100)/(cam.focal*cam.iw); } // cm/px
+
+function recompute(){
+  const cam=activeCam();
+  const alt=Math.max(5,+$('altNum').value||100);
+  const fo=(+$('fo').value)/100, so=(+$('so').value)/100;
+  const speed=Math.max(1,+$('speed').value||7);
+  const gsd=gsdFor(cam,alt);                 // cm/px
+  const gsdM=gsd/100;                          // m/px
+  const footAcross=gsdM*cam.iw, footAlong=gsdM*cam.ih; // m
+  const lineSpacing=footAcross*(1-so);
+  const photoSpacing=footAlong*(1-fo);
+  $('altGsd').textContent='GSD '+fmt(gsd,1)+' cm/px';
+  $('camSpec').textContent=`Sensor ${fmt(cam.sw,1)}×${fmt(cam.sh,1)} mm · focal ${fmt(cam.focal,1)} mm · ${fmt(cam.iw*cam.ih/1e6,0)} MP (${cam.iw}×${cam.ih})`;
+
+  const plan={cam,alt,fo,so,speed,gsd,footAcross,footAlong,lineSpacing,photoSpacing};
+  if(state.polygon.length<3){ state.lastPlan=null; if(gridLayer) gridLayer.clearLayers(); renderOutputs(plan); return; }
+
+  const bearing=currentBearing(state.polygon);
+  let g=generateGrid(state.polygon, lineSpacing, photoSpacing, bearing);
+  if(g && state.polygon.length>=3 && $('cross').checked && g && !g.tooBig){
+    const g2=generateGrid(state.polygon, lineSpacing, photoSpacing, (bearing+90)%360);
+    if(g2 && !g2.tooBig){
+      const off=g.waypoints.length;
+      g2.waypoints.forEach(w=>{ w.idx+=off; g.waypoints.push(w); });
+      g.pathLL=g.pathLL.concat(g2.pathLL); g.lineGroups=g.lineGroups.concat(g2.lineGroups);
+      g.nLines+=g2.nLines; g.lengthM+=g2.lengthM;
+    }
+  }
+  plan.grid=g; plan.bearing=bearing; state.lastPlan=plan;
+  renderGrid(g); renderOutputs(plan);
+}
+
+function renderGrid(g){
+  if(!gridLayer) return;
+  gridLayer.clearLayers(); if(!g || g.tooBig || !g.pathLL || !g.pathLL.length) return;
+  L.polyline(g.pathLL,{color:'#ffd166',weight:2,opacity:.9}).addTo(gridLayer);
+  if(g.waypoints.length<=1200){
+    g.waypoints.forEach(w=>L.circleMarker([w.lat,w.lon],{radius:2.2,color:'#fff',weight:1,fillColor:'#14b88a',fillOpacity:1}).addTo(gridLayer));
+  }
+}
+
+function renderOutputs(plan){
+  const set=(id,v)=>{$(id).textContent=v;};
+  if(!plan){ ['oArea','oGsd','oFoot','oPhotos','oSpacing','oDist','oTime','oBatt'].forEach(i=>set(i,'—')); set('oLines','— linhas'); $('planNote').innerHTML=''; return; }
+  set('oGsd', fmt(plan.gsd,1));
+  set('oFoot', fmt(plan.footAcross,0)+' × '+fmt(plan.footAlong,0));
+  set('oSpacing', fmt(plan.photoSpacing,0)+' / '+fmt(plan.lineSpacing,0));
+  const areaM2=state.polygon.length>=3?polyAreaM2(state.polygon):0;
+  const ha=areaM2/1e4;
+  set('oArea', ha>=1?fmt(ha,1):fmt(areaM2,0)); $('oAreaU').textContent= ha>=1?'ha':'m²';
+  const g=plan.grid;
+  if(!g){ ['oPhotos','oDist','oTime','oBatt'].forEach(i=>set(i,'—')); set('oLines','— linhas'); $('planNote').innerHTML='<p class="empty">Desenhe a área (✏️) para gerar a grade de voo.</p>'; return; }
+  if(g.tooBig){ ['oPhotos','oDist','oTime','oBatt'].forEach(i=>set(i,'—')); set('oLines','— linhas'); $('planNote').innerHTML='<div class="note">Área muito grande para esta sobreposição/altura. Aumente a altura, reduza a sobreposição ou divida a área.</div>'; return; }
+  const nP=g.waypoints.length, transit=g.nLines*0.0; // transições já contam no pathLL
+  const distKm=g.lengthM/1000;
+  const tSec=g.lengthM/plan.speed + g.nLines*9 + nP*0.7 + plan.alt*1.5; // voo + curvas + fotos + subida
+  const tMin=tSec/60;
+  const usable=plan.cam.fmin*0.78; const batt=Math.max(1,Math.ceil(tMin/usable));
+  set('oPhotos', fmt(nP,0)); set('oLines', fmt(g.nLines,0)+' linhas');
+  set('oDist', fmt(distKm,2)); set('oTime', fmt(tMin,0)); set('oBatt', fmt(batt,0));
+  let note='';
+  if(!plan.cam.wpml) note+='<div class="note">'+esc(plan.cam.name)+' é drone consumer (DJI Fly) — o KMZ de waypoints pode não importar; use <b>KML</b> ou <b>CSV (Litchi)</b>.</div>';
+  if(nP>1200) note+='<p class="hint">Muitos waypoints ('+fmt(nP,0)+') — pontos individuais ocultos no mapa para desempenho. Missões muito longas podem exceder limites do app de voo.</p>';
+  $('planNote').innerHTML=note;
+}
+
+/* ═══════════════ EXPORTAÇÕES ═══════════════ */
+function ensurePlan(){
+  if(state.polygon.length<3){ toast('Desenhe a área primeiro','error'); return false; }
+  if(!state.lastPlan||!state.lastPlan.grid||state.lastPlan.grid.tooBig||!state.lastPlan.grid.waypoints.length){ toast('Sem grade de voo válida','error'); return false; }
+  return true;
+}
+function planName(){ return slug($('projName').value||'voo'); }
+
+function buildTemplateKml(plan){
+  const wp=plan.grid.waypoints, alt=plan.alt, sp=plan.speed, cam=plan.cam, now=Date.now();
+  const sec=Math.max(2,Math.min(30,Math.round(alt))); // takeoff security height
+  const droneXml = cam.wpml ? `
+    <wpml:droneInfo>
+      <wpml:droneEnumValue>${cam.wpml.drone[0]}</wpml:droneEnumValue>
+      <wpml:droneSubEnumValue>${cam.wpml.drone[1]}</wpml:droneSubEnumValue>
+    </wpml:droneInfo>
+    <wpml:payloadInfo>
+      <wpml:payloadEnumValue>${cam.wpml.payload[0]}</wpml:payloadEnumValue>
+      <wpml:payloadPositionIndex>${cam.wpml.payload[1]}</wpml:payloadPositionIndex>
+    </wpml:payloadInfo>` : '';
+  const places = wp.map(w=>`    <Placemark>
+      <Point><coordinates>${w.lon.toFixed(8)},${w.lat.toFixed(8)}</coordinates></Point>
+      <wpml:index>${w.idx}</wpml:index>
+      <wpml:useGlobalHeight>1</wpml:useGlobalHeight>
+      <wpml:height>${alt}</wpml:height>
+      <wpml:ellipsoidHeight>${alt}</wpml:ellipsoidHeight>
+      <wpml:useGlobalSpeed>1</wpml:useGlobalSpeed>
+      <wpml:useGlobalHeadingParam>1</wpml:useGlobalHeadingParam>
+      <wpml:useGlobalTurnParam>1</wpml:useGlobalTurnParam>
+      <wpml:gimbalPitchAngle>-90</wpml:gimbalPitchAngle>
+      <wpml:actionGroup>
+        <wpml:actionGroupId>${w.idx}</wpml:actionGroupId>
+        <wpml:actionGroupStartIndex>${w.idx}</wpml:actionGroupStartIndex>
+        <wpml:actionGroupEndIndex>${w.idx}</wpml:actionGroupEndIndex>
+        <wpml:actionGroupMode>sequence</wpml:actionGroupMode>
+        <wpml:actionTrigger><wpml:actionTriggerType>reachPoint</wpml:actionTriggerType></wpml:actionTrigger>
+        <wpml:action>
+          <wpml:actionId>0</wpml:actionId>
+          <wpml:actionActuatorFunc>gimbalRotate</wpml:actionActuatorFunc>
+          <wpml:actionActuatorFuncParam>
+            <wpml:gimbalRotateMode>absoluteAngle</wpml:gimbalRotateMode>
+            <wpml:gimbalPitchRotateEnable>1</wpml:gimbalPitchRotateEnable>
+            <wpml:gimbalPitchRotateAngle>-90</wpml:gimbalPitchRotateAngle>
+            <wpml:gimbalRollRotateEnable>0</wpml:gimbalRollRotateEnable>
+            <wpml:gimbalRollRotateAngle>0</wpml:gimbalRollRotateAngle>
+            <wpml:gimbalYawRotateEnable>0</wpml:gimbalYawRotateEnable>
+            <wpml:gimbalYawRotateAngle>0</wpml:gimbalYawRotateAngle>
+            <wpml:gimbalRotateTimeEnable>0</wpml:gimbalRotateTimeEnable>
+            <wpml:gimbalRotateTime>0</wpml:gimbalRotateTime>
+            <wpml:payloadPositionIndex>0</wpml:payloadPositionIndex>
+          </wpml:actionActuatorFuncParam>
+        </wpml:action>
+        <wpml:action>
+          <wpml:actionId>1</wpml:actionId>
+          <wpml:actionActuatorFunc>takePhoto</wpml:actionActuatorFunc>
+          <wpml:actionActuatorFuncParam>
+            <wpml:fileSuffix>wp${w.idx}</wpml:fileSuffix>
+            <wpml:payloadPositionIndex>0</wpml:payloadPositionIndex>
+          </wpml:actionActuatorFuncParam>
+        </wpml:action>
+      </wpml:actionGroup>
+    </Placemark>`).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.dji.com/wpmz/1.0.2">
+<Document>
+  <wpml:author>OrtoFly</wpml:author>
+  <wpml:createTime>${now}</wpml:createTime>
+  <wpml:updateTime>${now}</wpml:updateTime>
+  <wpml:missionConfig>
+    <wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode>
+    <wpml:finishAction>goHome</wpml:finishAction>
+    <wpml:exitOnRCLost>goContinue</wpml:exitOnRCLost>
+    <wpml:executeRCLostAction>hover</wpml:executeRCLostAction>
+    <wpml:takeOffSecurityHeight>${sec}</wpml:takeOffSecurityHeight>
+    <wpml:globalTransitionalSpeed>${sp}</wpml:globalTransitionalSpeed>${droneXml}
+  </wpml:missionConfig>
+  <Folder>
+    <wpml:templateType>waypoint</wpml:templateType>
+    <wpml:templateId>0</wpml:templateId>
+    <wpml:waylineCoordinateSysParam>
+      <wpml:coordinateMode>WGS84</wpml:coordinateMode>
+      <wpml:heightMode>relativeToStartPoint</wpml:heightMode>
+    </wpml:waylineCoordinateSysParam>
+    <wpml:autoFlightSpeed>${sp}</wpml:autoFlightSpeed>
+    <wpml:globalHeight>${alt}</wpml:globalHeight>
+    <wpml:gimbalPitchMode>usePointSetting</wpml:gimbalPitchMode>
+    <wpml:globalWaypointHeadingParam>
+      <wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode>
+    </wpml:globalWaypointHeadingParam>
+    <wpml:globalWaypointTurnMode>toPointAndStopWithDiscontinuityCurvature</wpml:globalWaypointTurnMode>
+    <wpml:globalUseStraightLine>1</wpml:globalUseStraightLine>
+${places}
+  </Folder>
+</Document>
+</kml>`;
+}
+async function exportKMZ(){
+  if(!ensurePlan()) return;
+  try{
+    const xml=buildTemplateKml(state.lastPlan);
+    const zip=new JSZip(); zip.folder('wpmz').file('template.kml', xml);
+    const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.google-earth.kmz'});
+    downloadBlob(blob, 'ortofly_'+planName()+'.kmz');
+    toast('KMZ (WPML) exportado ✅');
+  }catch(e){ console.error(e); toast('Erro ao gerar KMZ: '+e.message,'error'); }
+}
+function closedRing(poly){ const r=poly.map(p=>p[1].toFixed(8)+','+p[0].toFixed(8)+',0'); r.push(r[0]); return r.join(' '); }
+function exportKML(){
+  if(state.polygon.length<3){ toast('Desenhe a área primeiro','error'); return; }
+  const plan=state.lastPlan; const wp=plan&&plan.grid&&!plan.grid.tooBig?plan.grid.waypoints:[];
+  const path=wp.map(w=>w.lon.toFixed(8)+','+w.lat.toFixed(8)+','+plan.alt).join(' ');
+  const pts=wp.map((w,i)=>`    <Placemark><name>${i+1}</name><Point><altitudeMode>relativeToGround</altitudeMode><coordinates>${w.lon.toFixed(8)},${w.lat.toFixed(8)},${plan.alt}</coordinates></Point></Placemark>`).join('\n');
+  const kml=`<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+  <name>OrtoFly - ${esc($('projName').value||'voo')}</name>
+  <Style id="aoi"><LineStyle><color>ff36d399</color><width>2</width></LineStyle><PolyStyle><color>2014b88a</color></PolyStyle></Style>
+  <Style id="rota"><LineStyle><color>ff66d1ff</color><width>2</width></LineStyle></Style>
+  <Placemark><name>Área</name><styleUrl>#aoi</styleUrl><Polygon><outerBoundaryIs><LinearRing><coordinates>${closedRing(state.polygon)}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>
+  ${path?`<Placemark><name>Rota de voo</name><styleUrl>#rota</styleUrl><LineString><altitudeMode>relativeToGround</altitudeMode><coordinates>${path}</coordinates></LineString></Placemark>`:''}
+${pts}
+</Document></kml>`;
+  downloadBlob(new Blob([kml],{type:'application/vnd.google-earth.kml+xml'}), 'ortofly_'+planName()+'.kml');
+  toast('KML exportado ✅');
+}
+function exportGeoJSON(){
+  if(state.polygon.length<3){ toast('Desenhe a área primeiro','error'); return; }
+  const plan=state.lastPlan; const wp=plan&&plan.grid&&!plan.grid.tooBig?plan.grid.waypoints:[];
+  const feats=[{type:'Feature',properties:{tipo:'area'},geometry:{type:'Polygon',coordinates:[state.polygon.map(p=>[p[1],p[0]]).concat([[state.polygon[0][1],state.polygon[0][0]]])]}}];
+  if(wp.length){
+    feats.push({type:'Feature',properties:{tipo:'rota',altura_m:plan.alt},geometry:{type:'LineString',coordinates:wp.map(w=>[w.lon,w.lat])}});
+    wp.forEach(w=>feats.push({type:'Feature',properties:{tipo:'foto',index:w.idx,heading:Math.round(w.heading),altura_m:plan.alt},geometry:{type:'Point',coordinates:[w.lon,w.lat]}}));
+  }
+  const gj={type:'FeatureCollection',properties:{app:'OrtoFly',versao:APP_VERSION,gsd_cm_px:plan?+plan.gsd.toFixed(2):null,drone:plan?plan.cam.name:null},features:feats};
+  downloadBlob(new Blob([JSON.stringify(gj,null,2)],{type:'application/geo+json'}), 'ortofly_'+planName()+'.geojson');
+  toast('GeoJSON exportado ✅');
+}
+function exportCSV(){
+  if(!ensurePlan()) return;
+  const plan=state.lastPlan, wp=plan.grid.waypoints, alt=plan.alt, sp=plan.speed, dist=plan.photoSpacing.toFixed(1);
+  const head='latitude,longitude,altitude(m),heading(deg),curvesize(m),rotationdir,gimbalmode,gimbalpitchangle,altitudemode,speed(m/s),photo_timeinterval,photo_distinterval';
+  const rows=wp.map(w=>`${w.lat.toFixed(8)},${w.lon.toFixed(8)},${alt},${Math.round(w.heading)},0,0,2,-90,1,${sp},-1,${dist}`);
+  downloadBlob(new Blob([head+'\n'+rows.join('\n')],{type:'text/csv'}), 'ortofly_'+planName()+'.csv');
+  toast('CSV (Litchi) exportado ✅');
+}
+
+/* ═══════════════ PROJETOS (localStorage) ═══════════════ */
+function loadProjects(){ try{ return JSON.parse(localStorage.getItem(LS+'_projects')||'[]'); }catch(e){ console.error('[Projetos] load',e); toast('Erro ao ler projetos','error'); return []; } }
+function storeProjects(arr){ try{ localStorage.setItem(LS+'_projects',JSON.stringify(arr)); }catch(e){ console.error(e); toast('Erro ao salvar','error'); } }
+function snapshot(){ return {polygon:state.polygon, droneId:state.droneId, params:{alt:+$('altNum').value, fo:+$('fo').value, so:+$('so').value, speed:+$('speed').value, dir:$('dir').value, dirDeg:+$('dirDeg').value, cross:$('cross').checked,
+  cSw:+$('cSw').value,cSh:+$('cSh').value,cFocal:+$('cFocal').value,cIw:+$('cIw').value,cIh:+$('cIh').value}}; }
+function applySnapshot(d){
+  state.polygon=(d.polygon||[]).slice(); state.droneId=d.droneId||'mavic3'; $('drone').value=state.droneId; onDroneChange(true);
+  const p=d.params||{};
+  if(p.alt){$('alt').value=p.alt;$('altNum').value=p.alt;}
+  if(p.fo){$('fo').value=p.fo;} if(p.so){$('so').value=p.so;}
+  if(p.speed){$('speed').value=p.speed;} if(p.dir){$('dir').value=p.dir;} if(p.dirDeg!=null){$('dirDeg').value=p.dirDeg;}
+  $('cross').checked=!!p.cross;
+  if(state.droneId==='custom'){ ['cSw','cSh','cFocal','cIw','cIh'].forEach(k=>{ if(p[k]) $(k).value=p[k]; }); }
+  syncRangeLabels(); updateDirUI();
+  renderAOI(); if(state.polygon.length>=3) fitAOI(); recompute();
+}
+function saveProject(){
+  const name=($('projName').value||'').trim(); if(!name){ toast('Dê um nome ao projeto','error'); $('projName').focus(); return; }
+  if(state.polygon.length<3){ toast('Desenhe a área antes de salvar','error'); return; }
+  const arr=loadProjects(); const id=slug(name)+'_'+Date.now().toString(36);
+  const existing=arr.find(p=>p.name.toLowerCase()===name.toLowerCase());
+  const rec={id: existing?existing.id:id, name, ts:Date.now(), data:snapshot()};
+  if(existing){ Object.assign(existing,rec); } else { arr.unshift(rec); }
+  storeProjects(arr); state.name=name; toast('Projeto salvo ✅');
+}
+function newProject(){ if(state.polygon.length>=3 && !confirm('Começar um novo projeto? A área atual será limpa.')) return; clearArea(); $('projName').value=''; state.name=''; }
+function openProjects(){ const arr=loadProjects(); const box=$('projectsList');
+  box.innerHTML = arr.length ? arr.map(p=>`<div class="proj-item">
+      <div><div class="pn" onclick="openProject('${p.id}')">${esc(p.name)}</div><div class="pd">${new Date(p.ts).toLocaleString('pt-BR')}</div></div>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn sm" onclick="openProject('${p.id}')">Abrir</button>
+        <button class="btn sm" onclick="deleteProject('${p.id}')" title="Excluir">🗑️</button>
+      </div></div>`).join('') : '<p class="empty">Nenhum projeto salvo ainda.</p>';
+  $('projectsModal').classList.remove('hidden');
+}
+function closeProjects(){ $('projectsModal').classList.add('hidden'); }
+function openProject(id){ const p=loadProjects().find(x=>x.id===id); if(!p) return; $('projName').value=p.name; state.name=p.name; applySnapshot(p.data); closeProjects(); toast('Projeto carregado ✅'); }
+function deleteProject(id){ if(!confirm('Excluir este projeto?')) return; storeProjects(loadProjects().filter(p=>p.id!==id)); openProjects(); toast('Projeto excluído'); }
+function exportProjectJSON(){
+  const data={app:'OrtoFly',versao:APP_VERSION,nome:$('projName').value||'voo',exportado:new Date().toISOString(),projeto:snapshot()};
+  downloadBlob(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}), 'ortofly_'+planName()+'.json');
+  toast('Projeto exportado (JSON) ✅');
+}
+function importProjectFile(file){
+  const reader=new FileReader();
+  reader.onload=()=>{ try{
+    const j=JSON.parse(reader.result);
+    if(j.projeto){ if(j.nome) $('projName').value=j.nome; applySnapshot(j.projeto); toast('Projeto importado ✅'); }
+    else if(j.type==='FeatureCollection'){ // importa só a área de um GeoJSON
+      const poly=(j.features||[]).find(f=>f.geometry&&f.geometry.type==='Polygon');
+      if(!poly){ toast('GeoJSON sem polígono de área','error'); return; }
+      state.polygon=poly.geometry.coordinates[0].slice(0,-1).map(c=>[c[1],c[0]]);
+      renderAOI(); fitAOI(); recompute(); toast('Área importada do GeoJSON ✅');
+    } else toast('Arquivo não reconhecido','error');
+  }catch(e){ console.error(e); toast('Erro ao importar: '+e.message,'error'); } };
+  reader.readAsText(file);
+}
+
+/* ═══════════════ UI wiring ═══════════════ */
+function syncRangeLabels(){ $('altNum').value=$('alt').value; $('foVal').textContent=$('fo').value+'%'; $('soVal').textContent=$('so').value+'%'; }
+function updateDirUI(){ $('customDirRow').style.display = $('dir').value==='custom' ? 'flex':'none'; }
+function onDroneChange(silent){ state.droneId=$('drone').value; const d=DRONES.find(x=>x.id===state.droneId)||DRONES[0];
+  $('customCam').classList.toggle('hidden', d.id!=='custom');
+  if(d.id!=='custom'){ $('cSw').value=d.sw;$('cSh').value=d.sh;$('cFocal').value=d.focal;$('cIw').value=d.iw;$('cIh').value=d.ih; }
+  if(!silent){ if($('speed').value==='' || !state._touchedSpeed) $('speed').value=d.cruise; }
+  if(!silent) recompute();
+}
+function applyTargetGsd(){ const t=+$('gsdTarget').value; if(!t||t<=0){ toast('Informe um GSD alvo (cm/px)','error'); return; }
+  const cam=activeCam(); const alt=(t*cam.focal*cam.iw)/(cam.sw*100); const a=Math.max(5,Math.min(1500,Math.round(alt)));
+  $('alt').value=Math.min(500,a); $('altNum').value=a; recompute(); toast('Altura ajustada para '+a+' m'); }
+
+function wire(){
+  // drones
+  $('drone').innerHTML=DRONES.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  $('drone').value=state.droneId;
+  $('drone').addEventListener('change',()=>onDroneChange(false));
+  ['cSw','cSh','cFocal','cIw','cIh'].forEach(id=>$(id).addEventListener('input',scheduleRecompute));
+  // alt range <-> num
+  $('alt').addEventListener('input',()=>{ $('altNum').value=$('alt').value; scheduleRecompute(); });
+  $('altNum').addEventListener('input',()=>{ let v=+$('altNum').value||0; if(v>=10&&v<=500)$('alt').value=v; scheduleRecompute(); });
+  $('fo').addEventListener('input',()=>{ $('foVal').textContent=$('fo').value+'%'; scheduleRecompute(); });
+  $('so').addEventListener('input',()=>{ $('soVal').textContent=$('so').value+'%'; scheduleRecompute(); });
+  $('speed').addEventListener('input',()=>{ state._touchedSpeed=true; scheduleRecompute(); });
+  $('dir').addEventListener('change',()=>{ updateDirUI(); recompute(); });
+  $('dirDeg').addEventListener('input',scheduleRecompute);
+  $('cross').addEventListener('change',recompute);
+  $('importJson').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(f) importProjectFile(f); e.target.value=''; });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(drawing) cancelDraw(); document.querySelectorAll('.modal:not(.hidden)').forEach(m=>m.classList.add('hidden')); } });
+  onDroneChange(true); syncRangeLabels(); updateDirUI();
+}
+function openAbout(){ $('aboutModal').classList.remove('hidden'); }
+function closeAbout(){ $('aboutModal').classList.add('hidden'); }
+
+/* primeira execução: AOI de exemplo para demonstração */
+function loadSampleIfEmpty(){
+  if(loadProjects().length) { return; }
+  if(localStorage.getItem(LS+'_seen')) return;
+  state.polygon=[[-7.0175,-45.4825],[-7.0175,-45.4775],[-7.0215,-45.4775],[-7.0215,-45.4825]];
+  $('projName').value='Exemplo — talhão';
+  renderAOI(); fitAOI(); recompute();
+  try{ localStorage.setItem(LS+'_seen','1'); }catch(e){}
+  setTimeout(()=>toast('Exemplo carregado — edite os vértices ou desenhe a sua área (✏️)'),700);
+}
+
+/* ═══════════════ PIX ═══════════════ */
+const PIX_KEY='4c6086a2-4bb8-474b-a4cf-ced8c8d82189', PIX_NAME='MGC Dev', PIX_CITY='Sao Raimundo';
+function pixEmv(key,name,city,amount){
+  const f=(id,val)=>{const v=String(val);return id+String(v.length).padStart(2,'0')+v;};
+  const mai=f('26',f('00','BR.GOV.BCB.PIX')+f('01',key));
+  const adf=f('62',f('05','***'));
+  let emv=f('00','01')+mai+f('52','0000')+f('53','986')+(amount&&parseFloat(amount)>0?f('54',parseFloat(amount).toFixed(2)):'')+f('58','BR')+f('59',name.slice(0,25))+f('60',city.slice(0,15))+adf+'6304';
+  let crc=0xFFFF; for(let i=0;i<emv.length;i++){ crc^=emv.charCodeAt(i)<<8; for(let j=0;j<8;j++){ crc=(crc&0x8000)?((crc<<1)^0x1021):(crc<<1); crc&=0xFFFF; } }
+  return emv+crc.toString(16).toUpperCase().padStart(4,'0');
+}
+let _pixCode='';
+function openPixModal(){
+  $('pixModal').classList.remove('hidden');
+  _pixCode=pixEmv(PIX_KEY,PIX_NAME,PIX_CITY,'');
+  const enc=encodeURIComponent(_pixCode);
+  const qr1='https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=4&data='+enc;
+  const qr2='https://chart.googleapis.com/chart?chs=200x200&cht=qr&choe=UTF-8&chl='+enc;
+  $('pixQrContainer').innerHTML=`<img id="pixQrImg" src="${qr1}" width="200" height="200" style="border-radius:8px;background:#fff;padding:6px;display:block;margin:0 auto" alt="QR Code PIX" /><p id="pixQrFallback" style="display:none;color:var(--muted);font-size:.8rem;text-align:center;margin-top:.5rem">Copie o código abaixo para pagar.</p>`;
+  $('pixQrImg').onerror=function(){ this.src=qr2; this.onerror=function(){ this.style.display='none'; $('pixQrFallback').style.display='block'; }; };
+}
+function closePixModal(){ $('pixModal').classList.add('hidden'); }
+function copyPixCode(){ const btn=$('pixCopyBtn');
+  navigator.clipboard.writeText(_pixCode).then(()=>{ btn.textContent='✅ Copiado!'; setTimeout(()=>btn.textContent='Copiar código PIX',2000); })
+  .catch(()=>{ const t=document.createElement('textarea'); t.value=_pixCode; document.body.appendChild(t); t.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(t); btn.textContent='✅ Copiado!'; setTimeout(()=>btn.textContent='Copiar código PIX',2000); });
+}
+
+/* ═══════════════ REVIEWS (Supabase compartilhado) ═══════════════ */
+const PROJECT_ID='ortofly';
+const REV_SB_URL='https://qvddbmlhucxndvbakvyd.supabase.co';
+const REV_SB_KEY='sb_publishable_0Saq2ZYXgGEApcbvWAahtw_VQ9b9iTq';
+let revClient=null;
+function initRevClient(){ try{ if(window.supabase&&typeof window.supabase.createClient==='function'){ revClient=window.supabase.createClient(REV_SB_URL,REV_SB_KEY); } }catch(e){ console.error('[Reviews] init:',e); } }
+initRevClient();
+let localReviews=(()=>{ try{ return JSON.parse(localStorage.getItem(LS+'_reviews')||'[]'); }catch(e){ return []; } })();
+let sharedReviews=[];
+function mergeReviews(local,shared){ const map=new Map(); [...shared,...local].forEach(r=>map.set(r.id,r)); return [...map.values()].sort((a,b)=>new Date(b.ts||0).getTime()-new Date(a.ts||0).getTime()); }
+async function loadSharedReviews(){ if(!revClient) return; try{ const {data,error}=await revClient.from('app_reviews').select('*').eq('project_id',PROJECT_ID).order('ts',{ascending:false}).limit(200); if(!error&&data) sharedReviews=data; }catch(e){ console.error('[Reviews] load',e); } }
+async function pushReviewToCloud(review){ if(!revClient) return {ok:false,reason:'Supabase não carregou'}; try{ const {error}=await revClient.from('app_reviews').insert({id:review.id,project_id:PROJECT_ID,name:review.name,comment:review.comment,stars:review.stars,donated:review.donated,date:review.date,ts:review.ts}); if(error) return {ok:false,reason:error.message}; return {ok:true}; }catch(e){ console.error('[Reviews] push',e); return {ok:false,reason:e.message}; } }
+function renderReviewsList(){ const all=mergeReviews(localReviews,sharedReviews); const box=$('reviewsList');
+  if(!all.length){ box.innerHTML='<p class="empty">Ainda não há avaliações. Seja o primeiro!</p>'; return; }
+  box.innerHTML=all.map(r=>{ const s=Math.max(0,Math.min(5,r.stars||0)); const stars='★'.repeat(s)+'☆'.repeat(5-s);
+    return `<div class="review"><div class="review-h"><span class="review-stars">${stars}</span><strong>${esc(r.name||'Anônimo')}</strong><span class="muted" style="margin-left:auto;font-size:11px">${esc(r.date||'')}</span></div>${r.comment?`<div class="review-c">${esc(r.comment)}</div>`:''}</div>`; }).join('');
+}
+async function openReviewsModal(mode='list'){
+  if(!revClient) initRevClient();
+  $('reviewsModal').classList.remove('hidden');
+  $('reviewListMode').classList.toggle('hidden',mode!=='list');
+  $('reviewFormMode').classList.toggle('hidden',mode!=='form');
+  $('reviewThankYou').classList.add('hidden');
+  if(mode==='list'){ $('reviewsList').innerHTML='<p class="empty">Carregando…</p>'; await loadSharedReviews(); renderReviewsList(); }
+  if(mode==='form'){ setReviewStar(0); $('reviewNameInput').value=''; $('reviewCommentInput').value=''; $('reviewDonatedCheck').checked=true; }
+}
+function closeReviewsModal(){ $('reviewsModal').classList.add('hidden'); }
+function setReviewStar(n){ $('reviewStarInput').value=n; document.querySelectorAll('.star-btn').forEach((b,i)=>b.style.color=i<n?'#facc15':'#4b5563'); }
+async function submitReview(){
+  const stars=parseInt($('reviewStarInput').value||'0'); const name=$('reviewNameInput').value.trim(); const comment=$('reviewCommentInput').value.trim(); const donated=$('reviewDonatedCheck').checked;
+  if(!stars){ alert('Selecione uma avaliação de 1 a 5 estrelas.'); return; }
+  if(!name){ alert('Digite seu nome.'); return; }
+  const now=new Date();
+  const review={id:`${PROJECT_ID}_${now.getTime()}_${Math.random().toString(36).slice(2,7)}`,name,comment,stars,donated,date:now.toLocaleDateString('pt-BR'),ts:now.toISOString()};
+  localReviews=[review,...localReviews]; try{ localStorage.setItem(LS+'_reviews',JSON.stringify(localReviews)); }catch(e){}
+  renderReviewsList();
+  const result=await pushReviewToCloud(review);
+  $('reviewFormMode').classList.add('hidden');
+  const ty=document.querySelector('#reviewThankYou p:nth-child(3)');
+  if(ty) ty.textContent=result&&result.ok?'✅ Avaliação sincronizada! Outros usuários já podem ver.':`⚠️ Salvo só neste dispositivo. Motivo: ${result&&result.reason||'desconhecido'}`;
+  $('reviewThankYou').classList.remove('hidden');
+}
+
+/* ═══════════════ Versão automática + banner + ping ═══════════════ */
+(async()=>{ const el=$('appVersion'); if(!el) return; const CK=LS+'_app_version', TTL=6*60*60*1000;
+  const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
+  try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now()})); }catch(e){}
+})();
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.0.0', CK=LS+'_update_check', TTL=24*60*60*1000;
+  const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
+  try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
+    if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));
+    const remote=data.value.replace(/^v/,''); const p=v=>v.split('.').map(Number); const [ra,rb,rc]=p(remote),[la,lb,lc]=p(LOCAL_VERSION);
+    if(!(ra>la||(ra===la&&rb>lb)||(ra===la&&rb===lb&&rc>lc))) return;
+    const b=document.createElement('div'); b.id='updateBanner';
+    b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9999;background:#1a73e8;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:10px 16px;font-size:14px;gap:12px';
+    b.innerHTML=`<span>🆕 Nova versão disponível (v${esc(remote)}) — recarregue para atualizar.</span><div style="display:flex;gap:8px;flex-shrink:0"><button onclick="location.reload(true)" style="background:#fff;color:#1a73e8;border:none;border-radius:6px;padding:4px 12px;cursor:pointer;font-weight:600">Recarregar</button><button onclick="document.getElementById('updateBanner').remove()" style="background:transparent;color:#fff;border:none;font-size:18px;cursor:pointer;line-height:1">✕</button></div>`;
+    document.body.prepend(b);
+  }catch(e){}
+})();
+(async()=>{ if(!revClient) return; const today=new Date().toISOString().slice(0,10); const PK=LS+'_ping_date';
+  if(localStorage.getItem(PK)===today) return; let id=localStorage.getItem(LS+'_device_id'); if(!id){ id=crypto.randomUUID(); localStorage.setItem(LS+'_device_id',id); }
+  try{ await revClient.from('app_pings').upsert({app_name:'OrtoFly',version:APP_VERSION,device_id:id,ping_date:today},{onConflict:'app_name,device_id,ping_date',ignoreDuplicates:true}); localStorage.setItem(PK,today); }catch(e){}
+})();
+
+/* ═══════════════ init ═══════════════ */
+function init(){ try{ initMap(); }catch(e){ console.error('[Map] init falhou',e); toast('Mapa indisponível (sem conexão?) — controles e cálculos seguem funcionando','error'); } wire(); recompute(); loadSampleIfEmpty(); }
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
+if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
+</script>
+</body>
+</html>

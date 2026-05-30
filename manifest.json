@@ -1,0 +1,28 @@
+{
+  "name": "OrtoFly — Planejamento de Voo e Ortomosaico para Drones DJI",
+  "short_name": "OrtoFly",
+  "description": "Planeje voos fotogramétricos, calcule GSD e sobreposição e exporte missões (KMZ/WPML, KML, CSV) para drones DJI — 100% no navegador, offline.",
+  "start_url": "./ortofly.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "background_color": "#0b2a3f",
+  "theme_color": "#0e7c63",
+  "lang": "pt-BR",
+  "categories": ["productivity", "utilities", "navigation"],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
