@@ -10,7 +10,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>OrtoFly — Planejamento de Voo e Ortomosaico para Drones DJI</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co blob:; worker-src 'self' blob:; manifest-src 'self'; font-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none';" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co blob: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; font-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none';" />
 <meta name="description" content="Planeje voos fotogramétricos, calcule GSD e sobreposição e exporte missões (KMZ/WPML, KML, CSV) para drones DJI — no navegador, offline." />
 <meta name="theme-color" content="#0e7c63" />
 <link rel="manifest" href="./manifest.json" />
@@ -197,7 +197,8 @@ footer{
     <div class="tabs" role="tablist">
       <button class="tab active" data-tab="voo" onclick="setTab('voo')">✈️ Voo</button>
       <button class="tab" data-tab="imagens" onclick="setTab('imagens')">📷 Imagens</button>
-      <button class="tab" data-tab="ver" onclick="setTab('ver')">🗺️ Visualizar</button>
+      <button class="tab" data-tab="ver" onclick="setTab('ver')">🗺️ Ver</button>
+      <button class="tab" data-tab="proc" onclick="setTab('proc')">⚙️ Processar</button>
     </div>
 
     <!-- ABA: Imagens -->
@@ -356,6 +357,38 @@ footer{
       <p class="hint">KMZ (WPML) importa no <b>DJI Pilot 2</b> (drones Enterprise). Para <b>DJI Fly</b> (Mini/Air), prefira KML ou CSV. Ferramenta de planejamento — confira ANAC/DECEA antes de voar.</p>
     </div>
     </div><!-- /tab-voo -->
+
+    <!-- ABA: Processar (NodeODM / Fase 5) -->
+    <div id="tab-proc" class="tab-panel hidden">
+      <div class="card">
+        <h2>⚙️ Processar (NodeODM)</h2>
+        <p class="hint" style="margin-top:0">Gera ortomosaico/DSM/3D a partir das fotos, num servidor <b>NodeODM</b> rodando no seu PC (via Docker).</p>
+        <div class="row">
+          <div class="field"><label for="odmUrl">URL do NodeODM</label><input id="odmUrl" type="text" placeholder="http://localhost:3000" /></div>
+          <button class="btn sm" style="align-self:flex-end" onclick="odmTest()">Testar</button>
+        </div>
+        <div id="odmStatus" class="spec"></div>
+      </div>
+      <div class="card">
+        <h2>Nova tarefa</h2>
+        <button class="btn block" onclick="odmPickImages()">📷 Selecionar imagens</button>
+        <input type="file" id="odmImages" accept="image/*,.tif,.tiff" multiple class="hidden" />
+        <div id="odmImgCount" class="spec" style="margin-top:6px"></div>
+        <div class="row" style="margin-top:8px"><div class="field"><label for="odmName">Nome</label><input id="odmName" type="text" maxlength="40" placeholder="meu-voo" /></div></div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;cursor:pointer"><input type="checkbox" id="odmFast" checked style="width:auto" /> Rápido (fast-orthophoto)</label>
+        <button class="btn primary block" onclick="odmCreate()">🚀 Enviar e processar</button>
+        <p class="hint">Dezenas–centenas de fotos. Datasets enormes podem pesar no upload.</p>
+      </div>
+      <div class="card hidden" id="odmTaskCard">
+        <h2>Tarefa</h2>
+        <div id="odmTaskStatus" class="spec"></div>
+        <div class="btn-grid" style="margin-top:8px">
+          <button class="btn sm" onclick="odmRefresh()">↻ Atualizar</button>
+          <button class="btn sm" onclick="odmCancel()">✖ Cancelar</button>
+        </div>
+        <div id="odmOutputs" class="hidden" style="margin-top:8px"></div>
+      </div>
+    </div>
   </aside>
 </div>
 
@@ -367,7 +400,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.6.5</span>
+  <span id="appVersion">© MGC · v1.7.0</span>
 </footer>
 
 <!-- PIX modal -->
@@ -484,8 +517,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.6.5 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.6.5';
+/* ═══════════════ OrtoFly v1.7.0 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.7.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -939,6 +972,9 @@ function wire(){
   $('dir').addEventListener('change',()=>{ updateDirUI(); recompute(); });
   $('dirDeg').addEventListener('input',scheduleRecompute);
   $('cross').addEventListener('change',recompute);
+  $('odmUrl').value=localStorage.getItem(LS+'_odm_url')||'http://localhost:3000';
+  $('odmImages').addEventListener('change',e=>{ odmOnImages(e.target.files); });
+  _odmTask=localStorage.getItem(LS+'_odm_task')||null; if(_odmTask){ $('odmTaskCard').classList.remove('hidden'); if(odmUrlVal()) odmStartPoll(); }
   $('importJson').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(f) importProjectFile(f); e.target.value=''; });
   $('photoInput').addEventListener('change',e=>{ const fs=e.target.files; if(fs&&fs.length) handlePhotoFiles(fs); e.target.value=''; });
   $('mosaicOpacity').addEventListener('input',()=>{ $('mosaicOpacityVal').textContent=$('mosaicOpacity').value+'%'; setMosaicOpacity(); });
@@ -953,7 +989,7 @@ function wire(){
 function openAbout(){ $('aboutModal').classList.remove('hidden'); }
 function closeAbout(){ $('aboutModal').classList.add('hidden'); }
 function setTab(name){
-  ['voo','imagens','ver'].forEach(t=>{
+  ['voo','imagens','ver','proc'].forEach(t=>{
     const p=$('tab-'+t); if(p) p.classList.toggle('hidden', t!==name);
     const b=document.querySelector('.tab[data-tab="'+t+'"]'); if(b) b.classList.toggle('active', t===name);
   });
@@ -1278,6 +1314,51 @@ async function loadLAS(file){
   set3DObject(pts); status3d(`Nuvem LAS · ${n.toLocaleString('pt-BR')} pts${step>1?` (1/${step})`:''}${rgbOk?' · RGB':' · elevação'}`);
 }
 
+/* ═══════════════ PROCESSAR (NodeODM) — Fase 5 ═══════════════ */
+let _odmTask=null, _odmFiles=null, _odmPoll=null;
+function odmUrlVal(){ return (($('odmUrl')&&$('odmUrl').value)||'').trim().replace(/\/+$/,''); }
+function odmStatus(t,err){ const e=$('odmStatus'); if(e){ e.textContent=t||''; e.style.color=err?'var(--danger)':''; } }
+function odmPickImages(){ $('odmImages').click(); }
+function odmOnImages(fs){ _odmFiles=[...fs].filter(f=>/^image\//.test(f.type)||/\.(jpe?g|tiff?|png)$/i.test(f.name)); $('odmImgCount').textContent=_odmFiles.length?`${_odmFiles.length} imagem(ns) selecionada(s)`:''; }
+async function odmTest(){ const u=odmUrlVal(); if(!u){ toast('Informe a URL do NodeODM','error'); return; }
+  localStorage.setItem(LS+'_odm_url',u); odmStatus('Conectando…');
+  try{ const r=await fetch(u+'/info'); if(!r.ok) throw new Error('HTTP '+r.status); const j=await r.json();
+    odmStatus(`✅ ${j.name||'NodeODM'} v${j.version||'?'} · fila: ${j.taskQueueCount!=null?j.taskQueueCount:'?'} · engine: ${j.engine||'ODM'}`);
+  }catch(e){ console.error('[ODM] test',e); odmStatus('❌ Não conectou ('+e.message+'). NodeODM rodando? URL certa? (https→http só funciona com localhost)',true); } }
+async function odmCreate(){ const u=odmUrlVal(); if(!u){ toast('Configure e teste a URL do NodeODM','error'); return; }
+  if(!_odmFiles||!_odmFiles.length){ toast('Selecione as imagens','error'); return; }
+  if(_odmFiles.length<5 && !confirm('Poucas imagens ('+_odmFiles.length+'). O ODM costuma precisar de dezenas. Continuar?')) return;
+  const opts=[]; if($('odmFast').checked) opts.push({name:'fast-orthophoto',value:true});
+  const fd=new FormData(); _odmFiles.forEach(f=>fd.append('images',f,f.name)); fd.append('name',($('odmName').value||'ortofly').trim()); fd.append('options',JSON.stringify(opts));
+  odmStatus('Enviando '+_odmFiles.length+' imagens… (pode demorar)');
+  try{ const r=await fetch(u+'/task/new',{method:'POST',body:fd}); const j=await r.json().catch(()=>({})); if(!r.ok||!j.uuid) throw new Error(j.error||('HTTP '+r.status));
+    _odmTask=j.uuid; localStorage.setItem(LS+'_odm_task',j.uuid); odmStatus('✅ Tarefa criada: '+j.uuid); $('odmTaskCard').classList.remove('hidden'); $('odmOutputs').classList.add('hidden'); odmStartPoll(); toast('Tarefa enviada ✅');
+  }catch(e){ console.error('[ODM] create',e); odmStatus('❌ Falha ao criar tarefa: '+e.message,true); toast('Falha: '+e.message,'error'); } }
+function odmStartPoll(){ if(_odmPoll) clearInterval(_odmPoll); odmRefresh(); _odmPoll=setInterval(odmRefresh,5000); }
+async function odmRefresh(){ const u=odmUrlVal(); if(!u||!_odmTask) return;
+  try{ const r=await fetch(u+'/task/'+_odmTask+'/info'); const j=await r.json();
+    const codes={10:'na fila',20:'processando',30:'falhou',40:'concluído',50:'cancelado'}; const st=j.status&&j.status.code;
+    $('odmTaskStatus').textContent=`${j.name||_odmTask} · ${codes[st]||('código '+st)}${j.progress!=null?' · '+Math.round(j.progress)+'%':''}${j.imagesCount?' · '+j.imagesCount+' img':''}`;
+    if(st===40){ if(_odmPoll) clearInterval(_odmPoll); odmShowOutputs(); }
+    else if(st===30||st===50){ if(_odmPoll) clearInterval(_odmPoll); $('odmOutputs').classList.add('hidden'); }
+  }catch(e){ console.error('[ODM] info',e); $('odmTaskStatus').textContent='Erro ao consultar status: '+e.message; } }
+function odmShowOutputs(){ const box=$('odmOutputs'); if(!box) return; box.classList.remove('hidden');
+  box.innerHTML='<div class="spec" style="margin-bottom:6px">Concluído ✅ — abrir/baixar:</div><div class="btn-grid">'+
+    '<button class="btn sm" onclick="odmOpen(\'orthophoto.tif\',\'2d\')">🗺️ Ortomosaico (2D)</button>'+
+    '<button class="btn sm" onclick="odmOpen(\'dsm.tif\',\'2d\')">⛰️ DSM (2D)</button>'+
+    '<button class="btn sm" onclick="odmDownload(\'georeferenced_model.laz\')">⬇ Nuvem (.laz)</button>'+
+    '<button class="btn sm" onclick="odmDownload(\'all.zip\')">⬇ Tudo (.zip)</button>'+
+    '</div><p class="hint">Ortomosaico/DSM abrem no visualizador 2D. Nuvem (.laz) e malha (.obj): baixe e abra/converta (o 3D lê LAS/PLY/GLB).</p>'; }
+async function odmFetch(asset){ const u=odmUrlVal(); const r=await fetch(u+'/task/'+_odmTask+'/download/'+asset); if(!r.ok) throw new Error('HTTP '+r.status); return await r.blob(); }
+async function odmOpen(asset,viewer){ if(!odmUrlVal()||!_odmTask) return; toast('Baixando '+asset+'…');
+  try{ const blob=await odmFetch(asset); const file=new File([blob],asset,{type:blob.type});
+    if(viewer==='2d'){ setTab('ver'); await handleRasterFile(file); } else { await handle3DFile(file); }
+  }catch(e){ console.error('[ODM] open',e); toast('Falha ao abrir '+asset+': '+e.message,'error'); } }
+async function odmDownload(asset){ if(!odmUrlVal()||!_odmTask) return; toast('Baixando '+asset+'…');
+  try{ const blob=await odmFetch(asset); downloadBlob(blob,'ortofly_'+asset); }catch(e){ console.error('[ODM] download',e); toast('Falha: '+e.message,'error'); } }
+async function odmCancel(){ const u=odmUrlVal(); if(!u||!_odmTask) return; if(!confirm('Cancelar a tarefa?')) return;
+  try{ const fd=new FormData(); fd.append('uuid',_odmTask); await fetch(u+'/task/cancel',{method:'POST',body:fd}); odmRefresh(); }catch(e){ console.error('[ODM] cancel',e); toast('Falha ao cancelar: '+e.message,'error'); } }
+
 /* ═══════════════ PIX ═══════════════ */
 const PIX_KEY='4c6086a2-4bb8-474b-a4cf-ced8c8d82189', PIX_NAME='MGC Dev', PIX_CITY='Sao Raimundo';
 function pixEmv(key,name,city,amount){
@@ -1352,7 +1433,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&c.app===APP_VERSION&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now(),app:APP_VERSION})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.6.5', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.7.0', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));

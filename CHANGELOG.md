@@ -5,6 +5,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.7.0] — Maio 2026
+
+### 🆕 Adicionado — Fase 5 (início): módulo "Processar" (NodeODM)
+
+- Nova aba **⚙️ Processar**: conecta a um servidor **NodeODM** (no seu PC, via Docker), faz **upload das fotos**, **cria a tarefa**, **acompanha o progresso** e, ao concluir, **abre o ortomosaico/DSM no visualizador 2D** (e baixa nuvem `.laz` / `.zip`).
+- A tarefa fica salva (reabre/retoma o acompanhamento após recarregar).
+- CSP liberou `http://localhost` para o app falar com o NodeODM local.
+
+> É o primeiro passo da Fase 5 (backend). Próximos: GCPs/qualidade, fila, TiTiler para orthos grandes, e atualização dos documentos de privacidade (imagens passam por um servidor).
+
+---
+
 ## [1.6.5] — Maio 2026
 
 ### 🐛 Correções
