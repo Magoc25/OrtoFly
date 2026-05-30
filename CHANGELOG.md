@@ -5,6 +5,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.6.3] — Maio 2026
+
+### 🐛 Correções
+- Versão no rodapé "piscava" (mostrava a nova e voltava para a antiga): o cache do número lido do `CHANGELOG.md` agora é **invalidado quando o código é atualizado**, então o rodapé reflete a versão realmente carregada.
+
+---
+
 ## [1.6.2] — Maio 2026
 
 ### 🐛 Correções
