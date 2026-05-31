@@ -108,6 +108,25 @@ Funciona igual à versão online (o mapa de satélite exige internet na primeira
 
 ---
 
+## 🛰️ Gerar ortomosaico (processamento) — opcional
+
+O planejamento de voo e a visualização funcionam 100% no navegador. Para gerar a **ortomosaico métrica**
+(e DSM, nuvem de pontos e malha 3D) a partir das **suas fotos**, a aba **⚙️ Processar** se conecta a um
+servidor **NodeODM** (OpenDroneMap) que você roda **no seu próprio computador** — gratuitamente, sem enviar
+nada para a nuvem.
+
+Guias passo a passo (bem detalhados, mesmo para quem não usa terminal):
+
+| Onde rodar | Guia |
+|---|---|
+| 🖥️ **Windows** | [Configurar no Windows (WSL + Docker)](./docs/Guia-Local-Windows-WSL-NodeODM.md) |
+| 🍎 **macOS** | [Configurar no Mac (Docker)](./docs/Guia-Local-macOS-NodeODM.md) |
+| ☁️ **VM grátis na nuvem (Oracle Cloud)** | _em breve_ |
+
+> 💡 É **opcional** — use só se quiser gerar os produtos de fotogrametria. Tudo roda **localmente**, suas imagens não saem do seu dispositivo.
+
+---
+
 ## 🚦 Importante — segurança de voo e regras (Brasil)
 
 O OrtoFly é uma ferramenta de **planejamento**. A operação do drone é de responsabilidade do piloto. Antes de voar no Brasil, verifique:
