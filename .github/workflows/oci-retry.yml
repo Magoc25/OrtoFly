@@ -49,10 +49,11 @@ jobs:
           if [ -z "$C" ]; then echo "Falha de auth ou subnet inacessivel — confira os secrets OCI_*."; exit 1; fi
           echo "Compartment: $C  /  AD: $AD"
 
-          # Seguranca: nao criar se ja existe uma mgc-server nao-terminada
-          EXIST=$(oci compute instance list --compartment-id "$C" --display-name mgc-server --all --query "length(data[?\"lifecycle-state\"!='TERMINATED' && \"lifecycle-state\"!='TERMINATING'])" --raw-output 2>/dev/null)
-          if [ -z "$EXIST" ]; then echo "Falha ao checar instancias; abortando por seguranca."; exit 1; fi
-          if [ "$EXIST" != "0" ]; then echo "Ja existe instancia mgc-server. Nada a fazer."; exit 0; fi
+          # Seguranca: nao criar se ja existe uma mgc-server RUNNING ou PROVISIONING
+          R=$(oci compute instance list --compartment-id "$C" --display-name mgc-server --lifecycle-state RUNNING --query 'data[0].id' --raw-output 2>/dev/null)
+          P=$(oci compute instance list --compartment-id "$C" --display-name mgc-server --lifecycle-state PROVISIONING --query 'data[0].id' --raw-output 2>/dev/null)
+          if [ -n "$R" ] && [ "$R" != "null" ]; then echo "Ja existe mgc-server RUNNING ($R). Nada a fazer."; exit 0; fi
+          if [ -n "$P" ] && [ "$P" != "null" ]; then echo "Ja existe mgc-server PROVISIONING. Nada a fazer."; exit 0; fi
 
           oci compute instance launch \
             --availability-domain "$AD" \
