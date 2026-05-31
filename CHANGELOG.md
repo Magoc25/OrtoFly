@@ -5,6 +5,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.8.1] — Maio 2026
+
+### 🐛 Correção
+- **Modo Local (Processar):** a URL padrão agora é `http://127.0.0.1:3000` (em vez de `localhost`). É mais confiável, porque `localhost` pode resolver para IPv6 (`::1`) e não conectar em alguns ambientes (ex.: NodeODM em Docker no WSL2); `127.0.0.1` é sempre IPv4.
+
+---
+
 ## [1.8.0] — Maio 2026
 
 ### 🆕 Adicionado — Processar: **PC Local e/ou Servidor (VM)**
