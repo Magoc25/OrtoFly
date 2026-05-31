@@ -1,0 +1,80 @@
+name: OCI ARM grabber (temporário)
+
+# Robô que tenta criar a VM gratuita A1.Flex (4 OCPU/24 GB) na Oracle até a
+# capacidade ARM liberar. Roda 24/7 sem manter nada aberto. Quando a VM existir,
+# os ciclos seguintes viram no-op (checagem de duplicidade) — sem custo.
+# REMOVER este arquivo depois que a VM for criada.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'   # a cada 15 min
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oci-arm-grabber
+  cancel-in-progress: false
+
+jobs:
+  try-launch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instalar OCI CLI
+        run: |
+          pip install --quiet oci-cli
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Tentar criar a VM A1.Flex 4/24
+        env:
+          OCI_CLI_USER: ${{ secrets.OCI_USER }}
+          OCI_CLI_TENANCY: ${{ secrets.OCI_TENANCY }}
+          OCI_CLI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_CLI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_KEY_B64: ${{ secrets.OCI_KEY_B64 }}
+        run: |
+          export OCI_CLI_KEY_CONTENT="$(printf '%s' "$OCI_KEY_B64" | base64 -d)"
+          C="$OCI_CLI_TENANCY"
+
+          echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCqOIdFziG/S6dLp6IWFnzjTVNwhcnhUJKFpScKfKT+/Cr9bhNsH8BOiqYTFHmkczC/8ly2ChFRxsO7d5yPJFkOKU5avEQBvQ0ip4knjeV/OXOZvHlOc+etNpeKw8oO1hug095Sd3lycizQH7Eci7n7sC1KBMRMUQE/D0BO2fwFT0QRAhlZjGmUpCKi/gOAN+nicLZyntBJN0uL4hqeYkW7EIhnRvzhhGkfNw1sf51dyyW325gpJ67MyXQGzGzKKOiqJQJ3r25gMqG7a3cTcMQTon6ae1OVXdWtntePewR5GY8jpIahXIKnUxjfo5ltAO8qPot0WZRkl9M0U+o1BmF1 marlongcos@422f340f79a1' > pubkey.pub
+          echo '{"ocpus":4,"memoryInGBs":24}' > shape.json
+
+          AD=$(oci iam availability-domain list --compartment-id "$C" --query 'data[0].name' --raw-output)
+          if [ -z "$AD" ]; then echo "Falha de auth — confira os secrets OCI_*."; exit 1; fi
+          IMG=$(oci compute image list --compartment-id "$C" --operating-system "Canonical Ubuntu" --operating-system-version "24.04" --shape "VM.Standard.A1.Flex" --sort-by TIMECREATED --sort-order DESC --query 'data[0].id' --raw-output)
+          SUBNET=$(oci network subnet list --compartment-id "$C" --display-name mgc-subnet --query 'data[0].id' --raw-output)
+          echo "AD=$AD"
+          if [ -z "$SUBNET" ] || [ "$SUBNET" = "null" ]; then echo "Subnet mgc-subnet nao encontrada."; exit 1; fi
+
+          # Seguranca: nao criar se ja existe uma mgc-server nao-terminada
+          EXIST=$(oci compute instance list --compartment-id "$C" --display-name mgc-server --all --query "length(data[?\"lifecycle-state\"!='TERMINATED' && \"lifecycle-state\"!='TERMINATING'])" --raw-output 2>/dev/null)
+          if [ -z "$EXIST" ]; then echo "Falha ao checar instancias; abortando por seguranca."; exit 1; fi
+          if [ "$EXIST" != "0" ]; then echo "Ja existe instancia mgc-server. Nada a fazer."; exit 0; fi
+
+          oci compute instance launch \
+            --availability-domain "$AD" \
+            --compartment-id "$C" \
+            --shape "VM.Standard.A1.Flex" \
+            --shape-config file://shape.json \
+            --image-id "$IMG" \
+            --subnet-id "$SUBNET" \
+            --assign-public-ip true \
+            --boot-volume-size-in-gbs 100 \
+            --display-name "mgc-server" \
+            --ssh-authorized-keys-file pubkey.pub > out.txt 2>&1
+
+          if grep -q 'ocid1.instance' out.txt; then
+            echo "=============================="
+            echo "VM CRIADA COM SUCESSO!"
+            grep -o 'ocid1.instance[^"]*' out.txt | head -1
+            echo "=============================="
+            exit 0
+          elif grep -qiE "Out of host capacity|capacity|InternalError|TooManyRequests|429" out.txt; then
+            echo "Sem capacidade ARM ainda — tentaremos no proximo ciclo."
+            exit 0
+          else
+            echo "Erro diferente:"
+            cat out.txt
+            exit 1
+          fi
