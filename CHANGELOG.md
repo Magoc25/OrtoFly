@@ -5,6 +5,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.9.0] — Maio 2026
+
+### 🆕 Adicionado — Visualizador 3D de nuvem `.laz`
+
+- O visualizador 3D agora **abre nuvens de pontos `.laz`** (comprimidas) direto no app — decodifica no navegador via **laz-perf** (WebAssembly). Nos resultados do Processar, o botão virou **🧊 Nuvem (3D)** e abre na hora.
+- CSP liberou `'wasm-unsafe-eval'` (necessário para o WebAssembly do decodificador).
+
+> Nuvens muito grandes podem pesar no navegador — nesses casos, baixe o pacote (⬇ Tudo .zip) e use o CloudCompare/QGIS.
+
+---
+
 ## [1.8.4] — Maio 2026
 
 ### ✨ Melhorado — Processar: status de conexão ao vivo + dicas

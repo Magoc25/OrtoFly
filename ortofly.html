@@ -10,7 +10,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>OrtoFly — Planejamento de Voo e Ortomosaico para Drones DJI</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; connect-src 'self' https: blob: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; font-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none';" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; connect-src 'self' https: blob: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; font-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none';" />
 <meta name="description" content="Planeje voos fotogramétricos, calcule GSD e sobreposição e exporte missões (KMZ/WPML, KML, CSV) para drones DJI — no navegador, offline." />
 <meta name="theme-color" content="#0e7c63" />
 <link rel="manifest" href="./manifest.json" />
@@ -262,7 +262,7 @@ footer{
         <div class="field" style="margin-bottom:8px"><label>Opacidade — <span id="rasterOpacityVal">100%</span></label><input id="rasterOpacity" type="range" min="20" max="100" value="100" /></div>
         <button class="btn sm block" onclick="clearRaster()">🗑️ Remover raster</button>
       </div>
-      <p class="hint">2D: ortomosaico/DSM (GeoTIFF/COG) no mapa. 3D: nuvem LAS/PLY ou malha OBJ/glTF/GLB. (.laz comprimido ainda não — exporte LAS/PLY.)</p>
+      <p class="hint">2D: ortomosaico/DSM (GeoTIFF/COG) no mapa. 3D: nuvem LAS/LAZ/PLY ou malha OBJ/glTF/GLB.</p>
     </div>
     </div><!-- /tab-ver -->
 
@@ -410,7 +410,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.8.4</span>
+  <span id="appVersion">© MGC · v1.9.0</span>
 </footer>
 
 <!-- PIX modal -->
@@ -527,8 +527,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.8.4 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.8.4';
+/* ═══════════════ OrtoFly v1.9.0 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.9.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1282,11 +1282,11 @@ function toggle3DBg(){ if(!_3d) return; _3d.scene.background.setHex(_3d.scene.ba
 
 async function handle3DFile(file){
   const ext=(file.name.split('.').pop()||'').toLowerCase();
-  if(ext==='laz'){ toast('.laz comprimido ainda não suportado — exporte LAS ou PLY','error'); return; }
   if(typeof THREE==='undefined'){ toast('three.js não carregou (sem conexão?)','error'); return; }
   open3DModal(); $('viewer3dCtrls').classList.add('hidden'); status3d('Carregando '+file.name+'…');
   try{
     if(ext==='las') await loadLAS(file);
+    else if(ext==='laz') await loadLAZ(file);
     else if(ext==='ply') await loadPLY(file);
     else if(ext==='obj') await loadOBJ(file);
     else if(ext==='gltf'||ext==='glb') await loadGLTF(file);
@@ -1301,6 +1301,31 @@ async function loadOBJ(file){ const obj=new THREE.OBJLoader().parse(await file.t
   recenterGroup(obj); set3DObject(obj); status3d('Malha OBJ (sem textura — use GLB p/ textura)'); }
 async function loadGLTF(file){ const url=URL.createObjectURL(file);
   await new Promise(res=>{ new THREE.GLTFLoader().load(url,gltf=>{ URL.revokeObjectURL(url); recenterGroup(gltf.scene); set3DObject(gltf.scene); status3d('Modelo glTF carregado'); res(); }, undefined, err=>{ URL.revokeObjectURL(url); console.error(err); toast('Erro ao ler glTF/GLB','error'); status3d('Erro ao ler glTF'); res(); }); }); }
+let _lazPerf=null;
+async function getLazPerf(){
+  if(_lazPerf) return _lazPerf;
+  const mod=await import('https://cdn.jsdelivr.net/npm/laz-perf@0.0.6/+esm');
+  const create=mod.createLazPerf||(mod.default&&mod.default.createLazPerf)||mod.default;
+  _lazPerf=await create();
+  return _lazPerf;
+}
+async function loadLAZ(file){
+  status3d('Carregando decodificador .laz…');
+  let LP; try{ LP=await getLazPerf(); }catch(e){ console.error('[LAZ] lib',e); throw new Error('não consegui carregar o decodificador .laz (sem internet?). Baixe o .laz e abra no CloudCompare.'); }
+  status3d('Decodificando '+file.name+'…');
+  const ab=await file.arrayBuffer(); const dv=new DataView(ab);
+  if(String.fromCharCode(dv.getUint8(0),dv.getUint8(1),dv.getUint8(2),dv.getUint8(3))!=='LASF') throw new Error('arquivo não é LAS/LAZ');
+  const verMin=dv.getUint8(25), off=dv.getUint32(96,true), plen=dv.getUint16(105,true);
+  let num=dv.getUint32(107,true); if(num===0&&verMin>=4&&dv.getBigUint64) num=Number(dv.getBigUint64(247,true));
+  if(num<=0) throw new Error('nuvem .laz sem pontos');
+  const u8=new Uint8Array(ab);
+  const fp=LP._malloc(u8.length); LP.HEAPU8.set(u8,fp);
+  const zip=new LP.LASZip(); zip.open(fp,u8.length);
+  const pp=LP._malloc(plen); const out=new Uint8Array(off+num*plen); out.set(u8.subarray(0,off),0);
+  for(let i=0;i<num;i++){ zip.getPoint(pp); out.set(LP.HEAPU8.subarray(pp,pp+plen), off+i*plen); }
+  try{ zip.delete(); }catch(_){} LP._free(pp); LP._free(fp);
+  await loadLAS(new File([out.buffer], file.name.replace(/\.laz$/i,'.las'), {type:'application/octet-stream'}));
+}
 async function loadLAS(file){
   const buf=await file.arrayBuffer(); const dv=new DataView(buf);
   if(String.fromCharCode(dv.getUint8(0),dv.getUint8(1),dv.getUint8(2),dv.getUint8(3))!=='LASF') throw new Error('Arquivo não é LAS');
@@ -1395,7 +1420,7 @@ function odmShowOutputs(){ const box=$('odmOutputs'); if(!box) return; box.class
   box.innerHTML='<div class="spec" style="margin-bottom:6px">Concluído ✅ — abrir/baixar (extraído do all.zip):</div><div class="btn-grid">'+
     '<button class="btn sm" title="Mapa colorido georreferenciado (GeoTIFF). Abre no visualizador 2D." onclick="odmOpenZip(\'ortho\',\'2d\')">🗺️ Ortomosaico (2D)</button>'+
     '<button class="btn sm" title="Modelo digital de superfície (altimetria). Só existe se a tarefa foi criada com a opção Gerar DSM." onclick="odmOpenZip(\'dsm\',\'2d\')">⛰️ DSM (2D)</button>'+
-    '<button class="btn sm" title="Nuvem de pontos 3D comprimida (.laz). Baixa o arquivo — abra no CloudCompare ou QGIS (Camada → Adicionar camada de nuvem de pontos). O visualizador 3D do app lê LAS/PLY/GLB." onclick="odmGrabZip(\'laz\')">⬇ Nuvem (.laz)</button>'+
+    '<button class="btn sm" title="Abre a nuvem de pontos 3D direto no visualizador (decodifica o .laz no navegador). Para baixar o arquivo, use ⬇ Tudo (.zip)." onclick="odmOpenZip(\'laz\',\'3d\')">🧊 Nuvem (3D)</button>'+
     '<button class="btn sm" title="Pacote .zip com TODOS os produtos do ODM (ortomosaico, DSM, nuvem, malha 3D, relatório, metadados). Veja o README para o conteúdo." onclick="odmDownload(\'all.zip\')">⬇ Tudo (.zip)</button>'+
     '</div><p class="hint">Esta versão do NodeODM entrega tudo no <b>all.zip</b> — o app baixa e extrai. Ortos grandes podem demorar no navegador (alternativa: baixe ⬇ Tudo .zip e abra no QGIS).</p>'; }
 const ODM_RE={ortho:/odm_orthophoto\/odm_orthophoto\.tif$/i, dsm:/(^|\/)dsm\.tif$/i, dtm:/(^|\/)dtm\.tif$/i, laz:/georeferenced_model\.(laz|las)$/i};
@@ -1494,7 +1519,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&c.app===APP_VERSION&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now(),app:APP_VERSION})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.8.4', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.9.0', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));
