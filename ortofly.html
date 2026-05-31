@@ -367,6 +367,10 @@ footer{
           <button id="odmModeLocal" class="btn sm" style="flex:1" onclick="odmSetMode('local')">💻 PC Local</button>
           <button id="odmModeServer" class="btn sm" style="flex:1" onclick="odmSetMode('server')">☁️ Servidor (VM)</button>
         </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;font-weight:600">
+          <span id="odmDot" style="width:11px;height:11px;border-radius:50%;background:#bbb;display:inline-block;flex:none;box-shadow:0 0 0 2px rgba(0,0,0,.06)"></span>
+          <span id="odmConnTxt">Verificando…</span>
+        </div>
         <div class="row">
           <div class="field"><label for="odmUrl">URL do NodeODM</label><input id="odmUrl" type="text" placeholder="http://127.0.0.1:3000" /></div>
           <button class="btn sm" style="align-self:flex-end" onclick="odmTest()">Testar</button>
@@ -406,7 +410,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.8.3</span>
+  <span id="appVersion">© MGC · v1.8.4</span>
 </footer>
 
 <!-- PIX modal -->
@@ -523,8 +527,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.8.3 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.8.3';
+/* ═══════════════ OrtoFly v1.8.4 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.8.4';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -978,7 +982,8 @@ function wire(){
   $('dir').addEventListener('change',()=>{ updateDirUI(); recompute(); });
   $('dirDeg').addEventListener('input',scheduleRecompute);
   $('cross').addEventListener('change',recompute);
-  odmInitMode();
+  odmInitMode(); odmStartPing();
+  $('odmUrl').addEventListener('input',()=>{ clearTimeout(window._odmUrlT); window._odmUrlT=setTimeout(odmPing,700); });
   $('odmImages').addEventListener('change',e=>{ odmOnImages(e.target.files); });
   _odmTask=localStorage.getItem(LS+'_odm_task')||null; if(_odmTask){ $('odmTaskCard').classList.remove('hidden'); if(odmUrlVal()) odmStartPoll(); }
   $('importJson').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(f) importProjectFile(f); e.target.value=''; });
@@ -1342,8 +1347,22 @@ function odmSetMode(m,skipSave){
   if(h) h.innerHTML = m==='local'
     ? '💻 <b>Local:</b> instale o Docker e rode <code>docker run -d -p 3000:3000 opendronemap/nodeodm</code> — depois use <code>http://127.0.0.1:3000</code>.'
     : '☁️ <b>Servidor:</b> uma VM (ex.: Oracle Cloud grátis) com NodeODM por <b>HTTPS</b> (Cloudflare Tunnel). Cole a URL <code>https://…</code>. <i>(http simples só funciona em localhost.)</i>';
-  odmStatus('');
+  odmStatus(''); odmPing();
 }
+let _odmPingT=null,_odmPinging=false;
+async function odmPing(){
+  if(_odmPinging) return; _odmPinging=true;
+  const u=odmUrlVal(), dot=$('odmDot'), txt=$('odmConnTxt');
+  if(!u){ if(dot)dot.style.background='#bbb'; if(txt)txt.textContent='Informe a URL do NodeODM'; _odmPinging=false; return; }
+  try{ const c=new AbortController(), t=setTimeout(()=>c.abort(),4500);
+    const r=await fetch(u+'/info',{signal:c.signal}); clearTimeout(t); if(!r.ok) throw 0; const j=await r.json();
+    if(dot)dot.style.background='#1a9e4b';
+    if(txt)txt.textContent='🟢 Conectado · NodeODM v'+(j.version||'?')+' · fila '+(j.taskQueueCount!=null?j.taskQueueCount:'?');
+  }catch(_){ if(dot)dot.style.background='#d23';
+    if(txt)txt.textContent=(_odmMode==='local')?'🔴 Desconectado — rode o atalho Iniciar-NodeODM.bat':'🔴 Desconectado — verifique o servidor';
+  }finally{ _odmPinging=false; }
+}
+function odmStartPing(){ odmPing(); if(_odmPingT) clearInterval(_odmPingT); _odmPingT=setInterval(()=>{ if(!document.hidden) odmPing(); },10000); }
 function odmUrlVal(){ return (($('odmUrl')&&$('odmUrl').value)||'').trim().replace(/\/+$/,''); }
 function odmStatus(t,err){ const e=$('odmStatus'); if(e){ e.textContent=t||''; e.style.color=err?'var(--danger)':''; } }
 function odmPickImages(){ $('odmImages').click(); }
@@ -1374,10 +1393,10 @@ async function odmRefresh(){ const u=odmUrlVal(); if(!u||!_odmTask) return;
   }catch(e){ console.error('[ODM] info',e); $('odmTaskStatus').textContent='Erro ao consultar status: '+e.message; } }
 function odmShowOutputs(){ const box=$('odmOutputs'); if(!box) return; box.classList.remove('hidden');
   box.innerHTML='<div class="spec" style="margin-bottom:6px">Concluído ✅ — abrir/baixar (extraído do all.zip):</div><div class="btn-grid">'+
-    '<button class="btn sm" onclick="odmOpenZip(\'ortho\',\'2d\')">🗺️ Ortomosaico (2D)</button>'+
-    '<button class="btn sm" onclick="odmOpenZip(\'dsm\',\'2d\')">⛰️ DSM (2D)</button>'+
-    '<button class="btn sm" onclick="odmGrabZip(\'laz\')">⬇ Nuvem (.laz)</button>'+
-    '<button class="btn sm" onclick="odmDownload(\'all.zip\')">⬇ Tudo (.zip)</button>'+
+    '<button class="btn sm" title="Mapa colorido georreferenciado (GeoTIFF). Abre no visualizador 2D." onclick="odmOpenZip(\'ortho\',\'2d\')">🗺️ Ortomosaico (2D)</button>'+
+    '<button class="btn sm" title="Modelo digital de superfície (altimetria). Só existe se a tarefa foi criada com a opção Gerar DSM." onclick="odmOpenZip(\'dsm\',\'2d\')">⛰️ DSM (2D)</button>'+
+    '<button class="btn sm" title="Nuvem de pontos 3D comprimida (.laz). Baixa o arquivo — abra no CloudCompare ou QGIS (Camada → Adicionar camada de nuvem de pontos). O visualizador 3D do app lê LAS/PLY/GLB." onclick="odmGrabZip(\'laz\')">⬇ Nuvem (.laz)</button>'+
+    '<button class="btn sm" title="Pacote .zip com TODOS os produtos do ODM (ortomosaico, DSM, nuvem, malha 3D, relatório, metadados). Veja o README para o conteúdo." onclick="odmDownload(\'all.zip\')">⬇ Tudo (.zip)</button>'+
     '</div><p class="hint">Esta versão do NodeODM entrega tudo no <b>all.zip</b> — o app baixa e extrai. Ortos grandes podem demorar no navegador (alternativa: baixe ⬇ Tudo .zip e abra no QGIS).</p>'; }
 const ODM_RE={ortho:/odm_orthophoto\/odm_orthophoto\.tif$/i, dsm:/(^|\/)dsm\.tif$/i, dtm:/(^|\/)dtm\.tif$/i, laz:/georeferenced_model\.(laz|las)$/i};
 let _odmZip=null,_odmZipFor=null;
@@ -1475,7 +1494,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&c.app===APP_VERSION&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now(),app:APP_VERSION})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.8.3', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.8.4', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));

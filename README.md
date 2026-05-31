@@ -125,6 +125,22 @@ Guias passo a passo (bem detalhados, mesmo para quem não usa terminal):
 
 > 💡 É **opcional** — use só se quiser gerar os produtos de fotogrametria. Tudo roda **localmente**, suas imagens não saem do seu dispositivo.
 
+### 📦 O que vem no resultado (`all.zip`)
+
+Ao concluir, o ODM gera um pacote (`all.zip`) com os produtos de fotogrametria. Os principais:
+
+| Arquivo / pasta | O que é |
+|---|---|
+| `odm_orthophoto/odm_orthophoto.tif` | **Ortomosaico** — mapa colorido georreferenciado (GeoTIFF), com escala real |
+| `odm_dem/dsm.tif` | **DSM** — modelo digital de **superfície** (terreno + objetos). Só existe se marcar **Gerar DSM** |
+| `odm_dem/dtm.tif` | **DTM** — modelo digital de **terreno** (sem objetos), quando solicitado |
+| `odm_georeferencing/odm_georeferenced_model.laz` | **Nuvem de pontos** 3D georreferenciada (formato LAZ comprimido) |
+| `odm_texturing*/` | **Malha 3D** texturizada (OBJ + texturas) |
+| `odm_report/report.pdf` | **Relatório** de qualidade do processamento |
+| `cameras.json` · `images.json` · `log.json` | Metadados (parâmetros de câmera, imagens usadas, log) |
+
+No app: **🗺️ Ortomosaico** e **⛰️ DSM** abrem direto no visualizador 2D; **⬇ Nuvem (.laz)** baixa a nuvem (abra no **CloudCompare** ou no **QGIS** → *Camada → Adicionar camada de nuvem de pontos*); **⬇ Tudo (.zip)** baixa o pacote completo.
+
 ---
 
 ## 🚦 Importante — segurança de voo e regras (Brasil)

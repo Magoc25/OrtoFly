@@ -5,6 +5,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.8.4] — Maio 2026
+
+### ✨ Melhorado — Processar: status de conexão ao vivo + dicas
+
+- **Indicador 🟢/🔴 ao vivo** na aba Processar: mostra se o NodeODM está **conectado** (verde, com versão e fila) ou **desconectado** (vermelho), atualizando sozinho a cada 10s. No modo Local, orienta a rodar o atalho quando estiver fora do ar.
+- **Dicas (tooltip)** nos botões de resultado (passe o mouse): o que é cada produto e como abrir a nuvem `.laz`.
+- README ganhou a explicação dos **produtos gerados** (o que vem no `all.zip`).
+
+---
+
 ## [1.8.3] — Maio 2026
 
 ### 🆕 Adicionado — Processar: opção "Gerar DSM"
