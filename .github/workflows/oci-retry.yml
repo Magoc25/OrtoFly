@@ -35,17 +35,19 @@ jobs:
           OCI_KEY_B64: ${{ secrets.OCI_KEY_B64 }}
         run: |
           export OCI_CLI_KEY_CONTENT="$(printf '%s' "$OCI_KEY_B64" | base64 -d)"
-          C="$OCI_CLI_TENANCY"
+
+          # Valores fixos (mesmos do script que funcionou no Cloud Shell)
+          SUBNET="ocid1.subnet.oc1.sa-saopaulo-1.aaaaaaaadp4wuxbrxxmn3dlrbqqfwaioho7ootmfduvcwyrupvklkhzicw3q"
+          AD="meIx:SA-SAOPAULO-1-AD-1"
+          IMG="ocid1.image.oc1.sa-saopaulo-1.aaaaaaaawvmdar75jvnrck56qxxqli2oafzdqc2wxadcnnr7zzis6fafd3dq"
 
           echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCqOIdFziG/S6dLp6IWFnzjTVNwhcnhUJKFpScKfKT+/Cr9bhNsH8BOiqYTFHmkczC/8ly2ChFRxsO7d5yPJFkOKU5avEQBvQ0ip4knjeV/OXOZvHlOc+etNpeKw8oO1hug095Sd3lycizQH7Eci7n7sC1KBMRMUQE/D0BO2fwFT0QRAhlZjGmUpCKi/gOAN+nicLZyntBJN0uL4hqeYkW7EIhnRvzhhGkfNw1sf51dyyW325gpJ67MyXQGzGzKKOiqJQJ3r25gMqG7a3cTcMQTon6ae1OVXdWtntePewR5GY8jpIahXIKnUxjfo5ltAO8qPot0WZRkl9M0U+o1BmF1 marlongcos@422f340f79a1' > pubkey.pub
           echo '{"ocpus":4,"memoryInGBs":24}' > shape.json
 
-          AD=$(oci iam availability-domain list --compartment-id "$C" --query 'data[0].name' --raw-output)
-          if [ -z "$AD" ]; then echo "Falha de auth — confira os secrets OCI_*."; exit 1; fi
-          IMG=$(oci compute image list --compartment-id "$C" --operating-system "Canonical Ubuntu" --operating-system-version "24.04" --shape "VM.Standard.A1.Flex" --sort-by TIMECREATED --sort-order DESC --query 'data[0].id' --raw-output)
-          SUBNET=$(oci network subnet list --compartment-id "$C" --display-name mgc-subnet --query 'data[0].id' --raw-output)
-          echo "AD=$AD"
-          if [ -z "$SUBNET" ] || [ "$SUBNET" = "null" ]; then echo "Subnet mgc-subnet nao encontrada."; exit 1; fi
+          # Deriva o compartment direto do subnet (garante consistencia) e valida a auth
+          C=$(oci network subnet get --subnet-id "$SUBNET" --query 'data."compartment-id"' --raw-output 2>/dev/null)
+          if [ -z "$C" ]; then echo "Falha de auth ou subnet inacessivel — confira os secrets OCI_*."; exit 1; fi
+          echo "Compartment: $C  /  AD: $AD"
 
           # Seguranca: nao criar se ja existe uma mgc-server nao-terminada
           EXIST=$(oci compute instance list --compartment-id "$C" --display-name mgc-server --all --query "length(data[?\"lifecycle-state\"!='TERMINATED' && \"lifecycle-state\"!='TERMINATING'])" --raw-output 2>/dev/null)
