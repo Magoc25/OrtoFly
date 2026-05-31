@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.8.3] — Maio 2026
+
+### 🆕 Adicionado — Processar: opção "Gerar DSM"
+
+- Nova opção **"Gerar DSM"** ao criar a tarefa: o ODM **só produz o DSM (modelo de superfície) se solicitado** (`--dsm`). Marque para obter o DSM — usa o **modo completo** (desliga o "Rápido", mais lento). A nuvem de pontos `.laz` continua sendo gerada sempre.
+- Mensagem mais clara quando o DSM não está no pacote (orienta a marcar a opção).
+
+---
+
 ## [1.8.2] — Maio 2026
 
 ### 🐛 Correção — Processar: abrir resultados do NodeODM

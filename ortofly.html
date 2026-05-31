@@ -381,6 +381,7 @@ footer{
         <div id="odmImgCount" class="spec" style="margin-top:6px"></div>
         <div class="row" style="margin-top:8px"><div class="field"><label for="odmName">Nome</label><input id="odmName" type="text" maxlength="40" placeholder="meu-voo" /></div></div>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;cursor:pointer"><input type="checkbox" id="odmFast" checked style="width:auto" /> Rápido (fast-orthophoto)</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;cursor:pointer"><input type="checkbox" id="odmDsm" style="width:auto" /> Gerar DSM (superfície · usa modo completo, mais lento)</label>
         <button class="btn primary block" onclick="odmCreate()">🚀 Enviar e processar</button>
         <p class="hint">Dezenas–centenas de fotos. Datasets enormes podem pesar no upload.</p>
       </div>
@@ -405,7 +406,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.8.2</span>
+  <span id="appVersion">© MGC · v1.8.3</span>
 </footer>
 
 <!-- PIX modal -->
@@ -522,8 +523,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.8.2 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.8.2';
+/* ═══════════════ OrtoFly v1.8.3 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.8.3';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1355,7 +1356,9 @@ async function odmTest(){ const u=odmUrlVal(); if(!u){ toast('Informe a URL do N
 async function odmCreate(){ const u=odmUrlVal(); if(!u){ toast('Configure e teste a URL do NodeODM','error'); return; }
   if(!_odmFiles||!_odmFiles.length){ toast('Selecione as imagens','error'); return; }
   if(_odmFiles.length<5 && !confirm('Poucas imagens ('+_odmFiles.length+'). O ODM costuma precisar de dezenas. Continuar?')) return;
-  const opts=[]; if($('odmFast').checked) opts.push({name:'fast-orthophoto',value:true});
+  const opts=[]; const wantDsm=$('odmDsm')&&$('odmDsm').checked;
+  if($('odmFast').checked && !wantDsm) opts.push({name:'fast-orthophoto',value:true});
+  if(wantDsm) opts.push({name:'dsm',value:true});
   const fd=new FormData(); _odmFiles.forEach(f=>fd.append('images',f,f.name)); fd.append('name',($('odmName').value||'ortofly').trim()); fd.append('options',JSON.stringify(opts));
   odmStatus('Enviando '+_odmFiles.length+' imagens… (pode demorar)');
   try{ const r=await fetch(u+'/task/new',{method:'POST',body:fd}); const j=await r.json().catch(()=>({})); if(!r.ok||!j.uuid) throw new Error(j.error||('HTTP '+r.status));
@@ -1384,7 +1387,7 @@ async function odmGetZip(){ if(_odmZip&&_odmZipFor===_odmTask) return _odmZip;
   const r=await fetch(u+'/task/'+_odmTask+'/download/all.zip'); if(!r.ok) throw new Error('HTTP '+r.status);
   const buf=await r.arrayBuffer(); _odmZip=await JSZip.loadAsync(buf); _odmZipFor=_odmTask; odmStatus('Pacote baixado ✅'); return _odmZip; }
 async function odmExtract(kind){ const zip=await odmGetZip(); const re=ODM_RE[kind];
-  const n=Object.keys(zip.files).find(k=>!zip.files[k].dir&&re.test(k)); if(!n) throw new Error('não achei "'+kind+'" no all.zip');
+  const n=Object.keys(zip.files).find(k=>!zip.files[k].dir&&re.test(k)); if(!n) throw new Error((kind==='dsm'||kind==='dtm')?'DSM não gerado nesta tarefa — marque "Gerar DSM" ao criar (modo completo).':'não achei "'+kind+'" no all.zip');
   return {blob:await zip.files[n].async('blob'), name:n.split('/').pop()}; }
 async function odmFetch(asset){ const u=odmUrlVal(); const r=await fetch(u+'/task/'+_odmTask+'/download/'+asset); if(!r.ok) throw new Error('HTTP '+r.status); return await r.blob(); }
 async function odmOpenZip(kind,viewer){ if(!odmUrlVal()||!_odmTask) return;
@@ -1472,7 +1475,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&c.app===APP_VERSION&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now(),app:APP_VERSION})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.8.2', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.8.3', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));
