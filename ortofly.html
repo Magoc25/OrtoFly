@@ -10,7 +10,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>OrtoFly — Planejamento de Voo e Ortomosaico para Drones DJI</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co blob: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; font-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none';" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; connect-src 'self' https: blob: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; font-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none';" />
 <meta name="description" content="Planeje voos fotogramétricos, calcule GSD e sobreposição e exporte missões (KMZ/WPML, KML, CSV) para drones DJI — no navegador, offline." />
 <meta name="theme-color" content="#0e7c63" />
 <link rel="manifest" href="./manifest.json" />
@@ -362,11 +362,16 @@ footer{
     <div id="tab-proc" class="tab-panel hidden">
       <div class="card">
         <h2>⚙️ Processar (NodeODM)</h2>
-        <p class="hint" style="margin-top:0">Gera ortomosaico/DSM/3D a partir das fotos, num servidor <b>NodeODM</b> rodando no seu PC (via Docker).</p>
+        <p class="hint" style="margin-top:0">Gera ortomosaico/DSM/3D a partir das fotos, num servidor <b>NodeODM</b> — no seu <b>PC (Docker)</b> ou numa <b>VM (nuvem)</b>.</p>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <button id="odmModeLocal" class="btn sm" style="flex:1" onclick="odmSetMode('local')">💻 PC Local</button>
+          <button id="odmModeServer" class="btn sm" style="flex:1" onclick="odmSetMode('server')">☁️ Servidor (VM)</button>
+        </div>
         <div class="row">
           <div class="field"><label for="odmUrl">URL do NodeODM</label><input id="odmUrl" type="text" placeholder="http://localhost:3000" /></div>
           <button class="btn sm" style="align-self:flex-end" onclick="odmTest()">Testar</button>
         </div>
+        <p id="odmModeHint" class="hint" style="margin-top:6px"></p>
         <div id="odmStatus" class="spec"></div>
       </div>
       <div class="card">
@@ -400,7 +405,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.7.0</span>
+  <span id="appVersion">© MGC · v1.8.0</span>
 </footer>
 
 <!-- PIX modal -->
@@ -517,8 +522,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.7.0 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.7.0';
+/* ═══════════════ OrtoFly v1.8.0 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.8.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -972,7 +977,7 @@ function wire(){
   $('dir').addEventListener('change',()=>{ updateDirUI(); recompute(); });
   $('dirDeg').addEventListener('input',scheduleRecompute);
   $('cross').addEventListener('change',recompute);
-  $('odmUrl').value=localStorage.getItem(LS+'_odm_url')||'http://localhost:3000';
+  odmInitMode();
   $('odmImages').addEventListener('change',e=>{ odmOnImages(e.target.files); });
   _odmTask=localStorage.getItem(LS+'_odm_task')||null; if(_odmTask){ $('odmTaskCard').classList.remove('hidden'); if(odmUrlVal()) odmStartPoll(); }
   $('importJson').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(f) importProjectFile(f); e.target.value=''; });
@@ -1316,12 +1321,34 @@ async function loadLAS(file){
 
 /* ═══════════════ PROCESSAR (NodeODM) — Fase 5 ═══════════════ */
 let _odmTask=null, _odmFiles=null, _odmPoll=null;
+let _odmMode='local';
+function odmModeKey(m){ return LS+'_odm_url_'+(m||_odmMode); }
+function odmDefaultUrl(m){ return m==='local'?'http://localhost:3000':''; }
+function odmInitMode(){
+  const old=localStorage.getItem(LS+'_odm_url');
+  if(old!=null && localStorage.getItem(LS+'_odm_url_local')==null && localStorage.getItem(LS+'_odm_url_server')==null)
+    localStorage.setItem(LS+'_odm_url_'+(/localhost|127\.0\.0\.1/.test(old)?'local':'server'),old);
+  odmSetMode(localStorage.getItem(LS+'_odm_mode')||'local',true);
+}
+function odmSetMode(m,skipSave){
+  if(!skipSave && $('odmUrl')) localStorage.setItem(odmModeKey(_odmMode),($('odmUrl').value||'').trim());
+  _odmMode=m; localStorage.setItem(LS+'_odm_mode',m);
+  const saved=localStorage.getItem(odmModeKey(m));
+  if($('odmUrl')){ $('odmUrl').value=(saved!=null?saved:odmDefaultUrl(m)); $('odmUrl').placeholder=odmDefaultUrl(m)||'https://seu-tunel.trycloudflare.com'; }
+  if($('odmModeLocal')) $('odmModeLocal').classList.toggle('primary',m==='local');
+  if($('odmModeServer')) $('odmModeServer').classList.toggle('primary',m==='server');
+  const h=$('odmModeHint');
+  if(h) h.innerHTML = m==='local'
+    ? '💻 <b>Local:</b> instale o Docker e rode <code>docker run -d -p 3000:3000 opendronemap/nodeodm</code> — depois use <code>http://localhost:3000</code>.'
+    : '☁️ <b>Servidor:</b> uma VM (ex.: Oracle Cloud grátis) com NodeODM por <b>HTTPS</b> (Cloudflare Tunnel). Cole a URL <code>https://…</code>. <i>(http simples só funciona em localhost.)</i>';
+  odmStatus('');
+}
 function odmUrlVal(){ return (($('odmUrl')&&$('odmUrl').value)||'').trim().replace(/\/+$/,''); }
 function odmStatus(t,err){ const e=$('odmStatus'); if(e){ e.textContent=t||''; e.style.color=err?'var(--danger)':''; } }
 function odmPickImages(){ $('odmImages').click(); }
 function odmOnImages(fs){ _odmFiles=[...fs].filter(f=>/^image\//.test(f.type)||/\.(jpe?g|tiff?|png)$/i.test(f.name)); $('odmImgCount').textContent=_odmFiles.length?`${_odmFiles.length} imagem(ns) selecionada(s)`:''; }
 async function odmTest(){ const u=odmUrlVal(); if(!u){ toast('Informe a URL do NodeODM','error'); return; }
-  localStorage.setItem(LS+'_odm_url',u); odmStatus('Conectando…');
+  localStorage.setItem(odmModeKey(_odmMode),u); odmStatus('Conectando…');
   try{ const r=await fetch(u+'/info'); if(!r.ok) throw new Error('HTTP '+r.status); const j=await r.json();
     odmStatus(`✅ ${j.name||'NodeODM'} v${j.version||'?'} · fila: ${j.taskQueueCount!=null?j.taskQueueCount:'?'} · engine: ${j.engine||'ODM'}`);
   }catch(e){ console.error('[ODM] test',e); odmStatus('❌ Não conectou ('+e.message+'). NodeODM rodando? URL certa? (https→http só funciona com localhost)',true); } }
@@ -1433,7 +1460,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&c.app===APP_VERSION&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now(),app:APP_VERSION})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.7.0', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.8.0', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));

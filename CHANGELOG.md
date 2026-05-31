@@ -5,6 +5,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.8.0] — Maio 2026
+
+### 🆕 Adicionado — Processar: **PC Local e/ou Servidor (VM)**
+
+- A aba **⚙️ Processar** agora tem um seletor **💻 PC Local / ☁️ Servidor (VM)**: rode o NodeODM no seu **próprio PC (Docker)** **ou** numa **VM na nuvem** (ex.: Oracle Cloud grátis, exposta por HTTPS/Cloudflare Tunnel) — o que preferir. A **URL de cada modo fica salva separadamente**, então dá para ter os dois configurados e alternar com um clique.
+- Quem quiser usar só um, configura só aquele — nada obrigatório.
+- CSP liberou `https:` no `connect-src` para o app falar com o NodeODM da VM por **HTTPS** (o local continua via `http://localhost`).
+
+> Lembrete: `http://` simples só funciona com `localhost` (regra do navegador). Para um servidor remoto, use **HTTPS** (ex.: Cloudflare Tunnel). Guia de VM grátis em `docs/`.
+
+---
+
 ## [1.7.0] — Maio 2026
 
 ### 🆕 Adicionado — Fase 5 (início): módulo "Processar" (NodeODM)
