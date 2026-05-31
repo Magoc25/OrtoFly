@@ -405,7 +405,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.8.1</span>
+  <span id="appVersion">© MGC · v1.8.2</span>
 </footer>
 
 <!-- PIX modal -->
@@ -522,8 +522,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.8.1 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.8.1';
+/* ═══════════════ OrtoFly v1.8.2 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.8.2';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1370,17 +1370,29 @@ async function odmRefresh(){ const u=odmUrlVal(); if(!u||!_odmTask) return;
     else if(st===30||st===50){ if(_odmPoll) clearInterval(_odmPoll); $('odmOutputs').classList.add('hidden'); }
   }catch(e){ console.error('[ODM] info',e); $('odmTaskStatus').textContent='Erro ao consultar status: '+e.message; } }
 function odmShowOutputs(){ const box=$('odmOutputs'); if(!box) return; box.classList.remove('hidden');
-  box.innerHTML='<div class="spec" style="margin-bottom:6px">Concluído ✅ — abrir/baixar:</div><div class="btn-grid">'+
-    '<button class="btn sm" onclick="odmOpen(\'orthophoto.tif\',\'2d\')">🗺️ Ortomosaico (2D)</button>'+
-    '<button class="btn sm" onclick="odmOpen(\'dsm.tif\',\'2d\')">⛰️ DSM (2D)</button>'+
-    '<button class="btn sm" onclick="odmDownload(\'georeferenced_model.laz\')">⬇ Nuvem (.laz)</button>'+
+  box.innerHTML='<div class="spec" style="margin-bottom:6px">Concluído ✅ — abrir/baixar (extraído do all.zip):</div><div class="btn-grid">'+
+    '<button class="btn sm" onclick="odmOpenZip(\'ortho\',\'2d\')">🗺️ Ortomosaico (2D)</button>'+
+    '<button class="btn sm" onclick="odmOpenZip(\'dsm\',\'2d\')">⛰️ DSM (2D)</button>'+
+    '<button class="btn sm" onclick="odmGrabZip(\'laz\')">⬇ Nuvem (.laz)</button>'+
     '<button class="btn sm" onclick="odmDownload(\'all.zip\')">⬇ Tudo (.zip)</button>'+
-    '</div><p class="hint">Ortomosaico/DSM abrem no visualizador 2D. Nuvem (.laz) e malha (.obj): baixe e abra/converta (o 3D lê LAS/PLY/GLB).</p>'; }
+    '</div><p class="hint">Esta versão do NodeODM entrega tudo no <b>all.zip</b> — o app baixa e extrai. Ortos grandes podem demorar no navegador (alternativa: baixe ⬇ Tudo .zip e abra no QGIS).</p>'; }
+const ODM_RE={ortho:/odm_orthophoto\/odm_orthophoto\.tif$/i, dsm:/(^|\/)dsm\.tif$/i, dtm:/(^|\/)dtm\.tif$/i, laz:/georeferenced_model\.(laz|las)$/i};
+let _odmZip=null,_odmZipFor=null;
+async function odmGetZip(){ if(_odmZip&&_odmZipFor===_odmTask) return _odmZip;
+  const u=odmUrlVal(); if(!u||!_odmTask) throw new Error('sem tarefa');
+  odmStatus('Baixando pacote (all.zip)… pode demorar'); toast('Baixando all.zip…');
+  const r=await fetch(u+'/task/'+_odmTask+'/download/all.zip'); if(!r.ok) throw new Error('HTTP '+r.status);
+  const buf=await r.arrayBuffer(); _odmZip=await JSZip.loadAsync(buf); _odmZipFor=_odmTask; odmStatus('Pacote baixado ✅'); return _odmZip; }
+async function odmExtract(kind){ const zip=await odmGetZip(); const re=ODM_RE[kind];
+  const n=Object.keys(zip.files).find(k=>!zip.files[k].dir&&re.test(k)); if(!n) throw new Error('não achei "'+kind+'" no all.zip');
+  return {blob:await zip.files[n].async('blob'), name:n.split('/').pop()}; }
 async function odmFetch(asset){ const u=odmUrlVal(); const r=await fetch(u+'/task/'+_odmTask+'/download/'+asset); if(!r.ok) throw new Error('HTTP '+r.status); return await r.blob(); }
-async function odmOpen(asset,viewer){ if(!odmUrlVal()||!_odmTask) return; toast('Baixando '+asset+'…');
-  try{ const blob=await odmFetch(asset); const file=new File([blob],asset,{type:blob.type});
-    if(viewer==='2d'){ setTab('ver'); await handleRasterFile(file); } else { await handle3DFile(file); }
-  }catch(e){ console.error('[ODM] open',e); toast('Falha ao abrir '+asset+': '+e.message,'error'); } }
+async function odmOpenZip(kind,viewer){ if(!odmUrlVal()||!_odmTask) return;
+  try{ const {blob,name}=await odmExtract(kind); odmStatus('Abrindo '+name+'…'); const file=new File([blob],name,{type:blob.type});
+    if(viewer==='2d'){ setTab('ver'); await handleRasterFile(file); } else { await handle3DFile(file); } odmStatus('');
+  }catch(e){ console.error('[ODM] openZip',e); toast('Falha ao abrir: '+e.message,'error'); odmStatus('❌ '+e.message,true); } }
+async function odmGrabZip(kind){ if(!odmUrlVal()||!_odmTask) return;
+  try{ const {blob,name}=await odmExtract(kind); downloadBlob(blob,'ortofly_'+name); toast('Baixado: '+name); }catch(e){ console.error('[ODM] grabZip',e); toast('Falha: '+e.message,'error'); } }
 async function odmDownload(asset){ if(!odmUrlVal()||!_odmTask) return; toast('Baixando '+asset+'…');
   try{ const blob=await odmFetch(asset); downloadBlob(blob,'ortofly_'+asset); }catch(e){ console.error('[ODM] download',e); toast('Falha: '+e.message,'error'); } }
 async function odmCancel(){ const u=odmUrlVal(); if(!u||!_odmTask) return; if(!confirm('Cancelar a tarefa?')) return;
@@ -1460,7 +1472,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&c.app===APP_VERSION&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now(),app:APP_VERSION})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.8.1', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.8.2', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));

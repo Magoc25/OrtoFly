@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.8.2] — Maio 2026
+
+### 🐛 Correção — Processar: abrir resultados do NodeODM
+
+- Algumas versões do NodeODM (ex.: 2.2.x) **só permitem baixar o pacote `all.zip`** (os arquivos individuais como `orthophoto.tif` retornavam "Invalid asset" — por isso o visualizador ficava em "Lendo… (0 MB)"). Agora o app **baixa o `all.zip` e extrai** o ortomosaico/DSM/nuvem no próprio navegador (JSZip) — **🗺️ Ortomosaico (2D)**, **⛰️ DSM (2D)** e **⬇ Nuvem (.laz)** voltam a funcionar.
+- Ortomosaicos grandes podem demorar a abrir no navegador (memória) — alternativa: **⬇ Tudo (.zip)** e abrir no QGIS.
+
+---
+
 ## [1.8.1] — Maio 2026
 
 ### 🐛 Correção
