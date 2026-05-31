@@ -124,7 +124,13 @@ Se o **Testar** der **"Failed to fetch"** / não conectar:
 - **Atalho (Caminho B):** crie um arquivo **`Iniciar-NodeODM.bat`** na Área de Trabalho com este conteúdo:
   ```bat
   @echo off
-  wsl -d Ubuntu -u root bash -c "systemctl start docker 2>/dev/null; docker start nodeodm 2>/dev/null; docker ps --format '{{.Names}} {{.Status}}'"
+  wsl -d Ubuntu -u root bash -c "systemctl start docker 2>/dev/null; docker start nodeodm 2>/dev/null"
+  echo Aguardando o NodeODM ficar pronto (~10-20s)...
+  :wait
+  curl -s -o nul -m 3 http://127.0.0.1:3000/info && goto ready
+  timeout /t 2 /nobreak >nul & goto wait
+  :ready
+  echo NodeODM PRONTO em http://127.0.0.1:3000 - teste no app (Processar - PC Local - Testar)
   pause
   ```
   Duplo-clique sempre que quiser ligar o NodeODM.
