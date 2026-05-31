@@ -34,6 +34,7 @@ jobs:
           OCI_CLI_REGION: ${{ secrets.OCI_REGION }}
           OCI_KEY_B64: ${{ secrets.OCI_KEY_B64 }}
         run: |
+          set +e
           export OCI_CLI_KEY_CONTENT="$(printf '%s' "$OCI_KEY_B64" | base64 -d)"
 
           # Valores fixos (mesmos do script que funcionou no Cloud Shell)
