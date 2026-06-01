@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.9.2] — Maio 2026
+
+### 🐛 Correção — visualizador 3D de `.laz` (CSP)
+
+- O decodificador WASM (laz-perf, compilado com Emscripten) usa **avaliação dinâmica de JS** — foi preciso liberar `'unsafe-eval'` no CSP. Agora o **🧊 Nuvem (3D)** decodifica o `.laz`. Os dados continuam **100% locais** (a mudança afeta só a política de scripts, não o tratamento de dados).
+
+---
+
 ## [1.9.1] — Maio 2026
 
 ### 🐛 Correção — visualizador 3D de `.laz`
