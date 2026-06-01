@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.9.1] — Maio 2026
+
+### 🐛 Correção — visualizador 3D de `.laz`
+
+- Corrigido o carregamento do **laz-perf**: agora usa a build **web** (a anterior puxava a build Node, que usa `fs` e falha no navegador) e aponta o `.wasm` explicitamente. O **🧊 Nuvem (3D)** deve abrir o `.laz`. Mensagem de erro também ficou mais detalhada.
+
+---
+
 ## [1.9.0] — Maio 2026
 
 ### 🆕 Adicionado — Visualizador 3D de nuvem `.laz`
