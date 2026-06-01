@@ -139,7 +139,9 @@ Ao concluir, o ODM gera um pacote (`all.zip`) com os produtos de fotogrametria. 
 | `odm_report/report.pdf` | **Relatório** de qualidade do processamento |
 | `cameras.json` · `images.json` · `log.json` | Metadados (parâmetros de câmera, imagens usadas, log) |
 
-No app: **🗺️ Ortomosaico** e **⛰️ DSM** abrem direto no visualizador 2D; **⬇ Nuvem (.laz)** baixa a nuvem (abra no **CloudCompare** ou no **QGIS** → *Camada → Adicionar camada de nuvem de pontos*); **⬇ Tudo (.zip)** baixa o pacote completo.
+No app: **🗺️ Ortomosaico** e **⛰️ DSM** abrem direto no visualizador 2D; **🧊 Nuvem (3D)** abre a nuvem `.laz` em 3D no navegador; **⬇ Tudo (.zip)** baixa o pacote completo (abra também no **CloudCompare/QGIS**).
+
+> 📘 **Dicas de qualidade, confiabilidade e "por que usar o OrtoFly":** veja o **[Guia de Boas Práticas e Qualidade](./docs/Boas-Praticas-e-Qualidade.md)** — voo, sobreposição, modo Rápido vs Completo, e a precisão dos produtos (ODM / GCP / RTK).
 
 ---
 

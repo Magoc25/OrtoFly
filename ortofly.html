@@ -225,6 +225,7 @@ footer{
     <div class="card">
       <h2>🧩 Mosaico rápido (GPS)</h2>
       <p class="hint" style="margin-top:0">Pré-mosaico <b>não métrico</b>: posiciona as fotos pelo GPS, rumo e altitude, com a câmera lida do <b>EXIF</b> das fotos (reserva: a câmera selecionada em Drone/Câmera).</p>
+      <p class="hint" style="margin-top:4px"><b>⚠️ É só um preview rápido e aproximado</b> — pode desalinhar (relevo, áreas urbanas). Para o mosaico <b>alinhado e métrico de verdade</b>, use a aba <b>⚙️ Processar</b> (NodeODM).</p>
       <div class="row" style="margin-top:8px">
         <div class="field"><label for="mosaicRes">Resolução</label>
           <select id="mosaicRes"><option value="rapida">Rápida</option><option value="media" selected>Média</option><option value="alta">Alta</option></select>
@@ -410,7 +411,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.9.2</span>
+  <span id="appVersion">© MGC · v1.9.3</span>
 </footer>
 
 <!-- PIX modal -->
@@ -527,8 +528,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.9.2 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.9.2';
+/* ═══════════════ OrtoFly v1.9.3 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.9.3';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1520,7 +1521,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&c.app===APP_VERSION&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now(),app:APP_VERSION})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.9.2', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.9.3', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));

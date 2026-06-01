@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.9.3] — Maio 2026
+
+### ✨ Melhorado — avisos e documentação
+
+- Aba **Imagens**: aviso de que o **🧩 Mosaico rápido (GPS)** é só um **preview aproximado** — para o mosaico **alinhado e métrico**, usar a aba **⚙️ Processar** (NodeODM).
+- Novo **Guia de Boas Práticas e Qualidade** (voo, sobreposição, Rápido vs Completo, precisão/confiabilidade do ODM, "por que usar o OrtoFly") — linkado no README.
+
+---
+
 ## [1.9.2] — Maio 2026
 
 ### 🐛 Correção — visualizador 3D de `.laz` (CSP)
