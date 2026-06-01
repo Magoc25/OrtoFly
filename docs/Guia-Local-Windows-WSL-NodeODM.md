@@ -91,13 +91,14 @@ Abra no navegador **http://127.0.0.1:3000/info** → JSON com `"version"`. ✅
 
 ---
 
-## ▶ Configurar no app (vale para os dois caminhos)
+## ▶ Usar no app (vale para os dois caminhos)
 1. Abra o OrtoFly: **https://magoc25.github.io/OrtoFly/ortofly.html**
-2. Aba **⚙️ Processar** → clique **💻 PC Local**.
-3. A URL já vem **`http://127.0.0.1:3000`** → clique **Testar**.
-4. Deve aparecer **✅ NodeODM vX.Y.Z · fila: 0 · engine: odm**.
-5. **📷 Selecionar imagens** (fotos do drone) → **Nome** → deixe **☑ Rápido (fast-orthophoto)** → **🚀 Enviar e processar**.
-6. Acompanhe o progresso; ao concluir, clique **🗺️ Ortomosaico (2D)** para abrir no visualizador georreferenciado.
+2. Aba **⚙️ Processar** → **💻 PC Local**. A URL já vem **`http://127.0.0.1:3000`**.
+3. O app mostra um **indicador 🟢/🔴 ao vivo**: **verde** = NodeODM conectado · **vermelho** = desligado (atualiza sozinho a cada ~10s). Com o NodeODM ligado (atalho abaixo), fica **🟢**.
+4. **📷 Selecionar imagens** (fotos do drone) → **Nome** → marque **Gerar DSM** se quiser o modelo de superfície → **🚀 Enviar e processar**.
+5. Ao concluir, abra os produtos: **🗺️ Ortomosaico (2D)**, **⛰️ DSM (2D)**, **🧊 Nuvem (3D)** (abre o `.laz` direto em 3D, no navegador) ou **⬇ Tudo (.zip)**.
+
+> 🔌 **Ligar/desligar o NodeODM é pelos atalhos** (abaixo). Por ser uma página de navegador, o app **não pode** ligar/desligar o servidor (segurança do navegador) — mas o **indicador 🟢/🔴** mostra o estado o tempo todo.
 
 ---
 
@@ -114,27 +115,36 @@ Se o **Testar** der **"Failed to fetch"** / não conectar:
 
 ---
 
-## 🔁 Reusar, parar e atalho de 1 clique
-- **Depois de reiniciar o PC:**
-  - **A:** abra o Docker Desktop (o NodeODM volta sozinho pela política `--restart`).
-  - **B:** rode uma vez:
-    ```powershell
-    wsl -d Ubuntu -u root bash -c "systemctl start docker; docker start nodeodm"
-    ```
-- **Atalho (Caminho B):** crie um arquivo **`Iniciar-NodeODM.bat`** na Área de Trabalho com este conteúdo:
-  ```bat
-  @echo off
-  wsl -d Ubuntu -u root bash -c "systemctl start docker 2>/dev/null; docker start nodeodm 2>/dev/null"
-  echo Aguardando o NodeODM ficar pronto (~10-20s)...
-  :wait
-  curl -s -o nul -m 3 http://127.0.0.1:3000/info && goto ready
-  timeout /t 2 /nobreak >nul & goto wait
-  :ready
-  echo NodeODM PRONTO em http://127.0.0.1:3000 - teste no app (Processar - PC Local - Testar)
-  pause
-  ```
-  Duplo-clique sempre que quiser ligar o NodeODM.
-- **Parar:** `docker stop nodeodm` (A) ou `wsl -d Ubuntu -u root docker stop nodeodm` (B).
+## 🔌 Ligar e desligar — 2 atalhos (Caminho B)
+Regra simples: **janela do Iniciar aberta = NodeODM ligado; fechou = desligou.** Crie 2 arquivos na Área de Trabalho:
+
+**`Iniciar-NodeODM.bat`** — liga e **mantém ligado** (minimize a janela enquanto usar):
+```bat
+@echo off
+title NodeODM LIGADO (OrtoFly) -- NAO FECHE enquanto usar
+wsl -d Ubuntu -u root bash -c "systemctl start docker 2>/dev/null; docker start nodeodm 2>/dev/null"
+echo Aguardando o NodeODM ficar pronto (~10-20s)...
+:wait
+curl -s -o nul -m 3 http://127.0.0.1:3000/info && goto ready
+timeout /t 2 /nobreak >nul & goto wait
+:ready
+echo.
+echo  NodeODM PRONTO em http://127.0.0.1:3000
+echo  *** Minimize esta janela. Para DESLIGAR: feche-a. ***
+wsl -d Ubuntu -u root -e sleep infinity
+```
+
+**`Desligar-NodeODM.bat`** — desliga na hora e **libera a memória**:
+```bat
+@echo off
+echo Desligando o NodeODM e liberando a memoria...
+wsl --shutdown
+echo NodeODM desligado.
+timeout /t 3 /nobreak >nul
+```
+
+- **Como usar:** duplo-clique no **Iniciar** → espere **"PRONTO"** → **minimize** (não feche) → use o app (indicador fica 🟢). Terminou? **Feche a janela do Iniciar** (ou rode o **Desligar**) → memória liberada.
+- **Caminho A (Docker Desktop):** não precisa desses atalhos — abra/feche o **Docker Desktop**; o NodeODM volta sozinho pela política `--restart`. Para parar: `docker stop nodeodm`.
 
 ---
 
