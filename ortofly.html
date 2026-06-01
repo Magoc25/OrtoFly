@@ -378,6 +378,7 @@ footer{
         </div>
         <p id="odmModeHint" class="hint" style="margin-top:6px"></p>
         <div id="odmStatus" class="spec"></div>
+        <button class="btn sm" style="margin-top:8px" onclick="openCiteModal()">📑 Como citar (app + ODM)</button>
       </div>
       <div class="card">
         <h2>Nova tarefa</h2>
@@ -411,10 +412,18 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.9.3</span>
+  <span id="appVersion">© MGC · v1.9.4</span>
 </footer>
 
 <!-- PIX modal -->
+<div id="citeModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closeCiteModal()"></div>
+  <div class="modal-content">
+    <div class="modal-header"><div class="modal-title">📑 Como citar (app + ODM)</div><button class="modal-close-btn" type="button" onclick="closeCiteModal()">✕</button></div>
+    <p class="hint" style="margin-top:0">Cite o <b>OrtoFly</b> e o motor <b>OpenDroneMap (ODM)</b>. A versão do ODM é a detectada quando você está conectado.</p>
+    <div id="citeBody"></div>
+  </div>
+</div>
 <div id="pixModal" class="modal hidden">
   <div class="modal-backdrop" onclick="closePixModal()"></div>
   <div class="modal-content">
@@ -528,8 +537,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.9.3 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.9.3';
+/* ═══════════════ OrtoFly v1.9.4 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.9.4';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1382,7 +1391,7 @@ async function odmPing(){
   const u=odmUrlVal(), dot=$('odmDot'), txt=$('odmConnTxt');
   if(!u){ if(dot)dot.style.background='#bbb'; if(txt)txt.textContent='Informe a URL do NodeODM'; _odmPinging=false; return; }
   try{ const c=new AbortController(), t=setTimeout(()=>c.abort(),4500);
-    const r=await fetch(u+'/info',{signal:c.signal}); clearTimeout(t); if(!r.ok) throw 0; const j=await r.json();
+    const r=await fetch(u+'/info',{signal:c.signal}); clearTimeout(t); if(!r.ok) throw 0; const j=await r.json(); _odmInfo=j;
     if(dot)dot.style.background='#1a9e4b';
     if(txt)txt.textContent='🟢 Conectado · NodeODM v'+(j.version||'?')+' · fila '+(j.taskQueueCount!=null?j.taskQueueCount:'?');
   }catch(_){ if(dot)dot.style.background='#d23';
@@ -1458,6 +1467,38 @@ function pixEmv(key,name,city,amount){
   return emv+crc.toString(16).toUpperCase().padStart(4,'0');
 }
 let _pixCode='';
+let _odmInfo=null;
+function citeText(){
+  const v=APP_VERSION, y=new Date().getFullYear(), d=new Date().toLocaleDateString('pt-BR');
+  const odmv=(_odmInfo&&_odmInfo.engineVersion)||'3.5.6', url='https://magoc25.github.io/OrtoFly/ortofly.html';
+  return {
+    mm:`O planejamento de voo foi feito no OrtoFly (Costa, ${y}). O ortomosaico, o modelo digital de superfície (DSM) e a nuvem de pontos foram gerados por fotogrametria (Structure from Motion + Multi-View Stereo) com o OpenDroneMap (ODM) v. ${odmv}.`,
+    abnt:`COSTA, M. G. da. OrtoFly: planejamento de voo e fotogrametria para drones DJI. Versão ${v}. MGC Dev, ${y}. Aplicativo web (PWA). Disponível em: ${url}. Acesso em: ${d}.
+OPENDRONEMAP AUTHORS. ODM: toolkit de fotogrametria para imagens de drone. Versão ${odmv}. Disponível em: https://github.com/OpenDroneMap/ODM. Acesso em: ${d}.`,
+    apa:`Costa, M. G. da. (${y}). OrtoFly: planejamento de voo e fotogrametria para drones DJI (Versão ${v}) [Aplicativo web]. MGC Dev. ${url}
+OpenDroneMap Authors. (${y}). ODM (Versão ${odmv}) [Software]. https://github.com/OpenDroneMap/ODM`,
+    bib:`@misc{ortofly${y},
+  author = {Costa, Marlon Gomes da},
+  title = {{OrtoFly}: planejamento de voo e fotogrametria para drones {DJI}},
+  year = {${y}},
+  note = {Versão ${v}, aplicativo web},
+  howpublished = {${url}}
+}
+@misc{odm,
+  author = {{OpenDroneMap Authors}},
+  title = {{ODM}: toolkit de fotogrametria para imagens de drone},
+  howpublished = {https://github.com/OpenDroneMap/ODM}
+}`
+  };
+}
+function openCiteModal(){
+  const c=citeText(), e=s=>s.replace(/[&<>]/g,m=>m==='&'?'&amp;':m==='<'?'&lt;':'&gt;');
+  const block=(t,x)=>'<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px"><b style="font-size:13px">'+t+'</b><button class="btn sm" onclick="citeCopy(this)">Copiar</button></div><pre style="white-space:pre-wrap;word-break:break-word;font-size:12px;border:1px solid var(--border);border-radius:8px;padding:8px;margin:0">'+e(x)+'</pre></div>';
+  $('citeBody').innerHTML=block('📝 Material e Métodos',c.mm)+block('📚 ABNT',c.abnt)+block('📗 APA',c.apa)+block('💻 BibTeX',c.bib);
+  $('citeModal').classList.remove('hidden');
+}
+function closeCiteModal(){ $('citeModal').classList.add('hidden'); }
+function citeCopy(btn){ const pre=btn.parentElement.nextElementSibling; navigator.clipboard.writeText(pre.textContent).then(()=>{ const o=btn.textContent; btn.textContent='Copiado ✓'; setTimeout(()=>{btn.textContent=o;},1400); }).catch(()=>toast('Não consegui copiar','error')); }
 function openPixModal(){
   $('pixModal').classList.remove('hidden');
   _pixCode=pixEmv(PIX_KEY,PIX_NAME,PIX_CITY,'');
@@ -1521,7 +1562,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&c.app===APP_VERSION&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now(),app:APP_VERSION})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.9.3', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.9.4', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));

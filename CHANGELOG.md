@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.9.4] — Maio 2026
+
+### 🆕 Adicionado — "Como citar" (app + ODM)
+
+- Botão **📑 Como citar** na aba Processar: gera a citação do **OrtoFly e do OpenDroneMap (ODM)** em **ABNT, APA e BibTeX** (+ texto pronto de "Material e Métodos"), com **Copiar** em cada formato. A versão do ODM entra automaticamente quando você está conectado.
+
+---
+
 ## [1.9.3] — Maio 2026
 
 ### ✨ Melhorado — avisos e documentação
