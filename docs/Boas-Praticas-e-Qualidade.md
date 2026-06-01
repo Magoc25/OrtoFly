@@ -43,7 +43,9 @@ O OrtoFly **não tenta substituir** Pix4D, Agisoft Metashape ou DroneDeploy. Ele
 - **Fluxo completo num lugar só** — planejar voo (KMZ/WPML para DJI) → importar → preview → processar (ODM) → visualizar 2D/3D — em **PT-BR**, com foco no Brasil (ANAC/DECEA, agro, topografia, cadastro).
 - **Sem instalação pesada** — o app é um **PWA** (abre e usa); o motor é **um comando Docker**.
 
-**Quando preferir um software pago:** trabalhos que exigem **precisão certificada, suporte, relatórios e fluxos avançados de GCP/RTK** (engenharia, cadastro legal, aerolevantamento profissional). Para **educação, agricultura, inspeção, pequenas operações e quem preza privacidade/orçamento**, o OrtoFly + ODM cobre muito bem.
+**Importante — não é uma questão de precisão.** A exatidão **não depende da marca** do software: vem do **método (fotogrametria) e das suas entradas** (sobreposição, GCPs/RTK), que valem **igual** para o ODM e para os pagos. O ODM é usado em **pesquisa, engenharia e produção** no mundo todo — e estudos científicos mostram resultados **comparáveis** aos comerciais para os mesmos dados. Para **pesquisadores, autônomos e pequenas/médias empresas**, entrega produtos **confiáveis e do mesmo nível**.
+
+**O que os softwares pagos oferecem a mais** (não é exatidão): interface mais polida, **suporte técnico**, relatórios prontos e alguns **fluxos avançados** (GCP/RTK assistido, processamento em nuvem escalável, recursos específicos de setor). Para **pesquisa**, inclusive, o ODM tem um trunfo: é **aberto e reprodutível** (você cita a versão e repete o processamento) — algo valorizado academicamente.
 
 ## ❓ "Qual a confiabilidade dos produtos gerados (NodeODM)?"
 
