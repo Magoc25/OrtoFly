@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.9.5] — Junho 2026
+
+### 🐛 Correção
+
+- Indicador de conexão da aba Processar mais **limpo**: mostra só **🟢 Conectado / 🔴 Desconectado** (removido o texto extra "rode o atalho…" que quebrava de linha e parecia um segundo botão).
+
+---
+
 ## [1.9.4] — Maio 2026
 
 ### 🆕 Adicionado — "Como citar" (app + ODM)
