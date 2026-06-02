@@ -397,7 +397,7 @@ footer{
         <div class="btn-grid" style="margin-top:8px">
           <button class="btn sm" onclick="odmRefresh()">↻ Atualizar</button>
           <button class="btn sm" onclick="odmCancel()">✖ Cancelar</button>
-          <button class="btn sm" onclick="odmClearTask()">🗑️ Limpar</button>
+          <button class="btn sm" onclick="odmDiscard()" title="Apaga as fotos e produtos desta tarefa do NodeODM (libera o disco).">🗑️ Descartar</button>
         </div>
         <div id="odmOutputs" class="hidden" style="margin-top:8px"></div>
       </div>
@@ -413,7 +413,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.9.7</span>
+  <span id="appVersion">© MGC · v1.10.0</span>
 </footer>
 
 <!-- PIX modal -->
@@ -538,8 +538,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.9.7 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.9.7';
+/* ═══════════════ OrtoFly v1.10.0 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.10.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -935,7 +935,7 @@ function saveProject(){
 function newProject(){ if(state.polygon.length>=3 && !confirm('Começar um novo projeto? A área atual será limpa.')) return; clearArea(); $('projName').value=''; state.name=''; }
 function openProjects(){ const arr=loadProjects(); const box=$('projectsList');
   box.innerHTML = arr.length ? arr.map(p=>`<div class="proj-item">
-      <div><div class="pn" onclick="openProject('${p.id}')">${esc(p.name)}</div><div class="pd">${new Date(p.ts).toLocaleString('pt-BR')}</div></div>
+      <div><div class="pn" onclick="openProject('${p.id}')">${esc(p.name)}${p.result?' <span title="Tem ortomosaico salvo no app (offline)">🗺️</span>':''}</div><div class="pd">${new Date(p.ts).toLocaleString('pt-BR')}</div></div>
       <div style="margin-left:auto;display:flex;gap:6px">
         <button class="btn sm" onclick="openProject('${p.id}')">Abrir</button>
         <button class="btn sm" onclick="deleteProject('${p.id}')" title="Excluir">🗑️</button>
@@ -943,8 +943,8 @@ function openProjects(){ const arr=loadProjects(); const box=$('projectsList');
   $('projectsModal').classList.remove('hidden');
 }
 function closeProjects(){ $('projectsModal').classList.add('hidden'); }
-function openProject(id){ const p=loadProjects().find(x=>x.id===id); if(!p) return; $('projName').value=p.name; state.name=p.name; applySnapshot(p.data); closeProjects(); toast('Projeto carregado ✅'); }
-function deleteProject(id){ if(!confirm('Excluir este projeto?')) return; storeProjects(loadProjects().filter(p=>p.id!==id)); openProjects(); toast('Projeto excluído'); }
+function openProject(id){ const p=loadProjects().find(x=>x.id===id); if(!p) return; $('projName').value=p.name; state.name=p.name; applySnapshot(p.data); closeProjects(); toast('Projeto carregado ✅'); if(p.result) odmLoadSavedResult(id); }
+function deleteProject(id){ const p=loadProjects().find(x=>x.id===id); if(!confirm('Excluir este projeto?'+((p&&p.result)?'\n\nOs produtos salvos (ortho/nuvem) também serão apagados do app.':''))) return; storeProjects(loadProjects().filter(x=>x.id!==id)); if(p&&p.result){ idbDel('result_'+id).catch(()=>{}); if(_odmResultProj===id) odmClearCard(); } openProjects(); toast('Projeto excluído'); }
 function exportProjectJSON(){
   const data={app:'OrtoFly',versao:APP_VERSION,nome:$('projName').value||'voo',exportado:new Date().toISOString(),projeto:snapshot()};
   downloadBlob(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}), 'ortofly_'+planName()+'.json');
@@ -996,7 +996,8 @@ function wire(){
   odmInitMode(); odmStartPing();
   $('odmUrl').addEventListener('input',()=>{ clearTimeout(window._odmUrlT); window._odmUrlT=setTimeout(odmPing,700); });
   $('odmImages').addEventListener('change',e=>{ odmOnImages(e.target.files); });
-  _odmTask=localStorage.getItem(LS+'_odm_task')||null; if(_odmTask){ $('odmTaskCard').classList.remove('hidden'); if(odmUrlVal()) odmStartPoll(); }
+  _odmTask=localStorage.getItem(LS+'_odm_task')||null; if(_odmTask){ _odmSaved=false; $('odmTaskCard').classList.remove('hidden'); if(odmUrlVal()) odmStartPoll(); }
+  window.addEventListener('beforeunload',e=>{ if(_odmTask && !_odmSaved && !_odmSavedMode){ e.preventDefault(); e.returnValue=''; return ''; } });
   $('importJson').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(f) importProjectFile(f); e.target.value=''; });
   $('photoInput').addEventListener('change',e=>{ const fs=e.target.files; if(fs&&fs.length) handlePhotoFiles(fs); e.target.value=''; });
   $('mosaicOpacity').addEventListener('input',()=>{ $('mosaicOpacityVal').textContent=$('mosaicOpacity').value+'%'; setMosaicOpacity(); });
@@ -1366,6 +1367,7 @@ async function loadLAS(file){
 
 /* ═══════════════ PROCESSAR (NodeODM) — Fase 5 ═══════════════ */
 let _odmTask=null, _odmFiles=null, _odmPoll=null;
+let _odmSaved=false, _odmSavedMode=false, _odmZipRaw=null, _odmResultProj=null;
 let _odmMode='local';
 function odmModeKey(m){ return LS+'_odm_url_'+(m||_odmMode); }
 function odmDefaultUrl(m){ return m==='local'?'http://127.0.0.1:3000':''; }
@@ -1421,7 +1423,7 @@ async function odmCreate(){ const u=odmUrlVal(); if(!u){ toast('Configure e test
     _odmTask=j.uuid; localStorage.setItem(LS+'_odm_task',j.uuid); odmStatus('✅ Tarefa criada: '+j.uuid); $('odmTaskCard').classList.remove('hidden'); $('odmOutputs').classList.add('hidden'); odmStartPoll(); toast('Tarefa enviada ✅');
   }catch(e){ console.error('[ODM] create',e); odmStatus('❌ Falha ao criar tarefa: '+e.message,true); toast('Falha: '+e.message,'error'); } }
 function odmStartPoll(){ if(_odmPoll) clearInterval(_odmPoll); odmRefresh(); _odmPoll=setInterval(odmRefresh,5000); }
-function odmClearTask(){ if(_odmPoll) clearInterval(_odmPoll); _odmTask=null; _odmZip=null; _odmZipFor=null; localStorage.removeItem(LS+'_odm_task'); $('odmTaskCard').classList.add('hidden'); $('odmOutputs').classList.add('hidden'); toast('Tarefa removida da lista'); }
+function odmClearCard(){ if(_odmPoll) clearInterval(_odmPoll); _odmTask=null; _odmZip=null; _odmZipFor=null; _odmZipRaw=null; _odmSavedMode=false; _odmResultProj=null; _odmSaved=false; localStorage.removeItem(LS+'_odm_task'); $('odmTaskCard').classList.add('hidden'); $('odmOutputs').classList.add('hidden'); odmStatus(''); }
 async function odmRefresh(){ const u=odmUrlVal(); if(!u||!_odmTask) return;
   try{ const r=await fetch(u+'/task/'+_odmTask+'/info'); const j=await r.json();
     const codes={10:'na fila',20:'processando',30:'falhou',40:'concluído',50:'cancelado'}; const st=j.status&&j.status.code;
@@ -1431,34 +1433,84 @@ async function odmRefresh(){ const u=odmUrlVal(); if(!u||!_odmTask) return;
     if(st===40){ if(_odmPoll) clearInterval(_odmPoll); odmShowOutputs(); }
     else if(st===30||st===50){ if(_odmPoll) clearInterval(_odmPoll); $('odmOutputs').classList.add('hidden'); }
   }catch(e){ console.error('[ODM] info',e); $('odmTaskStatus').textContent='Erro ao consultar status: '+e.message; } }
-function odmShowOutputs(){ const box=$('odmOutputs'); if(!box) return; box.classList.remove('hidden');
-  box.innerHTML='<div class="spec" style="margin-bottom:6px">Concluído ✅ — abrir/baixar (extraído do all.zip):</div><div class="btn-grid">'+
+function odmShowOutputs(){ const box=$('odmOutputs'); if(!box) return; box.classList.remove('hidden'); const saved=_odmSavedMode;
+  box.innerHTML='<div class="spec" style="margin-bottom:6px">'+(saved?'Resultado salvo ✅ — abrir/baixar (offline):':'Concluído ✅ — abrir/baixar (extraído do all.zip):')+'</div><div class="btn-grid">'+
     '<button class="btn sm" title="Mapa colorido georreferenciado (GeoTIFF). Abre no visualizador 2D." onclick="odmOpenZip(\'ortho\',\'2d\')">🗺️ Ortomosaico (2D)</button>'+
     '<button class="btn sm" title="Modelo digital de superfície (altimetria). Só existe se a tarefa foi criada com a opção Gerar DSM." onclick="odmOpenZip(\'dsm\',\'2d\')">⛰️ DSM (2D)</button>'+
     '<button class="btn sm" title="Abre a nuvem de pontos 3D direto no visualizador (decodifica o .laz no navegador). Para baixar o arquivo, use ⬇ Tudo (.zip)." onclick="odmOpenZip(\'laz\',\'3d\')">🧊 Nuvem (3D)</button>'+
     '<button class="btn sm" title="Pacote .zip com TODOS os produtos do ODM (ortomosaico, DSM, nuvem, malha 3D, relatório, metadados). Veja o README para o conteúdo." onclick="odmDownload(\'all.zip\')">⬇ Tudo (.zip)</button>'+
-    '</div><p class="hint">Esta versão do NodeODM entrega tudo no <b>all.zip</b> — o app baixa e extrai. Ortos grandes podem demorar no navegador (alternativa: baixe ⬇ Tudo .zip e abra no QGIS).</p>'; }
+    '</div>'+(saved
+      ? '<p class="hint">Guardado no app (acessível offline). Para apagar, exclua o projeto na lista de projetos.</p>'
+      : '<div class="btn-grid" style="margin-top:8px"><button class="btn sm" title="Guarda os produtos no app e APAGA a tarefa do NodeODM (libera o disco). Fica acessível mesmo com o NodeODM desligado." onclick="odmSaveResult()">💾 Salvar no projeto</button><button class="btn sm" title="Apaga as fotos e produtos do NodeODM (libera o disco) sem salvar." onclick="odmDiscard()">🗑️ Descartar</button></div><p class="hint">⚠️ Os dados ocupam disco no NodeODM até você <b>Salvar</b> (guarda no app + libera o servidor) ou <b>Descartar</b>. Esta versão entrega tudo no <b>all.zip</b> — o app baixa e extrai.</p>'); }
 const ODM_RE={ortho:/odm_orthophoto\/odm_orthophoto\.tif$/i, dsm:/(^|\/)dsm\.tif$/i, dtm:/(^|\/)dtm\.tif$/i, laz:/georeferenced_model\.(laz|las)$/i};
 let _odmZip=null,_odmZipFor=null;
-async function odmGetZip(){ if(_odmZip&&_odmZipFor===_odmTask) return _odmZip;
+async function odmGetZip(){ if(_odmZip&&(_odmSavedMode||_odmZipFor===_odmTask)) return _odmZip;
   const u=odmUrlVal(); if(!u||!_odmTask) throw new Error('sem tarefa');
   odmStatus('Baixando pacote (all.zip)… pode demorar'); toast('Baixando all.zip…');
   const r=await fetch(u+'/task/'+_odmTask+'/download/all.zip'); if(!r.ok) throw new Error('HTTP '+r.status);
-  const buf=await r.arrayBuffer(); _odmZip=await JSZip.loadAsync(buf); _odmZipFor=_odmTask; odmStatus('Pacote baixado ✅'); return _odmZip; }
+  const buf=await r.arrayBuffer(); _odmZipRaw=new Blob([buf],{type:'application/zip'}); _odmZip=await JSZip.loadAsync(buf); _odmZipFor=_odmTask; odmStatus('Pacote baixado ✅'); return _odmZip; }
 async function odmExtract(kind){ const zip=await odmGetZip(); const re=ODM_RE[kind];
   const n=Object.keys(zip.files).find(k=>!zip.files[k].dir&&re.test(k)); if(!n) throw new Error((kind==='dsm'||kind==='dtm')?'DSM não gerado nesta tarefa — marque "Gerar DSM" ao criar (modo completo).':'não achei "'+kind+'" no all.zip');
   return {blob:await zip.files[n].async('blob'), name:n.split('/').pop()}; }
 async function odmFetch(asset){ const u=odmUrlVal(); const r=await fetch(u+'/task/'+_odmTask+'/download/'+asset); if(!r.ok) throw new Error('HTTP '+r.status); return await r.blob(); }
-async function odmOpenZip(kind,viewer){ if(!odmUrlVal()||!_odmTask) return;
+async function odmOpenZip(kind,viewer){ if(!_odmSavedMode && (!odmUrlVal()||!_odmTask)) return;
   try{ const {blob,name}=await odmExtract(kind); odmStatus('Abrindo '+name+'…'); const file=new File([blob],name,{type:blob.type});
     if(viewer==='2d'){ setTab('ver'); await handleRasterFile(file); } else { await handle3DFile(file); } odmStatus('');
   }catch(e){ console.error('[ODM] openZip',e); toast('Falha ao abrir: '+e.message,'error'); odmStatus('❌ '+e.message,true); } }
-async function odmGrabZip(kind){ if(!odmUrlVal()||!_odmTask) return;
+async function odmGrabZip(kind){ if(!_odmSavedMode && (!odmUrlVal()||!_odmTask)) return;
   try{ const {blob,name}=await odmExtract(kind); downloadBlob(blob,'ortofly_'+name); toast('Baixado: '+name); }catch(e){ console.error('[ODM] grabZip',e); toast('Falha: '+e.message,'error'); } }
-async function odmDownload(asset){ if(!odmUrlVal()||!_odmTask) return; toast('Baixando '+asset+'…');
-  try{ const blob=await odmFetch(asset); downloadBlob(blob,'ortofly_'+asset); }catch(e){ console.error('[ODM] download',e); toast('Falha: '+e.message,'error'); } }
+async function odmDownload(asset){ if(!_odmSavedMode && (!odmUrlVal()||!_odmTask)) return; toast('Baixando '+asset+'…');
+  try{ let blob; if(_odmSavedMode && asset==='all.zip' && _odmZipRaw){ blob=_odmZipRaw; } else { blob=await odmFetch(asset); } downloadBlob(blob,'ortofly_'+asset); }catch(e){ console.error('[ODM] download',e); toast('Falha: '+e.message,'error'); } }
 async function odmCancel(){ const u=odmUrlVal(); if(!u||!_odmTask) return; if(!confirm('Cancelar a tarefa?')) return;
   try{ const fd=new FormData(); fd.append('uuid',_odmTask); await fetch(u+'/task/cancel',{method:'POST',body:fd}); odmRefresh(); }catch(e){ console.error('[ODM] cancel',e); toast('Falha ao cancelar: '+e.message,'error'); } }
+
+/* ───── Ciclo de vida limpo: salvar no app (IndexedDB) + apagar do NodeODM ───── */
+const IDB_NAME='ortofly_db', IDB_STORE='results';
+function _idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open(IDB_NAME,1); r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains(IDB_STORE)) r.result.createObjectStore(IDB_STORE); }; r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function idbPut(k,v){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).put(v,k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
+async function idbGet(k){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readonly'); const q=tx.objectStore(IDB_STORE).get(k); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); }); }
+async function idbDel(k){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).delete(k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
+async function odmRemoveServer(uuid){ const u=odmUrlVal(); if(!u||!uuid) return false; try{ const fd=new FormData(); fd.append('uuid',uuid); const r=await fetch(u+'/task/remove',{method:'POST',body:fd}); return r.ok; }catch(e){ console.warn('[ODM] remove',e); return false; } }
+async function odmSaveResult(){
+  if(_odmSavedMode){ toast('Este resultado já está salvo'); return; }
+  if(!_odmTask){ toast('Sem resultado para salvar','error'); return; }
+  let name=((state.name||$('projName').value||'').trim());
+  if(!name){ name=prompt('Nome do projeto para guardar o resultado:',''); if(name==null) return; name=(name||'').trim(); }
+  if(!name){ toast('Dê um nome ao projeto','error'); return; }
+  try{
+    odmStatus('Salvando no app… (baixando o pacote, pode demorar)'); toast('Salvando…');
+    await odmGetZip(); if(!_odmZipRaw) throw new Error('pacote indisponível');
+    const has={ dsm:Object.keys(_odmZip.files).some(k=>ODM_RE.dsm.test(k)), laz:Object.keys(_odmZip.files).some(k=>ODM_RE.laz.test(k)) };
+    const arr=loadProjects(); let rec=arr.find(p=>p.name.toLowerCase()===name.toLowerCase());
+    if(!rec){ rec={ id:slug(name)+'_'+Date.now().toString(36), name, ts:Date.now(), data:(state.polygon.length>=3?snapshot():{}) }; arr.unshift(rec); }
+    rec.result={ ts:Date.now(), size:_odmZipRaw.size, has };
+    await idbPut('result_'+rec.id, _odmZipRaw);
+    storeProjects(arr); state.name=name; if($('projName')) $('projName').value=name;
+    const uuid=_odmTask; _odmSaved=true;
+    const removed=await odmRemoveServer(uuid);
+    if(_odmPoll) clearInterval(_odmPoll);
+    _odmTask=null; localStorage.removeItem(LS+'_odm_task'); _odmSavedMode=true; _odmResultProj=rec.id;
+    odmShowOutputs();
+    odmStatus('✅ Salvo no projeto "'+name+'"'+(removed?' e removido do NodeODM (disco liberado).':' (não removeu do NodeODM — apague depois).'));
+    toast('Salvo no projeto ✅');
+  }catch(e){ console.error('[ODM] save',e); _odmSaved=false; toast('Falha ao salvar: '+e.message,'error'); odmStatus('❌ '+e.message,true); }
+}
+async function odmDiscard(){
+  if(!_odmTask && !_odmSavedMode){ odmClearCard(); return; }
+  if(_odmTask && !confirm('Descartar este processamento?\n\nAs fotos e os produtos serão APAGADOS do NodeODM (libera o disco). Não dá pra desfazer.')) return;
+  const uuid=_odmTask;
+  if(uuid){ odmStatus('Descartando e liberando o disco do NodeODM…'); await odmRemoveServer(uuid); }
+  odmClearCard();
+  toast('Descartado ✅');
+}
+async function odmLoadSavedResult(id){
+  try{ odmClearCard(); odmStatus('Carregando resultado salvo…');
+    const blob=await idbGet('result_'+id); if(!blob){ toast('Resultado salvo não encontrado','error'); odmStatus(''); return; }
+    _odmZipRaw=blob; _odmZip=await JSZip.loadAsync(blob); _odmSavedMode=true; _odmResultProj=id;
+    setTab('proc'); $('odmTaskCard').classList.remove('hidden'); $('odmTaskStatus').textContent='Resultado salvo (offline) ✅';
+    const ob=$('odmBar'); if(ob) ob.style.display='none';
+    odmShowOutputs(); odmStatus(''); toast('Resultado carregado ✅');
+  }catch(e){ console.error('[ODM] loadSaved',e); toast('Falha ao carregar: '+e.message,'error'); odmStatus(''); } }
 
 /* ═══════════════ PIX ═══════════════ */
 const PIX_KEY='4c6086a2-4bb8-474b-a4cf-ced8c8d82189', PIX_NAME='MGC Dev', PIX_CITY='Sao Raimundo';
@@ -1566,7 +1618,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&c.app===APP_VERSION&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now(),app:APP_VERSION})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.9.7', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.10.0', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));

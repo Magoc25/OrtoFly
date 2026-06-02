@@ -5,6 +5,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.10.0] — Junho 2026
+
+### ✨ Fluxo limpo de projeto — Salvar/Descartar (corrige a instabilidade do NodeODM local)
+
+- **Ao concluir um processamento**, agora há **💾 Salvar no projeto** e **🗑️ Descartar**:
+  - **Salvar** guarda o ortomosaico/DSM/nuvem **dentro do app** (IndexedDB) e **apaga a tarefa do NodeODM**, liberando o disco do servidor. O projeto salvo abre **offline** (não precisa do NodeODM ligado) e aparece com 🗺️ na lista de projetos.
+  - **Descartar** apaga as fotos e produtos da tarefa **do NodeODM** (libera o disco) sem salvar.
+- **Excluir projeto** agora também apaga os produtos salvos do app. Aviso ao **sair com processamento não salvo**.
+- **Por quê:** o "🗑️ Limpar" anterior só sumia com o card — **não apagava a tarefa do NodeODM**, que acumulava as fotos + ~2,5 GB de intermediários por tarefa e **enchia o disco**, derrubando o NodeODM local ("desconectado" / "Failed to fetch"). Agora o sistema fica limpo: nada permanece no servidor sem você querer.
+
+---
+
 ## [1.9.7] — Junho 2026
 
 ### ✨ Melhorado — barras de progresso e ajustes
