@@ -116,22 +116,22 @@ Se o **Testar** der **"Failed to fetch"** / não conectar:
 ---
 
 ## 🔌 Ligar e desligar — 2 atalhos (Caminho B)
-Regra simples: **janela do Iniciar aberta = NodeODM ligado; fechou = desligou.** Crie 2 arquivos na Área de Trabalho:
+O **Iniciar** sobe o NodeODM e o mantém ligado **em segundo plano** (sem precisar deixar janela aberta); o **Desligar** para e libera a memória. Crie 2 arquivos na Área de Trabalho:
 
-**`Iniciar-NodeODM.bat`** — liga e **mantém ligado** (minimize a janela enquanto usar):
+**`Iniciar-NodeODM.bat`** — liga e deixa rodando em 2º plano:
 ```bat
 @echo off
-title NodeODM LIGADO (OrtoFly) -- NAO FECHE enquanto usar
+title Iniciar NodeODM (OrtoFly)
 wsl -d Ubuntu -u root bash -c "systemctl start docker 2>/dev/null; docker start nodeodm 2>/dev/null"
+REM keep-alive OCULTO: segura o WSL acordado em 2o plano (senao ele hiberna e derruba o NodeODM)
+powershell -NoProfile -Command "Start-Process wsl -ArgumentList '-d','Ubuntu','-u','root','-e','sleep','infinity' -WindowStyle Hidden"
 echo Aguardando o NodeODM ficar pronto (~10-20s)...
 :wait
 curl -s -o nul -m 3 http://127.0.0.1:3000/info && goto ready
 timeout /t 2 /nobreak >nul & goto wait
 :ready
-echo.
-echo  NodeODM PRONTO em http://127.0.0.1:3000
-echo  *** Minimize esta janela. Para DESLIGAR: feche-a. ***
-wsl -d Ubuntu -u root -e sleep infinity
+echo NodeODM PRONTO em http://127.0.0.1:3000 (em 2o plano - pode fechar esta janela)
+timeout /t 6 /nobreak >nul
 ```
 
 **`Desligar-NodeODM.bat`** — desliga na hora e **libera a memória**:
@@ -143,7 +143,8 @@ echo NodeODM desligado.
 timeout /t 3 /nobreak >nul
 ```
 
-- **Como usar:** duplo-clique no **Iniciar** → espere **"PRONTO"** → **minimize** (não feche) → use o app (indicador fica 🟢). Terminou? **Feche a janela do Iniciar** (ou rode o **Desligar**) → memória liberada.
+- **Como usar:** duplo-clique no **Iniciar** → espere **"PRONTO"** → **pode fechar a janela** (o NodeODM segue ligado em 2º plano). Terminou de usar? Rode o **Desligar** → memória liberada.
+- ⚠️ **Por que o keep-alive oculto?** O WSL **hiberna sozinho** quando fica ocioso (~1 min) e derruba o NodeODM (causa de "desconectado" / "Failed to fetch"). O `sleep infinity` oculto segura o WSL acordado até você Desligar.
 - **Caminho A (Docker Desktop):** não precisa desses atalhos — abra/feche o **Docker Desktop**; o NodeODM volta sozinho pela política `--restart`. Para parar: `docker stop nodeodm`.
 
 ---
