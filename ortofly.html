@@ -230,13 +230,13 @@ footer{
         <div class="field"><label for="mosaicRes">Resolução</label>
           <select id="mosaicRes"><option value="rapida">Rápida</option><option value="media" selected>Média</option><option value="alta">Alta</option></select>
         </div>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;align-self:flex-end;white-space:nowrap"><input type="checkbox" id="mosaicYaw" checked style="width:auto" /> Usar rumo</label>
       </div>
       <button class="btn primary block" onclick="generateMosaic()" style="margin-top:4px">🧩 Gerar mosaico</button>
       <div class="row hidden" id="mosaicOpacityRow" style="margin-top:8px">
         <div class="field"><label>Opacidade — <span id="mosaicOpacityVal">100%</span></label><input id="mosaicOpacity" type="range" min="20" max="100" value="100" /></div>
       </div>
       <div id="mosaicStatus" class="spec" style="margin-top:6px"></div>
+      <div id="mosaicBar" style="display:none;height:8px;background:rgba(0,0,0,.18);border-radius:4px;overflow:hidden;margin-top:6px"><div id="mosaicBarFill" style="height:100%;width:0;background:#1a9e4b;transition:width .2s"></div></div>
       <div class="btn-grid" style="margin-top:8px">
         <button class="btn sm hidden" id="mosaicExportBtn" onclick="exportMosaic()">⬇ PNG + world file</button>
         <button class="btn sm hidden" id="mosaicClearBtn" onclick="clearMosaic()">🗑️ Remover</button>
@@ -393,9 +393,11 @@ footer{
       <div class="card hidden" id="odmTaskCard">
         <h2>Tarefa</h2>
         <div id="odmTaskStatus" class="spec"></div>
+        <div id="odmBar" style="display:none;height:8px;background:rgba(0,0,0,.18);border-radius:4px;overflow:hidden;margin-top:6px"><div id="odmBarFill" style="height:100%;width:0;background:#1a9e4b;transition:width .3s"></div></div>
         <div class="btn-grid" style="margin-top:8px">
           <button class="btn sm" onclick="odmRefresh()">↻ Atualizar</button>
           <button class="btn sm" onclick="odmCancel()">✖ Cancelar</button>
+          <button class="btn sm" onclick="odmClearTask()">🗑️ Limpar</button>
         </div>
         <div id="odmOutputs" class="hidden" style="margin-top:8px"></div>
       </div>
@@ -411,7 +413,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.9.6</span>
+  <span id="appVersion">© MGC · v1.9.7</span>
 </footer>
 
 <!-- PIX modal -->
@@ -536,8 +538,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.9.6 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.9.6';
+/* ═══════════════ OrtoFly v1.9.7 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.9.7';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1117,6 +1119,8 @@ function aoiFromPhotos(){ const gps=gpsPhotos(); if(gps.length<3){ toast('Precis
 /* ═══════════════ MOSAICO RÁPIDO (GPS/EXIF) — Fase 3 ═══════════════ */
 let mosaicOverlay=null, _mosaicUrl=null, _mosaicMeta=null, _mosaicBusy=false;
 function mosaicStatus(t){ const e=$('mosaicStatus'); if(e) e.textContent=t||''; }
+function mosaicProg(done,total){ const p=total?Math.round(done/total*100):0; const b=$('mosaicBar'),f=$('mosaicBarFill'); if(b){ b.style.display='block'; if(f) f.style.width=p+'%'; } mosaicStatus(done+'/'+total+' ('+p+'%)'); }
+function mosaicProgHide(){ const b=$('mosaicBar'); if(b) b.style.display='none'; }
 function setMosaicOpacity(){ if(mosaicOverlay) mosaicOverlay.setOpacity((+$('mosaicOpacity').value||100)/100); }
 function clearMosaic(){ if(mosaicOverlay){ mosaicOverlay.remove(); mosaicOverlay=null; } if(_mosaicUrl){ URL.revokeObjectURL(_mosaicUrl); _mosaicUrl=null; } _mosaicMeta=null;
   $('mosaicExportBtn').classList.add('hidden'); $('mosaicClearBtn').classList.add('hidden'); $('mosaicOpacityRow').classList.add('hidden'); mosaicStatus(''); }
@@ -1128,7 +1132,7 @@ async function generateMosaic(){
   if(!map){ toast('Mapa indisponível','error'); return; }
   _mosaicBusy=true;
   try{
-    const cam=activeCam(); const useYaw=$('mosaicYaw').checked;
+    const cam=activeCam(); const useYaw=true;
     const MAXPX={rapida:1600,media:2600,alta:3600}[$('mosaicRes').value]||2600;
     const relList=gps.map(p=>p.relAlt).filter(v=>v!=null&&isFinite(v)).sort((a,b)=>a-b);
     const fallbackAlt=relList.length?relList[Math.floor(relList.length/2)]:(+$('altNum').value||100);
@@ -1161,7 +1165,7 @@ async function generateMosaic(){
     const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
     const ctx=cv.getContext('2d'); ctx.imageSmoothingQuality='high';
     const X=e=>(e-xmin)/mPerPx, Y=n=>(ymax-n)/mPerPx;
-    toast('Gerando mosaico de '+items.length+' foto(s)…'); mosaicStatus('0/'+items.length+'…');
+    toast('Gerando mosaico de '+items.length+' foto(s)…'); mosaicProg(0,items.length);
     let done=0;
     for(const it of items){
       try{
@@ -1173,7 +1177,7 @@ async function generateMosaic(){
         ctx.beginPath(); ctx.rect(iw*0.1, ih*0.1, iw*0.8, ih*0.8); ctx.clip();   // usa só o miolo da foto (menos distorção/borda)
         ctx.drawImage(bm,0,0); ctx.restore(); if(bm.close) bm.close();
       }catch(err){ console.warn('[Mosaico]',it.p.name,err); }
-      done++; if(done%5===0||done===items.length) mosaicStatus(done+'/'+items.length+'…');
+      done++; if(done%5===0||done===items.length) mosaicProg(done,items.length);
     }
     ctx.setTransform(1,0,0,1,0,0);
     const tlLL=f.toLL(xmin,ymax), brLL=f.toLL(xmax,ymin);
@@ -1188,7 +1192,7 @@ async function generateMosaic(){
     $('mosaicExportBtn').classList.remove('hidden'); $('mosaicClearBtn').classList.remove('hidden'); $('mosaicOpacityRow').classList.remove('hidden');
     const wy=gps.filter(p=>p.yaw!=null&&isFinite(p.yaw)).length;
     const rumoTxt=wy>0?`rumo EXIF ${wy}/${items.length}`:(trackUsed>0?`rumo do trajeto ${trackUsed}/${items.length}`:'sem rumo');
-    mosaicStatus(`${items.length} foto(s) · ${cw}×${ch} px · ~${mPerPx.toFixed(2)} m/px · ${rumoTxt}`);
+    mosaicProgHide(); mosaicStatus(`${items.length} foto(s) · ${cw}×${ch} px · ~${mPerPx.toFixed(2)} m/px · ${rumoTxt}`);
     toast('Mosaico rápido gerado ✅');
   }catch(e){ console.error('[Mosaico]',e); toast('Erro ao gerar mosaico: '+e.message,'error'); }
   finally{ _mosaicBusy=false; }
@@ -1417,10 +1421,13 @@ async function odmCreate(){ const u=odmUrlVal(); if(!u){ toast('Configure e test
     _odmTask=j.uuid; localStorage.setItem(LS+'_odm_task',j.uuid); odmStatus('✅ Tarefa criada: '+j.uuid); $('odmTaskCard').classList.remove('hidden'); $('odmOutputs').classList.add('hidden'); odmStartPoll(); toast('Tarefa enviada ✅');
   }catch(e){ console.error('[ODM] create',e); odmStatus('❌ Falha ao criar tarefa: '+e.message,true); toast('Falha: '+e.message,'error'); } }
 function odmStartPoll(){ if(_odmPoll) clearInterval(_odmPoll); odmRefresh(); _odmPoll=setInterval(odmRefresh,5000); }
+function odmClearTask(){ if(_odmPoll) clearInterval(_odmPoll); _odmTask=null; _odmZip=null; _odmZipFor=null; localStorage.removeItem(LS+'_odm_task'); $('odmTaskCard').classList.add('hidden'); $('odmOutputs').classList.add('hidden'); toast('Tarefa removida da lista'); }
 async function odmRefresh(){ const u=odmUrlVal(); if(!u||!_odmTask) return;
   try{ const r=await fetch(u+'/task/'+_odmTask+'/info'); const j=await r.json();
     const codes={10:'na fila',20:'processando',30:'falhou',40:'concluído',50:'cancelado'}; const st=j.status&&j.status.code;
-    $('odmTaskStatus').textContent=`${j.name||_odmTask} · ${codes[st]||('código '+st)}${j.progress!=null?' · '+Math.round(j.progress)+'%':''}${j.imagesCount?' · '+j.imagesCount+' img':''}`;
+    const pct=(st===20&&j.progress!=null)?Math.round(j.progress):null;
+    $('odmTaskStatus').textContent=`${j.name||_odmTask} · ${codes[st]||('código '+st)}${pct!=null?' · '+pct+'%':''}${j.imagesCount?' · '+j.imagesCount+' img':''}`;
+    const ob=$('odmBar'),ofl=$('odmBarFill'); if(ob){ if(st===20){ ob.style.display='block'; if(ofl) ofl.style.width=(pct||0)+'%'; } else ob.style.display='none'; }
     if(st===40){ if(_odmPoll) clearInterval(_odmPoll); odmShowOutputs(); }
     else if(st===30||st===50){ if(_odmPoll) clearInterval(_odmPoll); $('odmOutputs').classList.add('hidden'); }
   }catch(e){ console.error('[ODM] info',e); $('odmTaskStatus').textContent='Erro ao consultar status: '+e.message; } }
@@ -1559,7 +1566,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&c.app===APP_VERSION&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now(),app:APP_VERSION})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.9.6', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.9.7', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));

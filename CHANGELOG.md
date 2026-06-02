@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.9.7] — Junho 2026
+
+### ✨ Melhorado — barras de progresso e ajustes
+
+- **Mosaico rápido (Imagens):** **barra de progresso com %** durante a geração (antes só "145/340"). E o **"Usar rumo" virou padrão fixo** (a melhora era pequena) — checkbox removido.
+- **Processar:** **barra de progresso verde com %** enquanto a tarefa processa. O card **Tarefa** ganhou **🗑️ Limpar** para dispensar a tarefa antiga (ela fica salva entre sessões para não perder os resultados ao recarregar — agora dá pra remover). Corrigido o "0%" que aparecia em tarefa já **concluída**.
+
+---
+
 ## [1.9.6] — Junho 2026
 
 ### 🐛 Correção
