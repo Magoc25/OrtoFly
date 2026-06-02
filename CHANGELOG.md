@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.9.6] — Junho 2026
+
+### 🐛 Correção
+
+- Removida a **bolinha (●) duplicada** ao lado do indicador de conexão — agora aparece só **🟢 Conectado / 🔴 Desconectado** (o ícone verde/vermelho já vem no próprio texto).
+
+---
+
 ## [1.9.5] — Junho 2026
 
 ### 🐛 Correção

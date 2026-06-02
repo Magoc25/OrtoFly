@@ -369,8 +369,7 @@ footer{
           <button id="odmModeServer" class="btn sm" style="flex:1" onclick="odmSetMode('server')">☁️ Servidor (VM)</button>
         </div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;font-weight:600">
-          <span id="odmDot" style="width:11px;height:11px;border-radius:50%;background:#bbb;display:inline-block;flex:none;box-shadow:0 0 0 2px rgba(0,0,0,.06)"></span>
-          <span id="odmConnTxt">Verificando…</span>
+          <span id="odmConnTxt">⏳ Verificando…</span>
         </div>
         <div class="row">
           <div class="field"><label for="odmUrl">URL do NodeODM</label><input id="odmUrl" type="text" placeholder="http://127.0.0.1:3000" /></div>
@@ -412,7 +411,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.9.5</span>
+  <span id="appVersion">© MGC · v1.9.6</span>
 </footer>
 
 <!-- PIX modal -->
@@ -537,8 +536,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.9.5 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.9.5';
+/* ═══════════════ OrtoFly v1.9.6 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.9.6';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1388,14 +1387,12 @@ function odmSetMode(m,skipSave){
 let _odmPingT=null,_odmPinging=false;
 async function odmPing(){
   if(_odmPinging) return; _odmPinging=true;
-  const u=odmUrlVal(), dot=$('odmDot'), txt=$('odmConnTxt');
-  if(!u){ if(dot)dot.style.background='#bbb'; if(txt)txt.textContent='Informe a URL do NodeODM'; _odmPinging=false; return; }
+  const u=odmUrlVal(), txt=$('odmConnTxt');
+  if(!u){ if(txt)txt.textContent='Informe a URL do NodeODM'; _odmPinging=false; return; }
   try{ const c=new AbortController(), t=setTimeout(()=>c.abort(),4500);
     const r=await fetch(u+'/info',{signal:c.signal}); clearTimeout(t); if(!r.ok) throw 0; const j=await r.json(); _odmInfo=j;
-    if(dot)dot.style.background='#1a9e4b';
     if(txt)txt.textContent='🟢 Conectado · NodeODM v'+(j.version||'?')+' · fila '+(j.taskQueueCount!=null?j.taskQueueCount:'?');
-  }catch(_){ if(dot)dot.style.background='#d23';
-    if(txt)txt.textContent='🔴 Desconectado';
+  }catch(_){ if(txt)txt.textContent='🔴 Desconectado';
   }finally{ _odmPinging=false; }
 }
 function odmStartPing(){ odmPing(); if(_odmPingT) clearInterval(_odmPingT); _odmPingT=setInterval(()=>{ if(!document.hidden) odmPing(); },10000); }
@@ -1562,7 +1559,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&c.app===APP_VERSION&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now(),app:APP_VERSION})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.9.5', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.9.6', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));
