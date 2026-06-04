@@ -5,6 +5,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.16.0] — Junho 2026
+
+### ✨ Recortar o ortomosaico para a área de interesse
+
+- No visualizador 2D, **✂️ Recortar área**: marque a região no mapa (**Polígono** ou **Retângulo**) — igual ao desenho da área de voo — e o app recorta o raster para ela. No modo polígono, fica **transparente fora** do contorno (recorte no formato exato); no retângulo, corta a caixa.
+- **⬛ Usar a área do voo (AOI):** reaproveita o polígono já desenhado na aba ✈️ Voo como recorte, sem redesenhar.
+- Depois de recortar, **tudo passa a operar só no recorte** (visualização, estatística por pontos, índice de vegetação e exportação de imagem). **↺ Imagem inteira** restaura o ortomosaico original.
+- O recorte é uma fatia dos pixels já em memória (mais leve que o original); salve-o com **⬇ Imagem (PNG + worldfile)**.
+
+---
+
 ## [1.15.1] — Junho 2026
 
 ### 🐛 Índice de vegetação agora muda na tela

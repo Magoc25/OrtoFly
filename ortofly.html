@@ -264,6 +264,16 @@ footer{
           <div class="field"><label for="rasterCmap">Paleta (DSM)</label><select id="rasterCmap"><option value="terrain">Terreno</option><option value="viridis">Viridis</option><option value="grayscale">Cinza</option></select></div>
         </div>
         <div class="field" style="margin-bottom:8px"><label>Opacidade — <span id="rasterOpacityVal">100%</span></label><input id="rasterOpacity" type="range" min="20" max="100" value="100" /></div>
+        <div style="border-top:1px solid var(--border);margin:6px 0;padding-top:8px">
+          <label style="font-size:12.5px;color:var(--muted)">✂️ Recortar área de interesse</label>
+          <div style="display:flex;gap:14px;font-size:12.5px;margin:4px 0">
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="cropMode" value="poly" checked style="width:auto"> Polígono</label>
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="cropMode" value="rect" style="width:auto"> Retângulo</label>
+          </div>
+          <button class="btn sm block" id="cropDrawBtn" onclick="cropToggle()">✂️ Marcar área e recortar</button>
+          <button class="btn sm block" id="cropAoiBtn" onclick="cropFromAOI()" style="margin-top:6px">⬛ Usar a área do voo (AOI)</button>
+          <button class="btn sm block hidden" id="cropFullBtn" onclick="cropRestore()" style="margin-top:6px">↺ Imagem inteira</button>
+        </div>
         <div class="row hidden" id="indexRow">
           <div class="field"><label for="indexSel">🌱 Índice de vegetação (RGB)</label>
             <select id="indexSel"><option value="none">Nenhum (cor real)</option><option value="VARI">VARI</option><option value="GLI">GLI</option><option value="NGRDI">NGRDI</option><option value="ExG">ExG</option><option value="ExGR">ExGR</option><option value="MGRVI">MGRVI</option><option value="RGBVI">RGBVI</option><option value="TGI">TGI</option><option value="VEG">VEG</option></select>
@@ -485,7 +495,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.15.1</span>
+  <span id="appVersion">© MGC · v1.16.0</span>
 </footer>
 
 <!-- PIX modal -->
@@ -619,7 +629,7 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.10.1 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.15.1';
+const APP_VERSION = '1.16.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -671,7 +681,7 @@ function initMap(){
   esri.addTo(map);
   L.control.layers({'Satélite (Esri)':esri,'Mapa (OSM)':osm}, null, {position:'topright'}).addTo(map);
   map.on('click', onMapClick);
-  map.on('dblclick', e=>{ if(drawing){ L.DomEvent.stop(e); finishDraw(); } });
+  map.on('dblclick', e=>{ if(drawing){ L.DomEvent.stop(e); finishDraw(); } else if(_cropDrawing&&!_cropRect){ L.DomEvent.stop(e); finishCropDraw(); } });
   gridLayer = L.layerGroup().addTo(map);
   photoLayer = L.layerGroup().addTo(map);
   map.createPane('rasterPane'); map.getPane('rasterPane').style.zIndex=350;   // raster acima de qualquer mapa-base
@@ -684,7 +694,7 @@ function initMap(){
 /* ---------- desenho da AOI ---------- */
 let drawing=false, draftPts=[], draftLayer=null;
 function startDraw(){ if(!map){ toast('Mapa indisponível','error'); return; } clearArea(); drawing=true; draftPts=[]; map.doubleClickZoom.disable(); $('drawBar').classList.add('active'); $('drawCount').textContent='0'; map.getContainer().style.cursor='crosshair'; }
-function onMapClick(e){ if(_pickCb){ const cb=_pickCb; _pickCb=null; map.getContainer().style.cursor=''; cb(e.latlng); return; } if(_zonalPicking){ zonalPickAdd(e.latlng); return; } if(!drawing) return; draftPts.push([e.latlng.lat,e.latlng.lng]); updateDraft(); }
+function onMapClick(e){ if(_pickCb){ const cb=_pickCb; _pickCb=null; map.getContainer().style.cursor=''; cb(e.latlng); return; } if(_zonalPicking){ zonalPickAdd(e.latlng); return; } if(_cropDrawing){ cropAddPoint(e.latlng); return; } if(!drawing) return; draftPts.push([e.latlng.lat,e.latlng.lng]); updateDraft(); }
 function updateDraft(){ if(draftLayer){draftLayer.remove();draftLayer=null;} if(draftPts.length){ draftLayer=L.polygon(draftPts,{color:'#14b88a',weight:2,dashArray:'5,6',fillOpacity:.06}).addTo(map);} $('drawCount').textContent=draftPts.length; }
 function finishDraw(){ if(draftPts.length<3){ toast('Marque pelo menos 3 vértices'); return; } state.polygon=draftPts.slice(); endDraw(); renderAOI(); fitAOI(); recompute(); toast('Área definida ✅'); }
 function cancelDraw(){ endDraw(); }
@@ -1304,6 +1314,7 @@ function cmapCSS(t,name){ const c=cmapRGB(t,name); return `rgb(${c[0]*255|0},${c
 
 /* --- 2D raster (GeoTIFF/COG) --- */
 let rasterLayer=null, _rasterMeta=null, _rasterShift={dx:0,dy:0}, _gcpTransform=null, _gcpLast=null, _pickCb=null, _rasterIndex=null, _rasterIndexRange=null, _indexLayer=null;
+let _cropDrawing=false, _cropPts=[], _cropDraftLayer=null, _cropRect=false, _rasterUncropped=null;
 // índices de vegetação por RGB (proxies de vigor — NÃO são NDVI, que exige infravermelho)
 const VEG_INDICES={
   VARI:(r,g,b)=>(g-r)/((g+r-b)||1e-9),
@@ -1341,19 +1352,19 @@ async function handleRasterFile(file){
     const bands=gr.numberOfRasters||1;
     const mn=(gr.mins&&gr.mins[0]!=null)?gr.mins[0]:gr.minValue, mx=(gr.maxs&&gr.maxs[0]!=null)?gr.maxs[0]:gr.maxValue;
     _rasterMeta={gr,bands,mn,mx,ycc,orig:{xmin:gr.xmin,xmax:gr.xmax,ymin:gr.ymin,ymax:gr.ymax}};
-    _rasterShift={dx:0,dy:0}; _gcpTransform=null; _rasterIndex=null; _rasterIndexRange=null; if(_indexLayer){ _indexLayer.remove(); _indexLayer=null; }   // novo raster: zera ajuste por GCP e índice
+    _rasterShift={dx:0,dy:0}; _gcpTransform=null; _rasterIndex=null; _rasterIndexRange=null; _rasterUncropped=null; if(_indexLayer){ _indexLayer.remove(); _indexLayer=null; } if(_cropDrawing) cancelCropDraw();   // novo raster: zera ajuste por GCP, índice e recorte
     if(rasterLayer) rasterLayer.remove();
     rasterLayer=buildRasterLayer().addTo(map);
     try{ map.fitBounds(rasterLayer.getBounds()); }catch(e){}
     $('rasterCtrls').classList.remove('hidden'); $('rasterCmapRow').classList.toggle('hidden',bands>=3);
-    $('indexRow').classList.toggle('hidden',bands<3); if($('indexSel'))$('indexSel').value='none'; $('indexCmapRow').classList.add('hidden'); $('indexClearBtn').classList.add('hidden'); $('indexInfo').textContent='';
+    $('indexRow').classList.toggle('hidden',bands<3); if($('indexSel'))$('indexSel').value='none'; $('indexCmapRow').classList.add('hidden'); $('indexClearBtn').classList.add('hidden'); $('indexInfo').textContent=''; $('cropFullBtn').classList.add('hidden');
     rasterStatus(`${file.name} · ${gr.width}×${gr.height} · ${bands} banda(s)${bands<3&&isFinite(mn)?` · ${(+mn).toFixed(1)}–${(+mx).toFixed(1)}`:''}`);
     toast('Raster carregado ✅');
   }catch(e){ console.error('[Raster]',e); toast('Erro ao ler raster: '+e.message,'error'); rasterStatus(''); }
 }
 function setRasterOpacity(){ const op=(+$('rasterOpacity').value||100)/100; if(_indexLayer){ _indexLayer.setOpacity(op); if(rasterLayer) rasterLayer.setOpacity(0); } else if(rasterLayer) rasterLayer.setOpacity(op); }
 function recolorRaster(){ if(!rasterLayer||!_rasterMeta||_rasterMeta.bands>=3) return; rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); }
-function clearRaster(){ if(_indexLayer){ _indexLayer.remove(); _indexLayer=null; } if(rasterLayer){ rasterLayer.remove(); rasterLayer=null; } _rasterMeta=null; _rasterShift={dx:0,dy:0}; _gcpTransform=null; _rasterIndex=null; _rasterIndexRange=null; if($('gcpStatus'))$('gcpStatus').textContent=''; $('rasterCtrls').classList.add('hidden'); rasterStatus(''); }
+function clearRaster(){ if(_cropDrawing) cancelCropDraw(); if(_indexLayer){ _indexLayer.remove(); _indexLayer=null; } if(rasterLayer){ rasterLayer.remove(); rasterLayer=null; } _rasterMeta=null; _rasterUncropped=null; _rasterShift={dx:0,dy:0}; _gcpTransform=null; _rasterIndex=null; _rasterIndexRange=null; if($('gcpStatus'))$('gcpStatus').textContent=''; if($('cropFullBtn'))$('cropFullBtn').classList.add('hidden'); $('rasterCtrls').classList.add('hidden'); rasterStatus(''); }
 
 /* ───── Índices de vegetação por RGB (Fase 2-B) ───── */
 function _computeIndexRange(fn){
@@ -1390,6 +1401,69 @@ function showIndexLayer(){
 function hideIndexLayer(){ if(_indexLayer){ _indexLayer.remove(); _indexLayer=null; } if(rasterLayer) rasterLayer.setOpacity((+$('rasterOpacity').value||100)/100); }
 function clearIndex(){ _rasterIndex=null; _rasterIndexRange=null; if($('indexSel'))$('indexSel').value='none'; hideIndexLayer(); if($('indexInfo'))$('indexInfo').textContent=''; if($('indexCmapRow'))$('indexCmapRow').classList.add('hidden'); if($('indexClearBtn'))$('indexClearBtn').classList.add('hidden'); if(_rasterMeta&&$('zonalPts').value.trim()) zonalCompute(); }
 function recolorIndex(){ if(_rasterIndex) showIndexLayer(); }
+
+/* ───── Recorte do ortomosaico (polígono/retângulo/AOI do voo) ───── */
+function _cropMode(){ const el=document.querySelector('input[name="cropMode"]:checked'); return el?el.value:'poly'; }
+function _llToXY(lat,lon){ const c=_rasterCRS(); if(!c) return null; if(c.geoRaster) return [lon,lat]; return lonLatToRaster(lon,lat,c.epsg); }
+function _pointInPoly(x,y,poly){ let inside=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1]; if(((yi>y)!==(yj>y)) && (x<(xj-xi)*(y-yi)/((yj-yi)||1e-12)+xi)) inside=!inside; } return inside; }
+function cropToggle(){
+  if(!_rasterMeta||!_rasterMeta.gr){ toast('Carregue um raster (GeoTIFF/COG) primeiro','error'); return; }
+  if(_cropDrawing){ finishCropDraw(); return; }
+  _cropRect=_cropMode()==='rect'; _cropDrawing=true; _cropPts=[];
+  if(map){ map.getContainer().style.cursor='crosshair'; try{ map.doubleClickZoom.disable(); }catch(e){} }
+  const b=$('cropDrawBtn'); if(b){ b.classList.add('primary'); b.textContent=_cropRect?'Clique 2 cantos do retângulo…':'✓ Concluir recorte (0)'; }
+  toast(_cropRect?'Clique 2 cantos do retângulo no mapa':'Clique os vértices · duplo-clique (ou botão) conclui · Esc cancela');
+}
+function cropAddPoint(ll){ _cropPts.push([ll.lat,ll.lng]); updateCropDraft(); if(_cropRect&&_cropPts.length===2){ finishCropDraw(); return; } const b=$('cropDrawBtn'); if(b&&!_cropRect) b.textContent=`✓ Concluir recorte (${_cropPts.length})`; }
+function updateCropDraft(){ if(_cropDraftLayer){ _cropDraftLayer.remove(); _cropDraftLayer=null; } let pts=_cropPts;
+  if(_cropRect&&_cropPts.length===2){ const a=_cropPts[0],b=_cropPts[1]; pts=[[a[0],a[1]],[a[0],b[1]],[b[0],b[1]],[b[0],a[1]]]; }
+  if(pts.length>=2) _cropDraftLayer=L.polygon(pts,{color:'#f0a93b',weight:2,dashArray:'5,6',fillOpacity:.06}).addTo(map); }
+function cancelCropDraw(){ _cropDrawing=false; _cropPts=[]; if(_cropDraftLayer){ _cropDraftLayer.remove(); _cropDraftLayer=null; } if(map){ map.getContainer().style.cursor=''; try{ map.doubleClickZoom.enable(); }catch(e){} } const b=$('cropDrawBtn'); if(b){ b.classList.remove('primary'); b.textContent='✂️ Marcar área e recortar'; } }
+function finishCropDraw(){ let poly=_cropPts.slice();
+  if(_cropRect){ if(poly.length<2){ toast('Clique 2 cantos'); return; } const a=poly[0],b=poly[1]; poly=[[a[0],a[1]],[a[0],b[1]],[b[0],b[1]],[b[0],a[1]]]; }
+  if(poly.length<3){ toast('Marque ao menos 3 vértices'); cancelCropDraw(); return; }
+  const mask=!_cropRect; cancelCropDraw(); performCrop(poly,mask); }
+function cropFromAOI(){ if(!state.polygon||state.polygon.length<3){ toast('Nenhuma área de voo (AOI) definida na aba ✈️ Voo','error'); return; } performCrop(state.polygon.slice(), _cropMode()!=='rect'); }
+async function performCrop(polyLL,mask){
+  const gr=_rasterMeta&&_rasterMeta.gr, vals=gr&&gr.values; if(!gr||!vals||!vals.length){ toast('Raster sem pixels em memória','error'); return; }
+  const PG=window.parseGeoraster||window.GeoRaster; if(!PG){ toast('Biblioteca de raster indisponível','error'); return; }
+  const polyXY=[]; for(const p of polyLL){ const xy=_llToXY(p[0],p[1]); if(!xy){ toast('CRS do raster não suportado para recorte pelo mapa','error'); return; } polyXY.push(xy); }
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity; polyXY.forEach(q=>{ if(q[0]<minX)minX=q[0]; if(q[0]>maxX)maxX=q[0]; if(q[1]<minY)minY=q[1]; if(q[1]>maxY)maxY=q[1]; });
+  const px=gr.pixelWidth, py=gr.pixelHeight, W=gr.width, H=gr.height;
+  let c0=Math.max(0,Math.floor((minX-gr.xmin)/px)), c1=Math.min(W-1,Math.ceil((maxX-gr.xmin)/px)-1);
+  let r0=Math.max(0,Math.floor((gr.ymax-maxY)/py)), r1=Math.min(H-1,Math.ceil((gr.ymax-minY)/py)-1);
+  if(c1<c0||r1<r0){ toast('A área marcada não cobre o raster','error'); return; }
+  rasterStatus('Recortando…'); await new Promise(res=>setTimeout(res,10));
+  const newW=c1-c0+1, newH=r1-r0+1, nb=gr.numberOfRasters||vals.length, nd=(gr.noDataValue!=null)?gr.noDataValue:-9999;
+  const out=[]; for(let b=0;b<nb;b++){ const band=new Array(newH); for(let ri=0;ri<newH;ri++){ const srow=vals[b][r0+ri], drow=new Array(newW); for(let ci=0;ci<newW;ci++) drow[ci]=srow[c0+ci]; band[ri]=drow; } out.push(band); }
+  let ndOut=gr.noDataValue;
+  if(mask){
+    if(nb>=3){ const alpha=new Array(newH); for(let ri=0;ri<newH;ri++){ const Yc=gr.ymax-(r0+ri+0.5)*py, arow=new Array(newW); for(let ci=0;ci<newW;ci++){ const Xc=gr.xmin+(c0+ci+0.5)*px; arow[ci]=_pointInPoly(Xc,Yc,polyXY)?255:0; } alpha[ri]=arow; } if(nb>=4) out[3]=alpha; else out.push(alpha); }
+    else { ndOut=nd; for(let ri=0;ri<newH;ri++){ const Yc=gr.ymax-(r0+ri+0.5)*py; for(let ci=0;ci<newW;ci++){ const Xc=gr.xmin+(c0+ci+0.5)*px; if(!_pointInPoly(Xc,Yc,polyXY)) for(let b=0;b<nb;b++) out[b][ri][ci]=nd; } } }
+  }
+  const meta={noDataValue:(ndOut!=null?ndOut:null), projection:+gr.projection||4326, xmin:gr.xmin+c0*px, ymax:gr.ymax-r0*py, pixelWidth:px, pixelHeight:py};
+  try{
+    const newGr=await PG(out,meta);
+    if(!_rasterUncropped) _rasterUncropped=_rasterMeta;
+    const bandsNew=newGr.numberOfRasters||out.length;
+    const mn=(newGr.mins&&newGr.mins[0]!=null)?newGr.mins[0]:newGr.minValue, mx=(newGr.maxs&&newGr.maxs[0]!=null)?newGr.maxs[0]:newGr.maxValue;
+    if(_indexLayer){ _indexLayer.remove(); _indexLayer=null; } _rasterIndex=null; _rasterIndexRange=null;
+    _rasterMeta={gr:newGr,bands:bandsNew,mn,mx,ycc:_rasterMeta.ycc,orig:{xmin:newGr.xmin,xmax:newGr.xmax,ymin:newGr.ymin,ymax:newGr.ymax}};
+    _rasterShift={dx:0,dy:0};
+    if(rasterLayer) rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); try{ map.fitBounds(rasterLayer.getBounds()); }catch(e){}
+    $('indexRow').classList.toggle('hidden',bandsNew<3); if($('indexSel'))$('indexSel').value='none'; $('indexCmapRow').classList.add('hidden'); $('indexClearBtn').classList.add('hidden'); $('indexInfo').textContent='';
+    $('cropFullBtn').classList.remove('hidden');
+    rasterStatus(`Recorte · ${newGr.width}×${newGr.height} · ${bandsNew} banda(s)`);
+    if($('zonalPts').value.trim()) zonalCompute();
+    toast('Recorte aplicado ✅');
+  }catch(e){ console.error('[crop]',e); rasterStatus(''); toast('Erro ao recortar: '+e.message,'error'); }
+}
+function cropRestore(){ if(!_rasterUncropped) return; if(_indexLayer){ _indexLayer.remove(); _indexLayer=null; } _rasterIndex=null; _rasterIndexRange=null;
+  _rasterMeta=_rasterUncropped; _rasterUncropped=null; _rasterShift={dx:0,dy:0};
+  if(rasterLayer) rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); try{ map.fitBounds(rasterLayer.getBounds()); }catch(e){}
+  $('indexRow').classList.toggle('hidden',(_rasterMeta.bands||0)<3); if($('indexSel'))$('indexSel').value='none'; $('indexCmapRow').classList.add('hidden'); $('indexClearBtn').classList.add('hidden'); $('indexInfo').textContent='';
+  $('cropFullBtn').classList.add('hidden'); rasterStatus('Imagem inteira'); if($('zonalPts').value.trim()) zonalCompute(); toast('Imagem inteira restaurada'); }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&_cropDrawing) cancelCropDraw(); });
 
 /* ═══════════════ ESTATÍSTICA ZONAL (pontos + buffer circular) ═══════════════ */
 let _zonalLayer=null, _zonalResults=null, _zonalPicking=false, _zonalPickLayer=null;
