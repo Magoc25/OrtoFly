@@ -5,6 +5,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.17.0] — Junho 2026
+
+### ✨ Fecha a Fase 2 — importar pontos, raio por ponto e estatística da área
+
+- **Importar pontos de CSV / GeoJSON:** botão **📁 Importar CSV/GeoJSON** preenche a lista de pontos a partir de um arquivo. Detecta delimitador (`,` `;` tab), cabeçalho (lat/lon, E/N, nome, raio) e converte GeoJSON (Point/MultiPoint). Os pontos entram no mesmo fluxo (UTM, correção de ordem, etc.).
+- **Raio por ponto:** um **3º número** na linha do ponto define o raio só daquele buffer (ex.: `P2, -7.019, -45.480, 5`) — útil para amostras de tamanhos diferentes. Sem o 3º número, usa o raio global.
+- **Estatística da área toda:** botão **▦ Estatística da área** calcula média, desvio, mín, máx e mediana sobre **todos os pixels válidos** do raster atual (recorte ou imagem inteira) — combine com o **recorte por polígono** para estatística exata de uma AOI. Sai em CSV/TXT/GeoJSON e tem M&M.
+
+---
+
 ## [1.16.2] — Junho 2026
 
 ### 🐛 Recorte por polígono — máscara e artefatos no zoom

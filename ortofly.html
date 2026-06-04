@@ -299,15 +299,20 @@ footer{
       <div class="field" style="margin-top:8px">
         <label for="zonalPts">Pontos — <b>lat, lon</b> (graus) ou <b>E, N</b> (metros, mesmo CRS do raster) · 1 por linha, nome opcional</label>
         <textarea id="zonalPts" rows="4" placeholder="-7.0190, -45.4800&#10;P2, -7.0195, -45.4790&#10;ou UTM:  p21  443162.71  9221928.44" style="resize:vertical;width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px;font-family:inherit;font-size:13px;font-variant-numeric:tabular-nums"></textarea>
-        <p class="hint" style="margin-top:4px">Detecta automaticamente lat/lon vs. UTM (E, N) e a ordem. Para UTM, o raster precisa estar no mesmo CRS dos pontos (ex.: SIRGAS 2000 / UTM).</p>
+        <p class="hint" style="margin-top:4px">Detecta automaticamente lat/lon vs. UTM (E, N) e a ordem. Um <b>3º número</b> na linha define o <b>raio só daquele ponto</b> (ex.: <code>P2, -7.019, -45.480, 5</code>). Para UTM, o raster precisa estar no mesmo CRS dos pontos (ex.: SIRGAS 2000 / UTM).</p>
       </div>
-      <button class="btn sm block" id="zonalPickBtn" onclick="zonalPickToggle()">📍 Coletar pontos no mapa</button>
+      <div class="btn-grid">
+        <button class="btn sm" id="zonalPickBtn" onclick="zonalPickToggle()">📍 Coletar no mapa</button>
+        <button class="btn sm" onclick="zonalImportFile()">📁 Importar CSV/GeoJSON</button>
+      </div>
+      <input type="file" id="zonalFileInput" accept=".csv,.txt,.geojson,.json,application/geo+json" class="hidden" onchange="if(this.files[0])zonalHandleFile(this.files[0]); this.value='';" />
       <div class="row">
         <div class="field"><label for="zonalRadius">Raio do buffer (m)</label><input id="zonalRadius" type="number" min="0.1" step="0.5" value="2" /></div>
         <div class="field"><label for="zonalColor">Cor</label><input id="zonalColor" type="color" value="#1a9e4b" onchange="zonalRedraw()" style="height:34px;padding:2px;cursor:pointer" /></div>
         <div class="field"><label for="zonalStyle">Estilo</label><select id="zonalStyle" onchange="zonalRedraw()"><option value="solido">Círculo</option><option value="pontilhado">Pontilhado</option><option value="cruz">Círculo + cruz</option><option value="ponto">Círculo + ponto</option></select></div>
       </div>
       <button class="btn primary block" onclick="zonalCompute()" style="margin-top:4px">📊 Buffer e Estatísticas</button>
+      <button class="btn sm block" onclick="zonalAreaStats()" style="margin-top:6px">▦ Estatística da área toda (recorte/imagem)</button>
       <div id="zonalStatus" class="spec" style="margin-top:6px"></div>
       <div id="zonalResult" style="margin-top:8px;max-height:178px;overflow:auto"></div>
       <div class="btn-grid hidden" id="zonalExports" style="margin-top:8px">
@@ -495,7 +500,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.16.2</span>
+  <span id="appVersion">© MGC · v1.17.0</span>
 </footer>
 
 <!-- PIX modal -->
@@ -629,7 +634,7 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.10.1 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.16.2';
+const APP_VERSION = '1.17.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1530,7 +1535,7 @@ function parseZonalPoints(txt){
     const nums=[], name=[];
     toks.forEach(t=>{ const v=Number(t); if(isFinite(v)) nums.push(v); else name.push(t); });
     if(nums.length<2) return;
-    pts.push({name:name.join(' ')||('P'+(pts.length+1)), v0:nums[0], v1:nums[1]});
+    pts.push({name:name.join(' ')||('P'+(pts.length+1)), v0:nums[0], v1:nums[1], r:(nums.length>=3&&nums[2]>0)?nums[2]:null}); // 3º número = raio do ponto (opcional)
   });
   return pts;
 }
@@ -1577,10 +1582,11 @@ function zonalCompute(){
     let {X,Y,lat,lon}=used;
     if(_gcpTransform){ const t=gcpTransform(X,Y); X=t[0]; Y=t[1];   // corrige os pontos (ex.: Garmin) por GCP
       if(geoRaster){ lon=X; lat=Y; } else if(zinfo){ const ll=utmToLatLon(X,Y,zinfo.zone,zinfo.south); lat=ll[0]; lon=ll[1]; } else { lat=null; lon=null; } }
+    const rad=(p.r&&p.r>0)?p.r:radius;   // raio do próprio ponto (3º número) ou o raio global
     const ccol=(X-gr.xmin)/px, crow=(gr.ymax-Y)/py;
     let rpx,rpy;
-    if(geoRaster){ const latR=(lat||0)*Math.PI/180, dLat=radius/110540, dLon=radius/((111320*Math.cos(latR))||1e-9); rpx=dLon/px; rpy=dLat/py; }
-    else { rpx=radius/px; rpy=radius/py; }   // raster projetado: pixel em metros
+    if(geoRaster){ const latR=(lat||0)*Math.PI/180, dLat=rad/110540, dLon=rad/((111320*Math.cos(latR))||1e-9); rpx=dLon/px; rpy=dLat/py; }
+    else { rpx=rad/px; rpy=rad/py; }   // raster projetado: pixel em metros
     const c0=Math.max(0,Math.floor(ccol-rpx)), c1=Math.min(W-1,Math.ceil(ccol+rpx));
     const r0=Math.max(0,Math.floor(crow-rpy)), r1=Math.min(H-1,Math.ceil(crow+rpy));
     const acc=labels.map(()=>[]);
@@ -1590,7 +1596,7 @@ function zonalCompute(){
         else { if(rowA&&!rowA[c]) continue; for(let k=0;k<reportIdx.length;k++){ const v=vals[reportIdx[k]][r][c]; if(v==null||isNaN(v)||(nd!=null&&v===nd)) continue; acc[k].push(v); } } } }
     const bands=acc.map((vv,k)=>{ if(!vv.length) return {label:labels[k],n:0}; let s=0,mn=Infinity,mx=-Infinity; for(const v of vv){ s+=v; if(v<mn)mn=v; if(v>mx)mx=v; } const mean=s/vv.length; let sq=0; for(const v of vv) sq+=(v-mean)*(v-mean); return {label:labels[k],n:vv.length,mean,std:Math.sqrt(sq/vv.length),min:mn,max:mx,median:_median(vv)}; });
     const n=Math.max(0,...bands.map(b=>b.n||0));
-    return {...p,X,Y,lat,lon,radius,bands,n,swapped:usedSwap,error:n?null:'sem pixels válidos no buffer'};
+    return {...p,X,Y,lat,lon,radius:rad,bands,n,swapped:usedSwap,error:n?null:'sem pixels válidos no buffer'};
   });
 
   _zonalResults={epsg,radius,labels,results,geoInput};
@@ -1616,7 +1622,7 @@ function renderZonalTable(z){
   box.innerHTML=h+'</tbody></table>';
 }
 
-function _zcoord(r){ return (r.lat!=null&&r.lon!=null)?`${r.lat.toFixed(5)}, ${r.lon.toFixed(5)}`:`E,N: ${_zfmt(r.X)}, ${_zfmt(r.Y)}`; }
+function _zcoord(r){ if(r.area) return 'área inteira'; return (r.lat!=null&&r.lon!=null)?`${r.lat.toFixed(5)}, ${r.lon.toFixed(5)}`:`E,N: ${_zfmt(r.X)}, ${_zfmt(r.Y)}`; }
 function zonalRedraw(){ if(_zonalResults) drawZonalCircles(_zonalResults.results,_zonalResults.radius); }
 function drawZonalCircles(results,radius){
   if(!map) return; if(_zonalLayer){ _zonalLayer.remove(); _zonalLayer=null; }
@@ -1624,8 +1630,8 @@ function drawZonalCircles(results,radius){
   const color=($('zonalColor')&&$('zonalColor').value)||'#1a9e4b';
   const style=($('zonalStyle')&&$('zonalStyle').value)||'solido';
   const dash=style==='pontilhado'?'5,5':null;
-  results.forEach(r=>{ if(!(r.lat>=-90&&r.lat<=90&&r.lon>=-180&&r.lon<=180)) return; const ok=!r.error; const col=ok?color:'#e0533d'; drawn++;
-    L.circle([r.lat,r.lon],{radius,color:col,weight:2,dashArray:dash,fillOpacity:.10})
+  results.forEach(r=>{ if(r.area||!(r.lat>=-90&&r.lat<=90&&r.lon>=-180&&r.lon<=180)) return; const ok=!r.error; const col=ok?color:'#e0533d'; drawn++;
+    L.circle([r.lat,r.lon],{radius:(r.radius||radius),color:col,weight:2,dashArray:dash,fillOpacity:.10})
       .bindPopup(`<b>${esc(r.name)}</b><br>${r.lat.toFixed(5)}, ${r.lon.toFixed(5)}`+(r.swapped?' <span style="color:#e0a13d">(X/Y corrigidos)</span>':'')+(ok&&r.bands?'<br>'+r.bands.map(b=>`${esc(b.label)}: ${_zfmt(b.mean)} (n=${b.n})`).join('<br>'):`<br><i>${esc(r.error||'')}</i>`))
       .addTo(_zonalLayer);
     if(ok && style==='ponto') L.circleMarker([r.lat,r.lon],{radius:2.5,color:col,weight:1,fillColor:col,fillOpacity:1,interactive:false}).addTo(_zonalLayer);
@@ -1643,7 +1649,7 @@ function _zonalRows(sep){
   const {results,radius}=_zonalResults;
   const q=sep==='\t'?(s=>String(s==null?'':s).replace(/[\t\r\n]/g,' ')):_zcsv;
   const rows=[['ponto','lat','lon','x','y','raio_m','banda','n','media','desvio','min','max','mediana'].join(sep)];
-  results.forEach(r=>{ const c=[q(r.name),_znum(r.lat),_znum(r.lon),_znum(r.X),_znum(r.Y),radius];
+  results.forEach(r=>{ const c=[q(r.name),_znum(r.lat),_znum(r.lon),_znum(r.X),_znum(r.Y),_znum(r.radius!=null?r.radius:radius)];
     if(r.error||!r.bands){ rows.push(c.concat(['','','','','','']).join(sep)); return; }
     r.bands.forEach(b=>rows.push(c.concat([q(b.label),b.n||0,_znum(b.mean),_znum(b.std),_znum(b.min),_znum(b.max),_znum(b.median)]).join(sep))); });
   return rows.join('\n');
@@ -1653,7 +1659,7 @@ function zonalExportTXT(){ if(!_zonalResults){ toast('Calcule a estatística pri
 function zonalExportGeoJSON(){
   if(!_zonalResults){ toast('Calcule a estatística primeiro','error'); return; }
   const {results,radius}=_zonalResults;
-  const feats=results.map(r=>{ const props={nome:r.name,raio_m:radius,x:_zround(r.X),y:_zround(r.Y)};
+  const feats=results.map(r=>{ const props={nome:r.name,raio_m:(r.radius!=null?r.radius:radius),x:_zround(r.X),y:_zround(r.Y)};
     if(!r.error&&r.bands) r.bands.forEach(b=>{ props[b.label+'_media']=_zround(b.mean); props[b.label+'_dp']=_zround(b.std); props[b.label+'_min']=_zround(b.min); props[b.label+'_max']=_zround(b.max); props[b.label+'_mediana']=_zround(b.median); props[b.label+'_n']=b.n||0; });
     else props.erro=r.error;
     const geometry=(r.lat!=null&&r.lon!=null)?{type:'Point',coordinates:[r.lon,r.lat]}:null;   // GeoJSON é WGS84; sem lat/lon (CRS desconhecido) vai geometry null + x/y nas props
@@ -1683,6 +1689,74 @@ function zonalPickAdd(latlng){
   const btn=$('zonalPickBtn'); if(btn) btn.textContent=`✓ Concluir coleta (${n})`;
 }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&_zonalPicking) zonalPickToggle(); });
+
+/* importar pontos de CSV / GeoJSON → adiciona na caixa (herda UTM, correção de ordem, etc.) */
+function zonalImportFile(){ $('zonalFileInput').click(); }
+async function zonalHandleFile(file){
+  try{ const text=await file.text(); const ext=(file.name.split('.').pop()||'').toLowerCase();
+    const pts=(ext==='geojson'||ext==='json'||/^\s*[{\[]/.test(text))?_parseGeoJSONPoints(text):_parseCSVPoints(text);
+    if(!pts.length){ toast('Não encontrei pontos no arquivo','error'); return; }
+    const ta=$('zonalPts'), lines=pts.map(p=>`${p.name?p.name+', ':''}${p.a}, ${p.b}${p.r?', '+p.r:''}`);
+    ta.value=(ta.value.trim()?ta.value.replace(/\s*$/,'')+'\n':'')+lines.join('\n');
+    toast(`${pts.length} ponto(s) importado(s) ✅`);
+  }catch(e){ console.error('[import]',e); toast('Erro ao importar: '+e.message,'error'); }
+}
+function _parseGeoJSONPoints(text){
+  const gj=JSON.parse(text), out=[];
+  const feats=gj.type==='FeatureCollection'?(gj.features||[]):(gj.type==='Feature'?[gj]:(gj.coordinates?[{geometry:gj,properties:{}}]:[]));
+  feats.forEach(f=>{ const g=f.geometry; if(!g) return; const pr=f.properties||{};
+    const nm=pr.name||pr.nome||pr.Nome||pr.id||pr.ID||pr.ponto||pr.label||('P'+(out.length+1));
+    const add=c=>{ if(c&&c.length>=2&&isFinite(c[0])&&isFinite(c[1])) out.push({name:String(nm),a:+(+c[1]).toFixed(8),b:+(+c[0]).toFixed(8)}); }; // GeoJSON é [lon,lat] → a=lat,b=lon
+    if(g.type==='Point') add(g.coordinates); else if(g.type==='MultiPoint') (g.coordinates||[]).forEach(add); });
+  return out;
+}
+function _parseCSVPoints(text){
+  const rows=text.split(/\r?\n/).filter(l=>l.trim()); if(!rows.length) return [];
+  // tab e ';' são delimitadores inequívocos; ',' fica como último (pode ser decimal)
+  const delim=(rows[0].includes('\t'))?'\t':(rows[0].includes(';')?';':',');
+  const split=l=>l.split(delim).map(s=>s.trim());
+  const num=t=>{ const v=Number(String(t).replace(',','.')); return isFinite(v)?v:null; };
+  const first=split(rows[0]); let start=0, iLat=-1,iLon=-1,iE=-1,iN=-1,iName=-1,iR=-1;
+  if(first.filter(c=>num(c)!==null).length<2){ start=1; first.forEach((h,i)=>{ const k=h.toLowerCase();   // cabeçalho = linha sem 2 números
+    if(/^lat(itude)?$|^y$/.test(k))iLat=i; else if(/^(lon|lng|long(itude)?)$|^x$/.test(k))iLon=i;
+    else if(/^e(ste|asting)?$/.test(k))iE=i; else if(/^n(orte|orthing)?$/.test(k))iN=i;
+    else if(/(name|nome|^id$|ponto|label)/.test(k))iName=i; else if(/(raio|radius|^r$|buffer)/.test(k))iR=i; }); }
+  const out=[];
+  for(let li=start;li<rows.length;li++){ const cols=split(rows[li]); if(!cols.length) continue;
+    let name=(iName>=0&&cols[iName])?cols[iName]:null, a=null,b=null,r=null;
+    if(iLat>=0&&iLon>=0){ a=num(cols[iLat]); b=num(cols[iLon]); }
+    else if(iE>=0&&iN>=0){ a=num(cols[iN]); b=num(cols[iE]); }
+    if(iR>=0) r=num(cols[iR]);
+    if(a==null||b==null){ const nums=[],names=[]; cols.forEach(c=>{ const v=num(c); if(v!=null) nums.push(v); else if(c) names.push(c); });
+      if(nums.length>=2){ a=nums[0]; b=nums[1]; if(nums.length>=3&&r==null) r=nums[2]; if(!name&&names.length) name=names.join(' '); } }
+    if(a!=null&&b!=null) out.push({name:name||('P'+(out.length+1)),a,b,r:(r&&r>0)?r:null}); }
+  return out;
+}
+
+/* estatística da ÁREA inteira (todos os pixels válidos do raster atual; recorte antes p/ a AOI) */
+function zonalAreaStats(){
+  if(!_rasterMeta||!_rasterMeta.gr){ toast('Carregue um raster (GeoTIFF/COG) primeiro','error'); return; }
+  const gr=_rasterMeta.gr, vals=gr.values; if(!vals||!vals.length||!vals[0]){ toast('Raster sem pixels em memória','error'); return; }
+  const nb=gr.numberOfRasters||vals.length, W=gr.width, H=gr.height;
+  const alphaIdx=(nb===4||nb===2)?nb-1:-1, reportIdx=[]; for(let b=0;b<nb;b++) if(b!==alphaIdx) reportIdx.push(b);
+  const idxFn=(_rasterIndex&&nb>=3)?VEG_INDICES[_rasterIndex]:null;
+  const labels=idxFn?[_rasterIndex]:_labelBands(reportIdx.length), nd=gr.noDataValue, N=labels.length;
+  const sum=new Array(N).fill(0), sq=new Array(N).fill(0), cnt=new Array(N).fill(0), mns=new Array(N).fill(Infinity), mxs=new Array(N).fill(-Infinity), med=labels.map(()=>[]);
+  const step=Math.max(1,Math.floor(W*H/1.5e6)); let pix=0;   // subamostra só p/ a mediana
+  const acc=(k,v)=>{ cnt[k]++; sum[k]+=v; sq[k]+=v*v; if(v<mns[k])mns[k]=v; if(v>mxs[k])mxs[k]=v; if(pix%step===0) med[k].push(v); };
+  for(let r=0;r<H;r++){ const rowA=alphaIdx>=0?vals[alphaIdx][r]:null;
+    for(let c=0;c<W;c++,pix++){ if(rowA&&!rowA[c]) continue;
+      if(idxFn){ const rgb=_pixRGB([vals[0][r][c],vals[1][r][c],vals[2][r][c],nb>=4?vals[3][r][c]:255]); if(!rgb) continue; const v=idxFn(rgb[0],rgb[1],rgb[2]); if(v==null||isNaN(v)||!isFinite(v)) continue; acc(0,v); }
+      else { for(let k=0;k<reportIdx.length;k++){ const v=vals[reportIdx[k]][r][c]; if(v==null||isNaN(v)||(nd!=null&&v===nd)) continue; acc(k,v); } } } }
+  const bands=labels.map((lab,k)=>{ if(!cnt[k]) return {label:lab,n:0}; const mean=sum[k]/cnt[k], variance=Math.max(0,sq[k]/cnt[k]-mean*mean); return {label:lab,n:cnt[k],mean,std:Math.sqrt(variance),min:mns[k],max:mxs[k],median:_median(med[k])}; });
+  const n=Math.max(0,...bands.map(b=>b.n||0));
+  const res={name:_rasterUncropped?'Recorte (área)':'Imagem inteira',area:true,bands,n,error:n?null:'sem pixels válidos'};
+  _zonalResults={epsg:+gr.projection||0,radius:null,labels,results:[res],area:true};
+  renderZonalTable(_zonalResults); if(_zonalLayer) _zonalLayer.clearLayers(); if(_zonalPickLayer) _zonalPickLayer.clearLayers();
+  $('zonalStatus').textContent=`Estatística da área · ${n.toLocaleString('pt-BR')} pixels válidos · EPSG:${+gr.projection||'?'}`;
+  $('zonalExports').classList.toggle('hidden',!n); $('zonalExtra').classList.toggle('hidden',!n); $('zonalClearBtn').classList.remove('hidden');
+  if(n) toast('Estatística da área calculada ✅'); else toast('Sem pixels válidos na área','error');
+}
 
 /* ───── Ajuste por pontos de controle (GCP): corrige pontos (Garmin) ou desloca o ortomosaico ───── */
 // resolve (v0,v1) -> {X,Y} no CRS do raster carregado, detectando lat/lon vs E,N
@@ -1762,7 +1836,7 @@ async function exportRasterImage(withPoints){
     const {cv,ctx,scale,ow}=_renderRasterCanvas(2500);
     if(withPoints){ const color=($('zonalColor')&&$('zonalColor').value)||'#1a9e4b'; const style=($('zonalStyle')&&$('zonalStyle').value)||'solido';
       const lw=Math.max(1.5,ow/700); ctx.font=`${Math.max(11,Math.round(ow/90))}px sans-serif`; ctx.textBaseline='bottom';
-      _zonalResults.results.forEach(r=>{ if(r.X==null||r.Y==null) return; const cx=((r.X-gr.xmin)/gr.pixelWidth)*scale, cy=((gr.ymax-r.Y)/gr.pixelHeight)*scale, rpx=Math.max(2,(_zonalResults.radius/gr.pixelWidth)*scale), col=r.error?'#e0533d':color;
+      _zonalResults.results.forEach(r=>{ if(r.area||r.X==null||r.Y==null) return; const cx=((r.X-gr.xmin)/gr.pixelWidth)*scale, cy=((gr.ymax-r.Y)/gr.pixelHeight)*scale, rpx=Math.max(2,((r.radius!=null?r.radius:_zonalResults.radius)/gr.pixelWidth)*scale), col=r.error?'#e0533d':color;
         ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=lw;
         ctx.setLineDash(style==='pontilhado'?[lw*3,lw*3]:[]);
         ctx.beginPath(); ctx.arc(cx,cy,rpx,0,2*Math.PI); ctx.stroke(); ctx.setLineDash([]);
@@ -1790,7 +1864,8 @@ function mmZonal(){
   const idx=_rasterIndex&&labels.length===1&&VEG_DESC[labels[0]];
   const bandsTxt=idx?`o índice de vegetação ${labels[0]} (${VEG_DESC[labels[0]]}), derivado das bandas RGB,`:(labels.length===1?'a banda do raster':`as ${labels.length} bandas (${labels.join(', ')})`);
   const idxNote=idx?` O índice ${labels[0]} é um indicador de vigor da vegetação calculado a partir das bandas visíveis (R, G, B); por usar apenas o espectro visível, é um proxy e não substitui o NDVI, que requer a banda do infravermelho próximo (câmera multiespectral).`:'';
-  return `As estatísticas por ponto (estatística zonal) foram obtidas no aplicativo OrtoFly (Costa, ${yr}; versão ${APP_VERSION}). Em cada um dos ${n} pontos (${ok} com dados) definiu-se um buffer circular de ${radius} m de raio sobre o raster carregado (CRS EPSG:${epsg||'não definido'}). Os pixels cujo centro caiu dentro de cada círculo — excluídos os de máscara ou sem dado (nodata/transparência) — foram amostrados e, para ${bandsTxt} calcularam-se o número de pixels (n), a média, o desvio-padrão, o mínimo, o máximo e a mediana. As coordenadas dos pontos foram fornecidas em ${geoInput?'graus (latitude, longitude)':'UTM (E, N)'}${geoInput&&epsg&&epsg!==4326?', reprojetadas para o CRS do raster,':''} e associadas aos pixels por correspondência direta de coordenadas.${idxNote}`;
+  if(_zonalResults.area){ const r=results[0]||{}; return `As estatísticas foram calculadas no aplicativo OrtoFly (Costa, ${yr}; versão ${APP_VERSION}) sobre ${r.area?'a área':''} todos os ${(r.n||0).toLocaleString('pt-BR')} pixels válidos do raster (CRS EPSG:${epsg||'não definido'}; excluídos os de máscara/sem dado), calculando, para ${bandsTxt} o número de pixels (n), a média, o desvio-padrão, o mínimo, o máximo e a mediana.${idxNote}`; }
+  return `As estatísticas por ponto (estatística zonal) foram obtidas no aplicativo OrtoFly (Costa, ${yr}; versão ${APP_VERSION}). Em cada um dos ${n} pontos (${ok} com dados) definiu-se um buffer circular${results.some(x=>x.radius&&x.radius!==radius)?' (raio por ponto)':' de '+radius+' m de raio'} sobre o raster carregado (CRS EPSG:${epsg||'não definido'}). Os pixels cujo centro caiu dentro de cada círculo — excluídos os de máscara ou sem dado (nodata/transparência) — foram amostrados e, para ${bandsTxt} calcularam-se o número de pixels (n), a média, o desvio-padrão, o mínimo, o máximo e a mediana. As coordenadas dos pontos foram fornecidas em ${geoInput?'graus (latitude, longitude)':'UTM (E, N)'}${geoInput&&epsg&&epsg!==4326?', reprojetadas para o CRS do raster,':''} e associadas aos pixels por correspondência direta de coordenadas.${idxNote}`;
 }
 function mmGcp(){
   if(!_gcpLast) return 'Aplique um ajuste por pontos de controle primeiro.';
