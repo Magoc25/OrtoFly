@@ -5,6 +5,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.15.0] — Junho 2026
+
+### ✨ Índices de vegetação por RGB (Fase 2 — etapa B)
+
+- Com uma **ortho colorida (RGB)** carregada, o visualizador 2D ganha **🌱 Índice de vegetação (RGB)**: escolha um índice, clique **Aplicar** e o mapa é recolorido (escala mín–máx automática, paleta **Vermelho→Verde** padrão, ou Viridis/Cinza).
+- Índices disponíveis (todos calculáveis só com R, G, B): **VARI, GLI, NGRDI, ExG, ExGR, MGRVI, RGBVI, TGI, VEG**. O cálculo é **na hora, pixel a pixel** (sem criar um segundo raster na memória).
+- Com um índice ativo, a **estatística por pontos passa a amostrar o índice** (a banda na tabela/CSV/TXT/GeoJSON vira o nome do índice, ex.: "VARI"), e a **imagem do índice é exportável** (PNG + worldfile), com ou sem os pontos. O **M&M** descreve o índice usado.
+- ⚠️ São **proxies de vigor** da vegetação no espectro visível — **não são NDVI** (que exige a banda do infravermelho próximo, de câmera multiespectral). O aviso aparece no app, no M&M e no LEIA-ME.
+
+---
+
 ## [1.14.0] — Junho 2026
 
 ### ✨ Coletar pontos clicando no mapa (Fase 2 — etapa A)

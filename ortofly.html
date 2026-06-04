@@ -264,6 +264,18 @@ footer{
           <div class="field"><label for="rasterCmap">Paleta (DSM)</label><select id="rasterCmap"><option value="terrain">Terreno</option><option value="viridis">Viridis</option><option value="grayscale">Cinza</option></select></div>
         </div>
         <div class="field" style="margin-bottom:8px"><label>Opacidade — <span id="rasterOpacityVal">100%</span></label><input id="rasterOpacity" type="range" min="20" max="100" value="100" /></div>
+        <div class="row hidden" id="indexRow">
+          <div class="field"><label for="indexSel">🌱 Índice de vegetação (RGB)</label>
+            <select id="indexSel"><option value="none">Nenhum (cor real)</option><option value="VARI">VARI</option><option value="GLI">GLI</option><option value="NGRDI">NGRDI</option><option value="ExG">ExG</option><option value="ExGR">ExGR</option><option value="MGRVI">MGRVI</option><option value="RGBVI">RGBVI</option><option value="TGI">TGI</option><option value="VEG">VEG</option></select>
+          </div>
+          <button class="btn sm" style="align-self:flex-end" onclick="applyIndex()">Aplicar</button>
+        </div>
+        <div class="row hidden" id="indexCmapRow">
+          <div class="field"><label for="indexCmap">Paleta do índice</label><select id="indexCmap" onchange="recolorIndex()"><option value="rdylgn">Vermelho→Verde</option><option value="viridis">Viridis</option><option value="grayscale">Cinza</option></select></div>
+        </div>
+        <div id="indexInfo" class="spec" style="margin-bottom:6px"></div>
+        <button class="btn sm block hidden" id="indexClearBtn" onclick="clearIndex()" style="margin-bottom:6px">↺ Voltar à cor real (RGB)</button>
+        <p class="hint" style="margin-top:0;margin-bottom:6px">Índices RGB são <b>proxies de vigor</b> da vegetação — <b>não são NDVI</b> (que exige câmera multiespectral com infravermelho).</p>
         <button class="btn sm block" onclick="exportRasterImage(false)" style="margin-bottom:6px">⬇ Imagem (PNG + worldfile)</button>
         <button class="btn sm block" onclick="clearRaster()">🗑️ Remover raster</button>
       </div>
@@ -473,7 +485,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.14.0</span>
+  <span id="appVersion">© MGC · v1.15.0</span>
 </footer>
 
 <!-- PIX modal -->
@@ -607,7 +619,7 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.10.1 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.14.0';
+const APP_VERSION = '1.15.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1286,15 +1298,33 @@ function lerpStops(s,t){ const n=s.length-1,f=Math.max(0,Math.min(1,t))*n,i=Math
   return [s[i][0]+(s[i+1][0]-s[i][0])*u, s[i][1]+(s[i+1][1]-s[i][1])*u, s[i][2]+(s[i+1][2]-s[i][2])*u]; }
 function cmapRGB(t,name){ if(name==='grayscale'){ const v=Math.max(0,Math.min(1,t)); return [v,v,v]; }
   if(name==='viridis') return lerpStops([[0.27,0.00,0.33],[0.13,0.57,0.55],[0.62,0.79,0.21],[0.99,0.91,0.14]],t);
+  if(name==='rdylgn') return lerpStops([[0.84,0.19,0.15],[0.99,0.68,0.38],[1.00,1.00,0.75],[0.65,0.85,0.42],[0.10,0.60,0.31]],t);
   return lerpStops([[0.13,0.30,0.55],[0.18,0.55,0.34],[0.80,0.74,0.36],[0.55,0.38,0.23],[0.97,0.97,0.97]],t); }
 function cmapCSS(t,name){ const c=cmapRGB(t,name); return `rgb(${c[0]*255|0},${c[1]*255|0},${c[2]*255|0})`; }
 
 /* --- 2D raster (GeoTIFF/COG) --- */
-let rasterLayer=null, _rasterMeta=null, _rasterShift={dx:0,dy:0}, _gcpTransform=null, _gcpLast=null, _pickCb=null;
+let rasterLayer=null, _rasterMeta=null, _rasterShift={dx:0,dy:0}, _gcpTransform=null, _gcpLast=null, _pickCb=null, _rasterIndex=null, _rasterIndexRange=null;
+// índices de vegetação por RGB (proxies de vigor — NÃO são NDVI, que exige infravermelho)
+const VEG_INDICES={
+  VARI:(r,g,b)=>(g-r)/((g+r-b)||1e-9),
+  GLI:(r,g,b)=>(2*g-r-b)/((2*g+r+b)||1e-9),
+  NGRDI:(r,g,b)=>(g-r)/((g+r)||1e-9),
+  ExG:(r,g,b)=>{const s=(r+g+b)||1e-9,R=r/s,G=g/s,B=b/s;return 2*G-R-B;},
+  ExGR:(r,g,b)=>{const s=(r+g+b)||1e-9,R=r/s,G=g/s,B=b/s;return (2*G-R-B)-(1.4*R-G);},
+  MGRVI:(r,g,b)=>(g*g-r*r)/((g*g+r*r)||1e-9),
+  RGBVI:(r,g,b)=>(g*g-b*r)/((g*g+b*r)||1e-9),
+  TGI:(r,g,b)=>g-0.39*r-0.61*b,
+  VEG:(r,g,b)=>{const rr=r||1e-9,bb=b||1e-9;return g/((Math.pow(rr,0.667)*Math.pow(bb,0.333))||1e-9);}
+};
+const VEG_DESC={VARI:'Visible Atmospherically Resistant Index',GLI:'Green Leaf Index',NGRDI:'Normalized Green-Red Difference Index',ExG:'Excess Green',ExGR:'Excess Green minus Excess Red',MGRVI:'Modified Green-Red Vegetation Index',RGBVI:'Red-Green-Blue Vegetation Index',TGI:'Triangular Greenness Index',VEG:'Vegetativen (Hague)'};
+// extrai [R,G,B] de um pixel do raster (trata alfa/nodata/YCbCr); null = mascarado
+function _pixRGB(v){ const {gr,bands,ycc}=_rasterMeta; if(!v) return null; const a=(bands>=4)?v[3]:255; if(a===0) return null; let r=v[0],g=v[1],b=v[2]; if(r==null||g==null||b==null) return null; if(gr.noDataValue!=null&&r===gr.noDataValue&&g===gr.noDataValue&&b===gr.noDataValue) return null; if(ycc){ const Y=r,Cb=g-128,Cr=b-128; r=Y+1.402*Cr; g=Y-0.344136*Cb-0.714136*Cr; b=Y+1.772*Cb; } return [r,g,b]; }
 function rasterStatus(t){ const e=$('rasterStatus'); if(e) e.textContent=t||''; }
 function openRaster(){ $('rasterInput').click(); }
 function tiffPhotometric(ab){ try{ const dv=new DataView(ab); const le=dv.getUint16(0,false)===0x4949; const g16=o=>dv.getUint16(o,le),g32=o=>dv.getUint32(o,le); if(g16(2)!==42) return null; const ifd=g32(4),n=g16(ifd); for(let i=0;i<n;i++){ const o=ifd+2+i*12; if(g16(o)===262) return (g16(o+2)===3)?g16(o+8):g32(o+8); } return null; }catch(e){ return null; } }
 function buildRasterLayer(){ const {gr,mn,mx,bands,ycc}=_rasterMeta; const o={georaster:gr,opacity:(+$('rasterOpacity').value||100)/100,resolution:256,pane:'rasterPane'};
+  if(_rasterIndex && bands>=3 && VEG_INDICES[_rasterIndex]){ const fn=VEG_INDICES[_rasterIndex], rng=_rasterIndexRange||{mn:-1,mx:1}, span=(rng.mx-rng.mn)||1, cmap=$('indexCmap')?$('indexCmap').value:'rdylgn';
+    o.pixelValuesToColorFn=v=>{ const rgb=_pixRGB(v); if(!rgb) return null; const val=fn(rgb[0],rgb[1],rgb[2]); if(val==null||isNaN(val)||!isFinite(val)) return null; return cmapCSS((val-rng.mn)/span,cmap); }; return new window.GeoRasterLayer(o); }
   if(bands<3){ o.pixelValuesToColorFn=v=>{ const val=Array.isArray(v)?v[0]:v; if(val==null||isNaN(val)||val===gr.noDataValue) return null; return cmapCSS((val-mn)/((mx-mn)||1),$('rasterCmap').value); }; }
   else { // RGB explícito: banda 0=R, 1=G, 2=B; alpha/nodata transparente; auto-escala 8/16-bit
     const mxs=(gr.maxs||[]).slice(0,3).filter(x=>x!=null&&isFinite(x)); const peak=mxs.length?Math.max(...mxs):255; const sc=peak>255?255/peak:1;
@@ -1313,18 +1343,44 @@ async function handleRasterFile(file){
     const bands=gr.numberOfRasters||1;
     const mn=(gr.mins&&gr.mins[0]!=null)?gr.mins[0]:gr.minValue, mx=(gr.maxs&&gr.maxs[0]!=null)?gr.maxs[0]:gr.maxValue;
     _rasterMeta={gr,bands,mn,mx,ycc,orig:{xmin:gr.xmin,xmax:gr.xmax,ymin:gr.ymin,ymax:gr.ymax}};
-    _rasterShift={dx:0,dy:0}; _gcpTransform=null;   // novo raster: zera ajuste por GCP
+    _rasterShift={dx:0,dy:0}; _gcpTransform=null; _rasterIndex=null; _rasterIndexRange=null;   // novo raster: zera ajuste por GCP e índice
     if(rasterLayer) rasterLayer.remove();
     rasterLayer=buildRasterLayer().addTo(map);
     try{ map.fitBounds(rasterLayer.getBounds()); }catch(e){}
     $('rasterCtrls').classList.remove('hidden'); $('rasterCmapRow').classList.toggle('hidden',bands>=3);
+    $('indexRow').classList.toggle('hidden',bands<3); if($('indexSel'))$('indexSel').value='none'; $('indexCmapRow').classList.add('hidden'); $('indexClearBtn').classList.add('hidden'); $('indexInfo').textContent='';
     rasterStatus(`${file.name} · ${gr.width}×${gr.height} · ${bands} banda(s)${bands<3&&isFinite(mn)?` · ${(+mn).toFixed(1)}–${(+mx).toFixed(1)}`:''}`);
     toast('Raster carregado ✅');
   }catch(e){ console.error('[Raster]',e); toast('Erro ao ler raster: '+e.message,'error'); rasterStatus(''); }
 }
 function setRasterOpacity(){ if(rasterLayer) rasterLayer.setOpacity((+$('rasterOpacity').value||100)/100); }
 function recolorRaster(){ if(!rasterLayer||!_rasterMeta||_rasterMeta.bands>=3) return; rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); }
-function clearRaster(){ if(rasterLayer){ rasterLayer.remove(); rasterLayer=null; } _rasterMeta=null; _rasterShift={dx:0,dy:0}; _gcpTransform=null; if($('gcpStatus'))$('gcpStatus').textContent=''; $('rasterCtrls').classList.add('hidden'); rasterStatus(''); }
+function clearRaster(){ if(rasterLayer){ rasterLayer.remove(); rasterLayer=null; } _rasterMeta=null; _rasterShift={dx:0,dy:0}; _gcpTransform=null; _rasterIndex=null; _rasterIndexRange=null; if($('gcpStatus'))$('gcpStatus').textContent=''; $('rasterCtrls').classList.add('hidden'); rasterStatus(''); }
+
+/* ───── Índices de vegetação por RGB (Fase 2-B) ───── */
+function _computeIndexRange(fn){
+  const gr=_rasterMeta.gr, vals=gr.values, W=gr.width, H=gr.height, nb=gr.numberOfRasters||vals.length;
+  const step=Math.max(1,Math.floor(Math.sqrt(W*H/50000))), arr=[];
+  for(let r=0;r<H;r+=step){ for(let c=0;c<W;c+=step){ const rgb=_pixRGB([vals[0][r][c],vals[1][r][c],vals[2][r][c],nb>=4?vals[3][r][c]:255]); if(!rgb) continue; const val=fn(rgb[0],rgb[1],rgb[2]); if(val==null||isNaN(val)||!isFinite(val)) continue; arr.push(val); } }
+  if(!arr.length) return {mn:-1,mx:1};
+  arr.sort((a,b)=>a-b); const lo=arr[Math.floor(arr.length*0.02)], hi=arr[Math.floor(arr.length*0.98)];
+  return {mn:lo,mx:(hi>lo?hi:lo+1e-6)};
+}
+function applyIndex(){
+  if(!_rasterMeta||!_rasterMeta.gr){ toast('Carregue uma ortho RGB primeiro','error'); return; }
+  if((_rasterMeta.bands||0)<3){ toast('Índices RGB exigem imagem com 3+ bandas (ortho colorida)','error'); return; }
+  const sel=$('indexSel').value; if(sel==='none'){ clearIndex(); return; }
+  const fn=VEG_INDICES[sel]; if(!fn){ toast('Índice desconhecido','error'); return; }
+  if(!_rasterMeta.gr.values){ toast('Raster sem pixels em memória','error'); return; }
+  _rasterIndex=sel; _rasterIndexRange=_computeIndexRange(fn);
+  if(rasterLayer){ rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); }
+  $('indexInfo').textContent=`${sel} (${VEG_DESC[sel]||''}) · escala ${_rasterIndexRange.mn.toFixed(3)} … ${_rasterIndexRange.mx.toFixed(3)}`;
+  $('indexCmapRow').classList.remove('hidden'); $('indexClearBtn').classList.remove('hidden');
+  if($('zonalPts').value.trim()) zonalCompute();
+  toast('Índice '+sel+' aplicado ✅');
+}
+function clearIndex(){ _rasterIndex=null; _rasterIndexRange=null; if($('indexSel'))$('indexSel').value='none'; if(rasterLayer){ rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); } if($('indexInfo'))$('indexInfo').textContent=''; if($('indexCmapRow'))$('indexCmapRow').classList.add('hidden'); if($('indexClearBtn'))$('indexClearBtn').classList.add('hidden'); if(_rasterMeta&&$('zonalPts').value.trim()) zonalCompute(); }
+function recolorIndex(){ if(_rasterIndex&&rasterLayer){ rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); } }
 
 /* ═══════════════ ESTATÍSTICA ZONAL (pontos + buffer circular) ═══════════════ */
 let _zonalLayer=null, _zonalResults=null, _zonalPicking=false, _zonalPickLayer=null;
@@ -1405,7 +1461,8 @@ function zonalCompute(){
   const nb=gr.numberOfRasters||vals.length;
   const alphaIdx=(nb===4||nb===2)?nb-1:-1;          // RGBA / Cinza+Alfa: última banda é máscara
   const reportIdx=[]; for(let b=0;b<nb;b++) if(b!==alphaIdx) reportIdx.push(b);
-  const labels=_labelBands(reportIdx.length), nd=gr.noDataValue;
+  const idxFn=(_rasterIndex&&nb>=3)?VEG_INDICES[_rasterIndex]:null;   // se um índice de vegetação está ativo, amostra o índice
+  const labels=idxFn?[_rasterIndex]:_labelBands(reportIdx.length), nd=gr.noDataValue;
   const W=gr.width, H=gr.height, px=gr.pixelWidth, py=gr.pixelHeight;
 
   // gera as coordenadas no CRS do raster (X,Y) + lat/lon a partir de (a,b) interpretados como lat/lon ou E/N
@@ -1431,10 +1488,11 @@ function zonalCompute(){
     else { rpx=radius/px; rpy=radius/py; }   // raster projetado: pixel em metros
     const c0=Math.max(0,Math.floor(ccol-rpx)), c1=Math.min(W-1,Math.ceil(ccol+rpx));
     const r0=Math.max(0,Math.floor(crow-rpy)), r1=Math.min(H-1,Math.ceil(crow+rpy));
-    const acc=reportIdx.map(()=>[]);
+    const acc=labels.map(()=>[]);
     for(let r=r0;r<=r1;r++){ const dr=(r+0.5-crow)/rpy; const rowA=alphaIdx>=0?vals[alphaIdx][r]:null;
-      for(let c=c0;c<=c1;c++){ const dc=(c+0.5-ccol)/rpx; if(dc*dc+dr*dr>1) continue; if(rowA&&!rowA[c]) continue;
-        for(let k=0;k<reportIdx.length;k++){ const v=vals[reportIdx[k]][r][c]; if(v==null||isNaN(v)||(nd!=null&&v===nd)) continue; acc[k].push(v); } } }
+      for(let c=c0;c<=c1;c++){ const dc=(c+0.5-ccol)/rpx; if(dc*dc+dr*dr>1) continue;
+        if(idxFn){ const rgb=_pixRGB([vals[0][r][c],vals[1][r][c],vals[2][r][c],nb>=4?vals[3][r][c]:255]); if(!rgb) continue; const val=idxFn(rgb[0],rgb[1],rgb[2]); if(val==null||isNaN(val)||!isFinite(val)) continue; acc[0].push(val); }
+        else { if(rowA&&!rowA[c]) continue; for(let k=0;k<reportIdx.length;k++){ const v=vals[reportIdx[k]][r][c]; if(v==null||isNaN(v)||(nd!=null&&v===nd)) continue; acc[k].push(v); } } } }
     const bands=acc.map((vv,k)=>{ if(!vv.length) return {label:labels[k],n:0}; let s=0,mn=Infinity,mx=-Infinity; for(const v of vv){ s+=v; if(v<mn)mn=v; if(v>mx)mx=v; } const mean=s/vv.length; let sq=0; for(const v of vv) sq+=(v-mean)*(v-mean); return {label:labels[k],n:vv.length,mean,std:Math.sqrt(sq/vv.length),min:mn,max:mx,median:_median(vv)}; });
     const n=Math.max(0,...bands.map(b=>b.n||0));
     return {...p,X,Y,lat,lon,radius,bands,n,swapped:usedSwap,error:n?null:'sem pixels válidos no buffer'};
@@ -1585,6 +1643,8 @@ function gcpClear(){ _gcpTransform=null; _gcpLast=null; setRasterShift(0,0); if(
 /* ───── Exportar imagem (PNG + worldfile): usa a georreferência ATUAL (já corrigida por GCP) ───── */
 function _rasterColorFn(){
   const {gr,mn,mx,bands,ycc}=_rasterMeta; const cmap=$('rasterCmap')?$('rasterCmap').value:'terrain';
+  if(_rasterIndex && bands>=3 && VEG_INDICES[_rasterIndex]){ const fn=VEG_INDICES[_rasterIndex], rng=_rasterIndexRange||{mn:-1,mx:1}, span=(rng.mx-rng.mn)||1, icmap=$('indexCmap')?$('indexCmap').value:'rdylgn';
+    return v=>{ const rgb=_pixRGB(v); if(!rgb) return null; const val=fn(rgb[0],rgb[1],rgb[2]); if(val==null||isNaN(val)||!isFinite(val)) return null; const c=cmapRGB((val-rng.mn)/span,icmap); return [c[0]*255|0,c[1]*255|0,c[2]*255|0]; }; }
   if(bands<3){ const span=(mx-mn)||1; return v=>{ const val=Array.isArray(v)?v[0]:v; if(val==null||isNaN(val)||val===gr.noDataValue) return null; const c=cmapRGB((val-mn)/span,cmap); return [c[0]*255|0,c[1]*255|0,c[2]*255|0]; }; }
   const mxs=(gr.maxs||[]).slice(0,3).filter(x=>x!=null&&isFinite(x)); const peak=mxs.length?Math.max(...mxs):255; const sc=peak>255?255/peak:1;
   return v=>{ if(!v) return null; const a=(bands>=4)?v[3]:255; if(a===0) return null; let r=v[0],g=v[1],b=v[2]; if(r==null&&g==null&&b==null) return null; if(gr.noDataValue!=null&&r===gr.noDataValue&&g===gr.noDataValue&&b===gr.noDataValue) return null; if(ycc){ const Y=r,Cb=g-128,Cr=b-128; r=Y+1.402*Cr; g=Y-0.344136*Cb-0.714136*Cr; b=Y+1.772*Cb; } const cl=x=>Math.max(0,Math.min(255,Math.round((x||0)*sc))); return [cl(r),cl(g),cl(b)]; };
@@ -1615,10 +1675,11 @@ async function exportRasterImage(withPoints){
     const pw=gr.pixelWidth/scale, ph=gr.pixelHeight/scale;
     const wld=[pw,0,0,-ph,gr.xmin+pw/2,gr.ymax-ph/2].map(v=>v.toFixed(10)).join('\n')+'\n';
     const blob=await new Promise(res=>cv.toBlob(res,'image/png'));
-    const base=withPoints?'ortofly_figura_pontos':'ortofly_imagem_corrigida';
+    const base='ortofly_'+(_rasterIndex?_rasterIndex.toLowerCase():'imagem')+(withPoints?'_pontos':'');
     const sh=_rasterShift&&(_rasterShift.dx||_rasterShift.dy)?`Georreferencia JA INCLUI a correcao por pontos de controle (dx=${_rasterShift.dx.toFixed(2)} m, dy=${_rasterShift.dy.toFixed(2)} m).`:'Sem correcao por pontos de controle aplicada.';
+    const idxNote=_rasterIndex?`A imagem esta colorida pelo INDICE DE VEGETACAO ${_rasterIndex} (${VEG_DESC[_rasterIndex]||''}), derivado das bandas RGB — proxy de vigor; NAO e NDVI (que exige infravermelho).\n`:'';
     const zip=new JSZip(); zip.file(base+'.png',blob); zip.file(base+'.pgw',wld);
-    zip.file('LEIAME.txt',`Imagem exportada pelo OrtoFly (v${APP_VERSION}).\n\nO arquivo .pgw (world file) georreferencia o .png. CRS: EPSG:${(+gr.projection||'?')} — defina este CRS ao abrir no QGIS.\n${sh}\n${withPoints?'A figura inclui os buffers (circulos) e os nomes dos pontos para uso em metodologia.\n':''}\nOBSERVACAO: este e um PNG georreferenciado (raster + world file). Ele abre direto no QGIS e e ideal para mapas e figuras. NAO e um GeoTIFF: para um GeoTIFF corrigido "de verdade" (com o cabecalho/CRS reescrito no proprio arquivo), o navegador nao e o ambiente ideal — use o QGIS (ferramenta Georeferencer) se voce precisar do GeoTIFF corrigido.\n`);
+    zip.file('LEIAME.txt',`Imagem exportada pelo OrtoFly (v${APP_VERSION}).\n\nO arquivo .pgw (world file) georreferencia o .png. CRS: EPSG:${(+gr.projection||'?')} — defina este CRS ao abrir no QGIS.\n${sh}\n${idxNote}${withPoints?'A figura inclui os buffers (circulos) e os nomes dos pontos para uso em metodologia.\n':''}\nOBSERVACAO: este e um PNG georreferenciado (raster + world file). Ele abre direto no QGIS e e ideal para mapas e figuras. NAO e um GeoTIFF: para um GeoTIFF corrigido "de verdade" (com o cabecalho/CRS reescrito no proprio arquivo), o navegador nao e o ambiente ideal — use o QGIS (ferramenta Georeferencer) se voce precisar do GeoTIFF corrigido.\n`);
     const out=await zip.generateAsync({type:'blob'}); downloadBlob(out, base+'.zip');
     rasterStatus(''); toast('Imagem exportada (PNG + worldfile) ✅');
   }catch(e){ console.error('[img export]',e); rasterStatus(''); toast('Erro ao exportar imagem: '+e.message,'error'); }
@@ -1629,8 +1690,10 @@ function mmZonal(){
   if(!_zonalResults) return 'Gere o buffer/estatística primeiro.';
   const {radius,results,epsg,geoInput,labels}=_zonalResults, yr=new Date().getFullYear();
   const n=results.length, ok=results.filter(r=>!r.error).length;
-  const bandsTxt=labels.length===1?'a banda do raster':`as ${labels.length} bandas (${labels.join(', ')})`;
-  return `As estatísticas por ponto (estatística zonal) foram obtidas no aplicativo OrtoFly (Costa, ${yr}; versão ${APP_VERSION}). Em cada um dos ${n} pontos (${ok} com dados) definiu-se um buffer circular de ${radius} m de raio sobre o raster carregado (CRS EPSG:${epsg||'não definido'}). Os pixels cujo centro caiu dentro de cada círculo — excluídos os de máscara ou sem dado (nodata/transparência) — foram amostrados e, para ${bandsTxt}, calcularam-se o número de pixels (n), a média, o desvio-padrão, o mínimo, o máximo e a mediana. As coordenadas dos pontos foram fornecidas em ${geoInput?'graus (latitude, longitude)':'UTM (E, N)'}${geoInput&&epsg&&epsg!==4326?', reprojetadas para o CRS do raster,':''} e associadas aos pixels por correspondência direta de coordenadas.`;
+  const idx=_rasterIndex&&labels.length===1&&VEG_DESC[labels[0]];
+  const bandsTxt=idx?`o índice de vegetação ${labels[0]} (${VEG_DESC[labels[0]]}), derivado das bandas RGB,`:(labels.length===1?'a banda do raster':`as ${labels.length} bandas (${labels.join(', ')})`);
+  const idxNote=idx?` O índice ${labels[0]} é um indicador de vigor da vegetação calculado a partir das bandas visíveis (R, G, B); por usar apenas o espectro visível, é um proxy e não substitui o NDVI, que requer a banda do infravermelho próximo (câmera multiespectral).`:'';
+  return `As estatísticas por ponto (estatística zonal) foram obtidas no aplicativo OrtoFly (Costa, ${yr}; versão ${APP_VERSION}). Em cada um dos ${n} pontos (${ok} com dados) definiu-se um buffer circular de ${radius} m de raio sobre o raster carregado (CRS EPSG:${epsg||'não definido'}). Os pixels cujo centro caiu dentro de cada círculo — excluídos os de máscara ou sem dado (nodata/transparência) — foram amostrados e, para ${bandsTxt} calcularam-se o número de pixels (n), a média, o desvio-padrão, o mínimo, o máximo e a mediana. As coordenadas dos pontos foram fornecidas em ${geoInput?'graus (latitude, longitude)':'UTM (E, N)'}${geoInput&&epsg&&epsg!==4326?', reprojetadas para o CRS do raster,':''} e associadas aos pixels por correspondência direta de coordenadas.${idxNote}`;
 }
 function mmGcp(){
   if(!_gcpLast) return 'Aplique um ajuste por pontos de controle primeiro.';

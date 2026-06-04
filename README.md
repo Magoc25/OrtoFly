@@ -8,7 +8,7 @@ Desenvolvido por **Marlon Gomes da Costa (MGC Dev)**
 > Não representa, não é financiado e não tem vínculo institucional com o IFMA
 > ou qualquer outra organização.
 
-[![Versão](https://img.shields.io/badge/versão-1.14.0-blue)](./CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/versão-1.15.0-blue)](./CHANGELOG.md)
 [![Licença](https://img.shields.io/badge/licença-não%20comercial-orange)](#-licença-e-termos-de-uso)
 [![PIX](https://img.shields.io/badge/apoie-PIX-brightgreen)](#-apoiar-o-projeto)
 [![Dispositivos ativos](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/Magoc25/OrtoFly/main/stats.json&query=$.active_30d&label=dispositivos%20ativos%20(30d)&color=blue&suffix=%20dispositivos)](./stats.json)
@@ -94,6 +94,7 @@ O OrtoFly **não controla o drone diretamente** — por restrições do SDK da D
 - **Mosaico rápido (GPS)** — pré-mosaico **não métrico** que posiciona as fotos pelo GPS/rumo/altitude, com exportação em PNG + world file. É um preview aproximado (para o resultado métrico, use a aba Processar).
 - **Visualizador 2D** — abre **ortomosaico/DSM (GeoTIFF/COG)** no mapa, com paletas para DSM e controle de opacidade.
 - **Visualizador 3D** — abre **nuvem de pontos** (LAS/LAZ/PLY) ou **malha** (OBJ/glTF/GLB) no navegador.
+- **Índices de vegetação por RGB** — a partir de uma ortho colorida, calcula e colore **VARI, GLI, NGRDI, ExG, ExGR, MGRVI, RGBVI, TGI, VEG** (proxies de vigor; **não** são NDVI, que exige infravermelho). A estatística por pontos passa a amostrar o índice, e a imagem do índice é exportável (PNG + worldfile).
 - **Estatística por pontos (zonal)** — informe pontos (`lat, lon` ou UTM `E, N`, digitados ou **clicados no mapa**) e um raio (buffer circular) e o app amostra os pixels do raster carregado dentro de cada círculo, calculando **média, desvio-padrão, mín, máx e mediana por banda** (útil para NDVI/índices, DSM ou ortomosaico). Cor/estilo dos círculos configuráveis; exporta em **CSV**, **TXT** (tabulação) e **GeoJSON**, gera **figura PNG georreferenciada** (com worldfile) e um texto de **Material e Métodos (M&M)** pronto para citar.
 - **Ajuste por pontos de controle (GCP)** — corrija um deslocamento com feições conhecidas (ex.: **RTK**): aplique a transformação aos **pontos** (ex.: coletados com GPS de mão) ou **desloque o próprio ortomosaico** no mapa. 1 ponto = deslocamento; 2+ = + rotação/escala, com resíduo (RMS). Os pontos de controle podem ser digitados ou **clicados na imagem**.
 
