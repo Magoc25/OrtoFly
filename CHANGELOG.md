@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.16.2] — Junho 2026
+
+### 🐛 Recorte por polígono — máscara e artefatos no zoom
+
+- O recorte por **polígono** agora **mascara de verdade** (fica transparente fora do contorno) — antes saía como retângulo, porque o `georaster-layer` renderiza RGB nativamente e ignorava a banda de transparência.
+- Some também o "bug no zoom" (apareciam retângulo / imagem inteira / pedaços soltos): recortes com máscara passam a ser exibidos como **camada de imagem** (que respeita a transparência), em vez de tiles. O recorte **retângulo** continua no renderizador nativo (nítido).
+
+---
+
 ## [1.16.1] — Junho 2026
 
 ### 🐛 Recorte — corrige "out of memory"
