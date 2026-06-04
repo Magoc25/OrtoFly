@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.10.3] — Junho 2026
+
+### 🐛 Corrigido — satélite (Esri) sumindo ao dar zoom
+
+- **A imagem de satélite não desaparece mais ao aproximar** em várias regiões do Brasil. O Esri World Imagery só tem imagem nativa até ~z17 em muitas **áreas rurais**; ao pedir um zoom maior, o servidor devolvia um tile **em branco**. Agora o `maxNativeZoom` foi ajustado para **17** e, acima disso, o mapa **estica o último tile disponível** (overzoom) — fica um pouco menos nítido no zoom máximo, mas **continua visível** em vez de sumir.
+
+---
+
 ## [1.10.2] — Junho 2026
 
 ### ✨ Interface mais clara e documentação revisada

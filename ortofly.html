@@ -409,7 +409,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.10.2</span>
+  <span id="appVersion">© MGC · v1.10.3</span>
 </footer>
 
 <!-- PIX modal -->
@@ -535,7 +535,7 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.10.1 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.10.2';
+const APP_VERSION = '1.10.3';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -581,7 +581,7 @@ const vtxIcon = L.divIcon({className:'', html:'<div class="vtx"></div>', iconSiz
 function initMap(){
   map = L.map('map',{zoomControl:true, doubleClickZoom:true, attributionControl:true}).setView([-7.019,-45.480], 16);
   const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    {maxZoom:21, maxNativeZoom:19, attribution:'Tiles © Esri'});
+    {maxZoom:21, maxNativeZoom:17, attribution:'Tiles © Esri'}); // muitas áreas rurais do BR só têm imagem nativa até ~z17; acima disso o Leaflet faz overzoom (estica o tile) em vez de mostrar branco
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     {maxZoom:19, attribution:'© OpenStreetMap'});
   esri.addTo(map);
