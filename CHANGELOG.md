@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.17.2] — Junho 2026
+
+### ✨ Importar pontos — TXT (tabulação) explícito
+
+- O botão de importar pontos agora é **📁 Importar CSV/TXT/GeoJSON**: o **TXT separado por tabulação** já era aceito (o leitor detecta tab, `;` ou `,` e o cabeçalho automaticamente) e passa a aparecer como opção no rótulo.
+
+---
+
 ## [1.17.1] — Junho 2026
 
 ### ✨ Exports da estatística agora dizem o CRS (zip + LEIA-ME)
