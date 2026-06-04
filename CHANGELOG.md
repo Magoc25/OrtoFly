@@ -5,6 +5,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.11.1] — Junho 2026
+
+### 🐛 Estatística por pontos — aceita coordenadas UTM e SIRGAS 2000
+
+- A ferramenta **📊 Estatística por pontos** agora aceita também **coordenadas projetadas (E, N em metros)**, além de lat/lon — detecta o formato e a ordem (E,N / N,E) **automaticamente** pela magnitude. Antes só lat/lon era aceito, o que dava erro com pontos de topografia em UTM.
+- Reconhece **SIRGAS 2000 / UTM (zonas 18S–25S, EPSG 31978–31985)**, padrão em topografia no Brasil — antes só UTM WGS84 (EPSG 326xx/327xx) era suportado, e rasters em SIRGAS caíam em "CRS não suportado".
+- Para pontos em E,N a estatística é calculada **direto nos pixels** (sem reprojetar), então funciona mesmo com CRS pouco comum; quando o CRS do raster é conhecido (UTM), os pontos são convertidos para lat/lon para **desenhar os círculos no mapa** e exportar **GeoJSON** (WGS84). O **CSV** agora traz também as colunas `x, y` (coordenadas no CRS do raster).
+
+---
+
 ## [1.11.0] — Junho 2026
 
 ### ✨ Nova ferramenta — Estatística por pontos (zonal) sobre o raster

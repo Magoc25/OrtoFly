@@ -270,8 +270,9 @@ footer{
       <h2>📊 Estatística por pontos</h2>
       <p class="hint" style="margin-top:0">Amostra os pixels do <b>raster carregado acima</b> dentro de um círculo (buffer) em cada ponto e calcula <b>média, desvio, mín, máx e mediana</b> por banda. Útil para NDVI/índices, DSM ou ortomosaico.</p>
       <div class="field" style="margin-top:8px">
-        <label for="zonalPts">Pontos — <b>lat, lon</b> (um por linha; nome opcional)</label>
-        <textarea id="zonalPts" rows="4" placeholder="-7.0190, -45.4800&#10;P2, -7.0195, -45.4790" style="resize:vertical;width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px;font-family:inherit;font-size:13px;font-variant-numeric:tabular-nums"></textarea>
+        <label for="zonalPts">Pontos — <b>lat, lon</b> (graus) ou <b>E, N</b> (metros, mesmo CRS do raster) · 1 por linha, nome opcional</label>
+        <textarea id="zonalPts" rows="4" placeholder="-7.0190, -45.4800&#10;P2, -7.0195, -45.4790&#10;ou UTM:  p21  443162.71  9221928.44" style="resize:vertical;width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px;font-family:inherit;font-size:13px;font-variant-numeric:tabular-nums"></textarea>
+        <p class="hint" style="margin-top:4px">Detecta automaticamente lat/lon vs. UTM (E, N) e a ordem. Para UTM, o raster precisa estar no mesmo CRS dos pontos (ex.: SIRGAS 2000 / UTM).</p>
       </div>
       <div class="row">
         <div class="field"><label for="zonalRadius">Raio do buffer (m)</label><input id="zonalRadius" type="number" min="0.1" step="0.5" value="2" /></div>
@@ -433,7 +434,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.11.0</span>
+  <span id="appVersion">© MGC · v1.11.1</span>
 </footer>
 
 <!-- PIX modal -->
@@ -559,7 +560,7 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.10.1 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.11.0';
+const APP_VERSION = '1.11.1';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1291,13 +1292,33 @@ function latLonToUTM(lat,lon,zone,south){
   if(south) Nn+=10000000;
   return [E,Nn];
 }
+// EPSG -> zona/hemisfério UTM (WGS84 326xx/327xx e SIRGAS 2000 sul 31978–31985). null = não é UTM conhecido
+function utmZoneOf(epsg){
+  if(epsg>=32601&&epsg<=32660) return {zone:epsg-32600,south:false};
+  if(epsg>=32701&&epsg<=32760) return {zone:epsg-32700,south:true};
+  if(epsg>=31978&&epsg<=31985) return {zone:epsg-31960,south:true};   // SIRGAS 2000 / UTM 18S–25S (Brasil)
+  return null;
+}
+// UTM (metros) -> [lat,lon] graus
+function utmToLatLon(E,N,zone,south){
+  const a=6378137.0,f=1/298.257223563,e2=f*(2-f),k0=0.9996,ep2=e2/(1-e2);
+  const e1=(1-Math.sqrt(1-e2))/(1+Math.sqrt(1-e2));
+  const x=E-500000, y=(south?N-10000000:N), M=y/k0, mu=M/(a*(1-e2/4-3*e2*e2/64-5*e2**3/256));
+  const phi1=mu+(3*e1/2-27*e1**3/32)*Math.sin(2*mu)+(21*e1*e1/16-55*e1**4/32)*Math.sin(4*mu)+(151*e1**3/96)*Math.sin(6*mu)+(1097*e1**4/512)*Math.sin(8*mu);
+  const C1=ep2*Math.cos(phi1)**2, T1=Math.tan(phi1)**2, N1=a/Math.sqrt(1-e2*Math.sin(phi1)**2), R1=a*(1-e2)/Math.pow(1-e2*Math.sin(phi1)**2,1.5), D=x/(N1*k0);
+  const lat=phi1-(N1*Math.tan(phi1)/R1)*(D*D/2-(5+3*T1+10*C1-4*C1*C1-9*ep2)*D**4/24+(61+90*T1+298*C1+45*T1*T1-252*ep2-3*C1*C1)*D**6/720);
+  const lon=(D-(1+2*T1+C1)*D**3/6+(5-2*C1+28*T1-3*C1*C1+8*ep2+24*T1*T1)*D**5/120)/Math.cos(phi1);
+  return [lat*180/Math.PI, ((zone-1)*6-180+3)+lon*180/Math.PI];
+}
 // lon/lat (graus) -> coordenadas no CRS do raster (EPSG). null = não suportado
 function lonLatToRaster(lon,lat,epsg){
   if(epsg===4326) return [lon,lat];
   if(epsg===3857){ const x=lon*20037508.34/180; let y=Math.log(Math.tan((90+lat)*Math.PI/360))/(Math.PI/180); return [x,y*20037508.34/180]; }
-  if((epsg>=32601&&epsg<=32660)||(epsg>=32701&&epsg<=32760)) return latLonToUTM(lat,lon,epsg%100,epsg>=32700);
+  const z=utmZoneOf(epsg); if(z) return latLonToUTM(lat,lon,z.zone,z.south);
   return null;
 }
+// detecta ordem E,N por magnitude (Este UTM < 834 km; Norte pode passar de 1e6)
+function _splitEN(a,b){ if(a>834000&&b<=834000) return [b,a]; if(b>834000&&a<=834000) return [a,b]; return [a,b]; }
 function _median(arr){ if(!arr.length) return null; const s=arr.slice().sort((a,b)=>a-b), m=s.length>>1; return s.length%2?s[m]:(s[m-1]+s[m])/2; }
 function _labelBands(n){ if(n===1) return ['Valor']; if(n===3) return ['R','G','B']; const a=[]; for(let i=1;i<=n;i++) a.push('B'+i); return a; }
 function _zfmt(v){ if(v==null||isNaN(v)) return '—'; const x=Math.abs(v); return x>=1000?v.toFixed(0):x>=1?v.toFixed(2):v.toFixed(4); }
@@ -1310,7 +1331,7 @@ function parseZonalPoints(txt){
     const nums=[], name=[];
     toks.forEach(t=>{ const v=Number(t); if(isFinite(v)) nums.push(v); else name.push(t); });
     if(nums.length<2) return;
-    pts.push({name:name.join(' ')||('P'+(pts.length+1)), lat:nums[0], lon:nums[1]});
+    pts.push({name:name.join(' ')||('P'+(pts.length+1)), v0:nums[0], v1:nums[1]});
   });
   return pts;
 }
@@ -1319,44 +1340,54 @@ function zonalCompute(){
   if(!_rasterMeta||!_rasterMeta.gr){ toast('Carregue um raster (GeoTIFF/COG) acima primeiro','error'); return; }
   const gr=_rasterMeta.gr, vals=gr.values;
   if(!vals||!vals.length||!vals[0]){ toast('Raster sem pixels em memória. Carregue o GeoTIFF completo (não COG remoto).','error'); return; }
-  const epsgRaw=+gr.projection||0, looksProjected=Math.abs(gr.xmin)>180||Math.abs(gr.ymax)>90;
-  if(!epsgRaw && looksProjected){ toast('Raster sem CRS reconhecido (parece projetado). Exporte do ODM em UTM/WGS84.','error'); return; }
-  const epsg=epsgRaw||4326;
-  if(!lonLatToRaster(0,0,epsg)){ toast('CRS do raster (EPSG:'+epsg+') não suportado — use UTM/WGS84 (padrão do ODM) ou EPSG:4326','error'); return; }
+  const epsg=+gr.projection||0;
+  const geoRaster=(epsg===4326)||(!epsg && Math.abs(gr.xmin)<=180 && Math.abs(gr.ymax)<=90); // raster em graus?
+  const zinfo=utmZoneOf(epsg);   // p/ converter E,N -> lat/lon (desenho/GeoJSON)
   const pts=parseZonalPoints($('zonalPts').value);
-  if(!pts.length){ toast('Informe ao menos um ponto: lat, lon (um por linha)','error'); return; }
+  if(!pts.length){ toast('Informe ao menos um ponto: lat, lon (graus) ou E, N (metros)','error'); return; }
   const radius=+$('zonalRadius').value;
   if(!(radius>0)){ toast('Informe um raio (m) maior que zero','error'); return; }
+
+  // entrada é geográfica (lat,lon) só se TODOS os pontos couberem na faixa de graus; senão é projetada (E,N no CRS do raster)
+  const geoInput=pts.every(p=>Math.abs(p.v0)<=90&&Math.abs(p.v1)<=180);
+  if(geoInput && !geoRaster && !lonLatToRaster(0,0,epsg||4326)){
+    toast('Entrada em lat/lon, mas o CRS do raster (EPSG:'+(epsg||'?')+') não é suportado p/ reprojetar. Informe os pontos em E, N (metros, mesmo CRS do raster).','error'); return;
+  }
 
   const nb=gr.numberOfRasters||vals.length;
   const alphaIdx=(nb===4||nb===2)?nb-1:-1;          // RGBA / Cinza+Alfa: última banda é máscara
   const reportIdx=[]; for(let b=0;b<nb;b++) if(b!==alphaIdx) reportIdx.push(b);
-  const labels=_labelBands(reportIdx.length), nd=gr.noDataValue, geo=(epsg===4326);
+  const labels=_labelBands(reportIdx.length), nd=gr.noDataValue;
   const W=gr.width, H=gr.height, px=gr.pixelWidth, py=gr.pixelHeight;
 
   const results=pts.map(p=>{
-    if(!(p.lat>=-90&&p.lat<=90&&p.lon>=-180&&p.lon<=180)) return {...p,error:'lat/lon fora de faixa (ordem é lat, lon)'};
-    const xy=lonLatToRaster(p.lon,p.lat,epsg); if(!xy) return {...p,error:'CRS não suportado'};
-    const ccol=(xy[0]-gr.xmin)/px, crow=(gr.ymax-xy[1])/py;
+    // resolve coordenadas no CRS do raster (X,Y) e em lat/lon (p/ mapa/GeoJSON)
+    let X,Y,lat=null,lon=null;
+    if(geoInput){ lat=p.v0; lon=p.v1;
+      if(geoRaster){ X=lon; Y=lat; } else { const xy=lonLatToRaster(lon,lat,epsg); if(!xy) return {...p,error:'CRS não suportado'}; X=xy[0]; Y=xy[1]; }
+    } else { const en=_splitEN(p.v0,p.v1); X=en[0]; Y=en[1];   // E, N no CRS do raster
+      if(geoRaster){ lon=X; lat=Y; } else if(zinfo){ const ll=utmToLatLon(X,Y,zinfo.zone,zinfo.south); lat=ll[0]; lon=ll[1]; } }
+    const ccol=(X-gr.xmin)/px, crow=(gr.ymax-Y)/py;
     let rpx,rpy;
-    if(geo){ const dLat=radius/110540, dLon=radius/((111320*Math.cos(p.lat*Math.PI/180))||1e-9); rpx=dLon/px; rpy=dLat/py; }
-    else { const sf=(epsg===3857)?1/Math.cos(p.lat*Math.PI/180):1; rpx=(radius*sf)/px; rpy=(radius*sf)/py; }
+    if(geoRaster){ const latR=(lat||0)*Math.PI/180, dLat=radius/110540, dLon=radius/((111320*Math.cos(latR))||1e-9); rpx=dLon/px; rpy=dLat/py; }
+    else { rpx=radius/px; rpy=radius/py; }   // raster projetado: pixel em metros
     const c0=Math.max(0,Math.floor(ccol-rpx)), c1=Math.min(W-1,Math.ceil(ccol+rpx));
     const r0=Math.max(0,Math.floor(crow-rpy)), r1=Math.min(H-1,Math.ceil(crow+rpy));
-    if(c1<c0||r1<r0) return {...p,error:'ponto fora do raster'};
+    if(c1<c0||r1<r0) return {...p,lat,lon,error:'ponto fora do raster'};
     const acc=reportIdx.map(()=>[]);
     for(let r=r0;r<=r1;r++){ const dr=(r+0.5-crow)/rpy; const rowA=alphaIdx>=0?vals[alphaIdx][r]:null;
       for(let c=c0;c<=c1;c++){ const dc=(c+0.5-ccol)/rpx; if(dc*dc+dr*dr>1) continue; if(rowA&&!rowA[c]) continue;
         for(let k=0;k<reportIdx.length;k++){ const v=vals[reportIdx[k]][r][c]; if(v==null||isNaN(v)||(nd!=null&&v===nd)) continue; acc[k].push(v); } } }
     const bands=acc.map((vv,k)=>{ if(!vv.length) return {label:labels[k],n:0}; let s=0,mn=Infinity,mx=-Infinity; for(const v of vv){ s+=v; if(v<mn)mn=v; if(v>mx)mx=v; } const mean=s/vv.length; let sq=0; for(const v of vv) sq+=(v-mean)*(v-mean); return {label:labels[k],n:vv.length,mean,std:Math.sqrt(sq/vv.length),min:mn,max:mx,median:_median(vv)}; });
     const n=Math.max(0,...bands.map(b=>b.n||0));
-    return {...p,radius,bands,n,error:n?null:'sem pixels válidos no buffer'};
+    return {...p,X,Y,lat,lon,radius,bands,n,error:n?null:'sem pixels válidos no buffer'};
   });
 
-  _zonalResults={epsg,radius,labels,results};
+  _zonalResults={epsg,radius,labels,results,geoInput};
   renderZonalTable(_zonalResults); drawZonalCircles(results,radius);
   const ok=results.filter(r=>!r.error).length;
-  $('zonalStatus').textContent=`${ok}/${results.length} ponto(s) com dados · raster EPSG:${epsg} · raio ${radius} m`;
+  const modo=geoInput?'lat,lon':'E,N (metros'+(zinfo?'':', sem georref. p/ mapa')+')';
+  $('zonalStatus').textContent=`${ok}/${results.length} ponto(s) com dados · entrada ${modo} · raster EPSG:${epsg||'?'} · raio ${radius} m`;
   $('zonalExports').classList.toggle('hidden',!ok);
   $('zonalClearBtn').classList.remove('hidden');
   if(ok) toast('Estatística calculada ✅');
@@ -1368,20 +1399,22 @@ function renderZonalTable(z){
   let h='<table class="zonal-tbl"><thead><tr><th style="text-align:left">Ponto</th><th style="text-align:left">Banda</th><th>n</th><th>Média</th><th>DP</th><th>Mín</th><th>Máx</th><th>Mediana</th></tr></thead><tbody>';
   z.results.forEach(r=>{
     if(r.error||!r.bands){ h+=`<tr><td><b>${esc(r.name)}</b></td><td colspan="7" style="color:var(--hint)">${esc(r.error||'')}</td></tr>`; return; }
-    r.bands.forEach((b,i)=>{ h+='<tr>'; if(i===0) h+=`<td rowspan="${r.bands.length}" style="vertical-align:top"><b>${esc(r.name)}</b><div style="color:var(--hint);font-size:10px">${r.lat.toFixed(5)}, ${r.lon.toFixed(5)}</div></td>`;
+    r.bands.forEach((b,i)=>{ h+='<tr>'; if(i===0) h+=`<td rowspan="${r.bands.length}" style="vertical-align:top"><b>${esc(r.name)}</b><div style="color:var(--hint);font-size:10px">${_zcoord(r)}</div></td>`;
       h+=`<td style="text-align:left">${esc(b.label)}</td><td>${b.n||0}</td><td>${_zfmt(b.mean)}</td><td>${_zfmt(b.std)}</td><td>${_zfmt(b.min)}</td><td>${_zfmt(b.max)}</td><td>${_zfmt(b.median)}</td></tr>`; });
   });
   box.innerHTML=h+'</tbody></table>';
 }
 
+function _zcoord(r){ return (r.lat!=null&&r.lon!=null)?`${r.lat.toFixed(5)}, ${r.lon.toFixed(5)}`:`E,N: ${_zfmt(r.X)}, ${_zfmt(r.Y)}`; }
 function drawZonalCircles(results,radius){
   if(!map) return; if(_zonalLayer){ _zonalLayer.remove(); _zonalLayer=null; }
-  _zonalLayer=L.layerGroup();
-  results.forEach(r=>{ if(!(r.lat>=-90&&r.lat<=90&&r.lon>=-180&&r.lon<=180)) return; const ok=!r.error;
+  _zonalLayer=L.layerGroup(); let drawn=0;
+  results.forEach(r=>{ if(!(r.lat>=-90&&r.lat<=90&&r.lon>=-180&&r.lon<=180)) return; const ok=!r.error; drawn++;
     L.circle([r.lat,r.lon],{radius,color:ok?'#1a9e4b':'#e0533d',weight:2,fillOpacity:.12})
       .bindPopup(`<b>${esc(r.name)}</b><br>${r.lat.toFixed(5)}, ${r.lon.toFixed(5)}`+(ok&&r.bands?'<br>'+r.bands.map(b=>`${esc(b.label)}: ${_zfmt(b.mean)} (n=${b.n})`).join('<br>'):`<br><i>${esc(r.error||'')}</i>`))
       .addTo(_zonalLayer); });
   _zonalLayer.addTo(map);
+  return drawn;
 }
 
 function _zcsv(s){ s=String(s==null?'':s); return /[",\n;]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
@@ -1391,18 +1424,20 @@ function _zround(v){ return (v==null||isNaN(v))?null:Math.round(v*1e4)/1e4; }
 function zonalExportCSV(){
   if(!_zonalResults){ toast('Calcule a estatística primeiro','error'); return; }
   const {results,radius}=_zonalResults;
-  const rows=[['ponto','lat','lon','raio_m','banda','n','media','desvio','min','max','mediana'].join(',')];
-  results.forEach(r=>{ if(r.error||!r.bands){ rows.push([_zcsv(r.name),r.lat,r.lon,radius,'','','','','','',''].join(',')); return; }
-    r.bands.forEach(b=>rows.push([_zcsv(r.name),r.lat,r.lon,radius,_zcsv(b.label),b.n||0,_znum(b.mean),_znum(b.std),_znum(b.min),_znum(b.max),_znum(b.median)].join(','))); });
+  const rows=[['ponto','lat','lon','x','y','raio_m','banda','n','media','desvio','min','max','mediana'].join(',')];
+  results.forEach(r=>{ const c=[_zcsv(r.name),_znum(r.lat),_znum(r.lon),_znum(r.X),_znum(r.Y),radius];
+    if(r.error||!r.bands){ rows.push(c.concat(['','','','','','']).join(',')); return; }
+    r.bands.forEach(b=>rows.push(c.concat([_zcsv(b.label),b.n||0,_znum(b.mean),_znum(b.std),_znum(b.min),_znum(b.max),_znum(b.median)]).join(','))); });
   downloadBlob(new Blob([rows.join('\n')],{type:'text/csv'}),'ortofly_zonal.csv'); toast('CSV exportado ✅');
 }
 function zonalExportGeoJSON(){
   if(!_zonalResults){ toast('Calcule a estatística primeiro','error'); return; }
   const {results,radius}=_zonalResults;
-  const feats=results.map(r=>{ const props={nome:r.name,raio_m:radius};
+  const feats=results.map(r=>{ const props={nome:r.name,raio_m:radius,x:_zround(r.X),y:_zround(r.Y)};
     if(!r.error&&r.bands) r.bands.forEach(b=>{ props[b.label+'_media']=_zround(b.mean); props[b.label+'_dp']=_zround(b.std); props[b.label+'_min']=_zround(b.min); props[b.label+'_max']=_zround(b.max); props[b.label+'_mediana']=_zround(b.median); props[b.label+'_n']=b.n||0; });
     else props.erro=r.error;
-    return {type:'Feature',geometry:{type:'Point',coordinates:[r.lon,r.lat]},properties:props}; });
+    const geometry=(r.lat!=null&&r.lon!=null)?{type:'Point',coordinates:[r.lon,r.lat]}:null;   // GeoJSON é WGS84; sem lat/lon (CRS desconhecido) vai geometry null + x/y nas props
+    return {type:'Feature',geometry,properties:props}; });
   downloadBlob(new Blob([JSON.stringify({type:'FeatureCollection',properties:{app:'OrtoFly',raio_m:radius},features:feats},null,2)],{type:'application/geo+json'}),'ortofly_zonal.geojson'); toast('GeoJSON exportado ✅');
 }
 function clearZonal(){ if(_zonalLayer){ _zonalLayer.remove(); _zonalLayer=null; } _zonalResults=null; $('zonalResult').innerHTML=''; $('zonalStatus').textContent=''; $('zonalExports').classList.add('hidden'); $('zonalClearBtn').classList.add('hidden'); }
