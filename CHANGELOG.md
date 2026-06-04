@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.16.1] — Junho 2026
+
+### 🐛 Recorte — corrige "out of memory"
+
+- O recorte falhava com *"Failed to execute 'postMessage' on 'Worker': … out of memory"* em imagens maiores: os pixels do recorte eram montados como **Arrays comuns** (muito pesados) antes de reconstruir o raster. Agora cada linha é copiada como **TypedArray** (a mesma do original), reduzindo o uso de memória em várias vezes e evitando o estouro.
+
+---
+
 ## [1.16.0] — Junho 2026
 
 ### ✨ Recortar o ortomosaico para a área de interesse

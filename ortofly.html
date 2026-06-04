@@ -495,7 +495,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.16.0</span>
+  <span id="appVersion">© MGC · v1.16.1</span>
 </footer>
 
 <!-- PIX modal -->
@@ -629,7 +629,7 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.10.1 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.16.0';
+const APP_VERSION = '1.16.1';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1434,12 +1434,17 @@ async function performCrop(polyLL,mask){
   let r0=Math.max(0,Math.floor((gr.ymax-maxY)/py)), r1=Math.min(H-1,Math.ceil((gr.ymax-minY)/py)-1);
   if(c1<c0||r1<r0){ toast('A área marcada não cobre o raster','error'); return; }
   rasterStatus('Recortando…'); await new Promise(res=>setTimeout(res,10));
-  const newW=c1-c0+1, newH=r1-r0+1, nb=gr.numberOfRasters||vals.length, nd=(gr.noDataValue!=null)?gr.noDataValue:-9999;
-  const out=[]; for(let b=0;b<nb;b++){ const band=new Array(newH); for(let ri=0;ri<newH;ri++){ const srow=vals[b][r0+ri], drow=new Array(newW); for(let ci=0;ci<newW;ci++) drow[ci]=srow[c0+ci]; band[ri]=drow; } out.push(band); }
+  const newW=c1-c0+1, newH=r1-r0+1, nb=gr.numberOfRasters||vals.length;
+  const Ctor=(vals[0][0]&&vals[0][0].slice)?vals[0][0].constructor:null;   // tipo da linha (TypedArray) p/ economizar memória
+  const singleMask=mask&&nb<3;
+  // fatia cada linha como TypedArray (cópia da janela) — Arrays comuns estouram o worker do georaster
+  const out=[]; for(let b=0;b<nb;b++){ const sband=vals[b], band=new Array(newH); for(let ri=0;ri<newH;ri++){ const srow=sband[r0+ri]; let drow; if(srow&&srow.slice){ drow=srow.slice(c0,c1+1); if(singleMask) drow=Float32Array.from(drow); } else { drow=new Float32Array(newW); for(let ci=0;ci<newW;ci++) drow[ci]=srow[c0+ci]; } band[ri]=drow; } out.push(band); }
   let ndOut=gr.noDataValue;
   if(mask){
-    if(nb>=3){ const alpha=new Array(newH); for(let ri=0;ri<newH;ri++){ const Yc=gr.ymax-(r0+ri+0.5)*py, arow=new Array(newW); for(let ci=0;ci<newW;ci++){ const Xc=gr.xmin+(c0+ci+0.5)*px; arow[ci]=_pointInPoly(Xc,Yc,polyXY)?255:0; } alpha[ri]=arow; } if(nb>=4) out[3]=alpha; else out.push(alpha); }
-    else { ndOut=nd; for(let ri=0;ri<newH;ri++){ const Yc=gr.ymax-(r0+ri+0.5)*py; for(let ci=0;ci<newW;ci++){ const Xc=gr.xmin+(c0+ci+0.5)*px; if(!_pointInPoly(Xc,Yc,polyXY)) for(let b=0;b<nb;b++) out[b][ri][ci]=nd; } } }
+    if(nb>=3){ const AC=Ctor||Uint8Array, alpha=new Array(newH); for(let ri=0;ri<newH;ri++){ const Yc=gr.ymax-(r0+ri+0.5)*py, arow=new AC(newW); for(let ci=0;ci<newW;ci++){ const Xc=gr.xmin+(c0+ci+0.5)*px; arow[ci]=_pointInPoly(Xc,Yc,polyXY)?255:0; } alpha[ri]=arow; } if(nb>=4) out[3]=alpha; else out.push(alpha); }
+    else { // banda única: preenche fora do polígono com nodata (sentinela se não houver)
+      let sent=gr.noDataValue; if(sent==null){ let mn=Infinity; for(let ri=0;ri<newH;ri++){ const row=out[0][ri]; for(let ci=0;ci<newW;ci++){ const v=row[ci]; if(!isNaN(v)&&v<mn)mn=v; } } sent=(mn===Infinity?0:mn)-1; }
+      ndOut=sent; for(let ri=0;ri<newH;ri++){ const Yc=gr.ymax-(r0+ri+0.5)*py, row=out[0][ri]; for(let ci=0;ci<newW;ci++){ const Xc=gr.xmin+(c0+ci+0.5)*px; if(!_pointInPoly(Xc,Yc,polyXY)) row[ci]=sent; } } }
   }
   const meta={noDataValue:(ndOut!=null?ndOut:null), projection:+gr.projection||4326, xmin:gr.xmin+c0*px, ymax:gr.ymax-r0*py, pixelWidth:px, pixelHeight:py};
   try{
