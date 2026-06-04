@@ -78,9 +78,28 @@ Escolha **um** jeito de instalar o Docker:
   > 💡 Esse aviso de "rede local" é um recurso novo do Chrome/Edge, liberado aos poucos. Por isso pode aparecer num computador e não em outro, mesmo com a mesma URL.
 - **Apple Silicon (M1/M2/M3...):** a imagem `opendronemap/nodeodm` tem versão **ARM nativa** — roda direto. Se algum dia reclamar de arquitetura, force `--platform linux/amd64` (emulação, mais lenta).
 
-## 🔁 Reusar / parar
-- **Depois de reiniciar o Mac:** abra o Docker Desktop (ou rode `colima start`); o NodeODM volta sozinho (`--restart`). Se não, `docker start nodeodm`.
-- **Parar:** `docker stop nodeodm` (e, no Colima, `colima stop` para desligar a máquina).
+## 🔁 Dia a dia — ligar, desligar e conferir
+> ⚠️ **Fechar o Terminal NÃO para o NodeODM.** Ele roda em segundo plano (dentro do Docker/Colima) até você mandar parar — o Terminal é só onde você digita os comandos.
+
+| Ação | Comando |
+|---|---|
+| **Conferir se está no ar** | `docker ps` — tem que listar **nodeodm** com status `Up` (ou abra `http://127.0.0.1:3000/info`) |
+| **Parar só o NodeODM** (Colima continua ligado) | `docker stop nodeodm` |
+| **Iniciar de novo** | `docker start nodeodm` |
+| **Desligar tudo** (libera RAM/CPU) | `docker stop nodeodm` e depois `colima stop` |
+
+- **Depois de reiniciar o Mac:** rode `colima start` — o NodeODM **volta sozinho** (foi criado com `--restart unless-stopped`). Se não voltar: `docker start nodeodm`.
+- **Não precisa recriar nada:** o container `nodeodm` já existe; o `docker run` da instalação é **só na primeira vez**. No dia a dia é só ligar/desligar.
+
+## 🧠 Dar mais memória ao NodeODM (Colima) — para muitas fotos
+Por padrão o Colima sobe com **2 CPU / 2 GB de RAM**, o que limita o ODM (com muitas fotos fica lento ou falha). Para aumentar — **precisa parar e subir de novo** (não muda com a máquina ligada):
+```bash
+colima stop
+colima start --cpu 6 --memory 8
+```
+- Use no máximo ~**metade a ⅔ da RAM** do Mac: **16 GB → `--memory 8`**, **8 GB → `--memory 4`**. Não dê tudo, senão o macOS engasga.
+- A configuração **fica salva**: os próximos `colima start` já usam esses valores (não precisa repetir os flags).
+- Confira em **http://127.0.0.1:3000/info** — o `totalMemory` deve subir.
 
 ## 📝 Notas
 - Tudo roda **no seu Mac** — as fotos **não** vão para servidores externos.

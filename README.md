@@ -124,6 +124,8 @@ Guias passo a passo (bem detalhados, mesmo para quem não usa terminal):
 | ☁️ **VM grátis na nuvem (Oracle Cloud)** | _em breve_ |
 
 > 💡 É **opcional** — use só se quiser gerar os produtos de fotogrametria. Tudo roda **localmente**, suas imagens não saem do seu dispositivo.
+>
+> 📖 Cada guia também explica o **dia a dia**: como **ligar, desligar e conferir** o servidor (fechar o terminal não o desliga), qual **navegador usar** e como **dar mais memória** ao NodeODM para processar muitas fotos.
 
 ### 📦 O que vem no resultado (`all.zip`)
 
