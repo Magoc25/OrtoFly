@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.14.0] — Junho 2026
+
+### ✨ Coletar pontos clicando no mapa (Fase 2 — etapa A)
+
+- Botão **📍 Coletar pontos no mapa** na ferramenta de estatística: ative e **clique no mapa** para adicionar pontos — cada clique vira uma linha `P1, lat, lon` na caixa, com um **pino numerado** de confirmação. O contador aparece no botão; **Esc** ou clicar de novo conclui.
+- Ideal para pontos **visíveis na ortho** (não precisa de GPS). Os pontos coletados entram no mesmo fluxo (raio, UTM, ajuste por GCP, exports). Próxima etapa (B): **índices de vegetação por RGB** (VARI/GLI/NGRDI/ExG).
+
+---
+
 ## [1.13.1] — Junho 2026
 
 ### 🐛 Correções na exportação de imagem

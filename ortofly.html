@@ -111,6 +111,8 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent); o
 .zonal-tbl th{color:var(--muted);font-weight:600;text-align:right;padding:4px 6px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface)}
 .zonal-tbl td{text-align:right;padding:4px 6px;border-bottom:1px solid var(--border)}
 .zonal-gcp summary{cursor:pointer;font-weight:700;font-size:12.5px;color:var(--text);padding:4px 0}
+.zonal-pick-tip{background:rgba(0,0,0,.65);color:#fff;border:none;border-radius:4px;font-size:10px;padding:1px 4px;box-shadow:none}
+.zonal-pick-tip::before{display:none}
 .zonal-gcp[open] summary{margin-bottom:2px}
 .viewer3d-content{position:relative;width:96vw;height:92dvh;max-width:1400px;background:var(--surface);border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:column;overflow:hidden}
 .viewer3d-bar{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border)}
@@ -277,6 +279,7 @@ footer{
         <textarea id="zonalPts" rows="4" placeholder="-7.0190, -45.4800&#10;P2, -7.0195, -45.4790&#10;ou UTM:  p21  443162.71  9221928.44" style="resize:vertical;width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px;font-family:inherit;font-size:13px;font-variant-numeric:tabular-nums"></textarea>
         <p class="hint" style="margin-top:4px">Detecta automaticamente lat/lon vs. UTM (E, N) e a ordem. Para UTM, o raster precisa estar no mesmo CRS dos pontos (ex.: SIRGAS 2000 / UTM).</p>
       </div>
+      <button class="btn sm block" id="zonalPickBtn" onclick="zonalPickToggle()">📍 Coletar pontos no mapa</button>
       <div class="row">
         <div class="field"><label for="zonalRadius">Raio do buffer (m)</label><input id="zonalRadius" type="number" min="0.1" step="0.5" value="2" /></div>
         <div class="field"><label for="zonalColor">Cor</label><input id="zonalColor" type="color" value="#1a9e4b" onchange="zonalRedraw()" style="height:34px;padding:2px;cursor:pointer" /></div>
@@ -470,7 +473,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.13.1</span>
+  <span id="appVersion">© MGC · v1.14.0</span>
 </footer>
 
 <!-- PIX modal -->
@@ -604,7 +607,7 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.10.1 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.13.1';
+const APP_VERSION = '1.14.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -669,7 +672,7 @@ function initMap(){
 /* ---------- desenho da AOI ---------- */
 let drawing=false, draftPts=[], draftLayer=null;
 function startDraw(){ if(!map){ toast('Mapa indisponível','error'); return; } clearArea(); drawing=true; draftPts=[]; map.doubleClickZoom.disable(); $('drawBar').classList.add('active'); $('drawCount').textContent='0'; map.getContainer().style.cursor='crosshair'; }
-function onMapClick(e){ if(_pickCb){ const cb=_pickCb; _pickCb=null; map.getContainer().style.cursor=''; cb(e.latlng); return; } if(!drawing) return; draftPts.push([e.latlng.lat,e.latlng.lng]); updateDraft(); }
+function onMapClick(e){ if(_pickCb){ const cb=_pickCb; _pickCb=null; map.getContainer().style.cursor=''; cb(e.latlng); return; } if(_zonalPicking){ zonalPickAdd(e.latlng); return; } if(!drawing) return; draftPts.push([e.latlng.lat,e.latlng.lng]); updateDraft(); }
 function updateDraft(){ if(draftLayer){draftLayer.remove();draftLayer=null;} if(draftPts.length){ draftLayer=L.polygon(draftPts,{color:'#14b88a',weight:2,dashArray:'5,6',fillOpacity:.06}).addTo(map);} $('drawCount').textContent=draftPts.length; }
 function finishDraw(){ if(draftPts.length<3){ toast('Marque pelo menos 3 vértices'); return; } state.polygon=draftPts.slice(); endDraw(); renderAOI(); fitAOI(); recompute(); toast('Área definida ✅'); }
 function cancelDraw(){ endDraw(); }
@@ -1324,7 +1327,7 @@ function recolorRaster(){ if(!rasterLayer||!_rasterMeta||_rasterMeta.bands>=3) r
 function clearRaster(){ if(rasterLayer){ rasterLayer.remove(); rasterLayer=null; } _rasterMeta=null; _rasterShift={dx:0,dy:0}; _gcpTransform=null; if($('gcpStatus'))$('gcpStatus').textContent=''; $('rasterCtrls').classList.add('hidden'); rasterStatus(''); }
 
 /* ═══════════════ ESTATÍSTICA ZONAL (pontos + buffer circular) ═══════════════ */
-let _zonalLayer=null, _zonalResults=null;
+let _zonalLayer=null, _zonalResults=null, _zonalPicking=false, _zonalPickLayer=null;
 
 // lat/lon (WGS84) -> UTM (metros), dada a zona e o hemisfério
 function latLonToUTM(lat,lon,zone,south){
@@ -1438,7 +1441,7 @@ function zonalCompute(){
   });
 
   _zonalResults={epsg,radius,labels,results,geoInput};
-  renderZonalTable(_zonalResults); drawZonalCircles(results,radius);
+  renderZonalTable(_zonalResults); drawZonalCircles(results,radius); if(_zonalPickLayer) _zonalPickLayer.clearLayers();
   const ok=results.filter(r=>!r.error).length;
   const modo=geoInput?'lat,lon':'E,N (metros'+(zinfo?'':', sem georref. p/ mapa')+')';
   $('zonalStatus').textContent=`${ok}/${results.length} ponto(s) com dados · entrada ${modo} · raster EPSG:${epsg||'?'} · raio ${radius} m`+(swapCount?` · ⚠️ X/Y trocados corrigidos em ${swapCount}`:'');
@@ -1504,7 +1507,29 @@ function zonalExportGeoJSON(){
     return {type:'Feature',geometry,properties:props}; });
   downloadBlob(new Blob([JSON.stringify({type:'FeatureCollection',properties:{app:'OrtoFly',raio_m:radius},features:feats},null,2)],{type:'application/geo+json'}),'ortofly_zonal.geojson'); toast('GeoJSON exportado ✅');
 }
-function clearZonal(){ if(_zonalLayer){ _zonalLayer.remove(); _zonalLayer=null; } _zonalResults=null; $('zonalResult').innerHTML=''; $('zonalStatus').textContent=''; $('zonalExports').classList.add('hidden'); $('zonalClearBtn').classList.add('hidden'); }
+function clearZonal(){ if(_zonalLayer){ _zonalLayer.remove(); _zonalLayer=null; } if(_zonalPickLayer) _zonalPickLayer.clearLayers(); _zonalResults=null; $('zonalResult').innerHTML=''; $('zonalStatus').textContent=''; $('zonalExports').classList.add('hidden'); if($('zonalExtra'))$('zonalExtra').classList.add('hidden'); $('zonalClearBtn').classList.add('hidden'); }
+
+/* coleta de pontos clicando no mapa (multi-clique) */
+function zonalPickToggle(){
+  if(!map){ toast('Mapa indisponível','error'); return; }
+  _zonalPicking=!_zonalPicking; const btn=$('zonalPickBtn');
+  if(_zonalPicking){
+    if(!_zonalPickLayer) _zonalPickLayer=L.layerGroup().addTo(map); else _zonalPickLayer.addTo(map);
+    map.getContainer().style.cursor='crosshair'; try{ map.doubleClickZoom.disable(); }catch(e){}
+    if(btn){ btn.textContent=`✓ Concluir coleta (${parseZonalPoints($('zonalPts').value).length})`; btn.classList.add('primary'); }
+    toast('Clique no mapa para adicionar pontos · Esc para concluir');
+  } else {
+    map.getContainer().style.cursor=''; try{ map.doubleClickZoom.enable(); }catch(e){}
+    if(btn){ btn.textContent='📍 Coletar pontos no mapa'; btn.classList.remove('primary'); }
+  }
+}
+function zonalPickAdd(latlng){
+  const n=parseZonalPoints($('zonalPts').value).length+1, name='P'+n, ta=$('zonalPts');
+  ta.value+=((ta.value&&!ta.value.endsWith('\n'))?'\n':'')+`${name}, ${latlng.lat.toFixed(7)}, ${latlng.lng.toFixed(7)}`;
+  if(_zonalPickLayer) L.circleMarker(latlng,{radius:4,color:'#1a9e4b',weight:2,fillColor:'#fff',fillOpacity:1}).bindTooltip(name,{permanent:true,direction:'right',className:'zonal-pick-tip'}).addTo(_zonalPickLayer);
+  const btn=$('zonalPickBtn'); if(btn) btn.textContent=`✓ Concluir coleta (${n})`;
+}
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&_zonalPicking) zonalPickToggle(); });
 
 /* ───── Ajuste por pontos de controle (GCP): corrige pontos (Garmin) ou desloca o ortomosaico ───── */
 // resolve (v0,v1) -> {X,Y} no CRS do raster carregado, detectando lat/lon vs E,N
