@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.15.1] — Junho 2026
+
+### 🐛 Índice de vegetação agora muda na tela
+
+- Ao aplicar um índice, o mapa **realmente recolore** agora. O `georaster-layer` renderiza imagens RGB nativamente e ignorava a coloração do índice na tela (por isso só o PNG salvo saía colorido). O índice passou a ser exibido como uma **camada de imagem** (overlay) por cima — com **opacidade** e **paleta** ao vivo, e botão **↺ Voltar à cor real**.
+
+---
+
 ## [1.15.0] — Junho 2026
 
 ### ✨ Índices de vegetação por RGB (Fase 2 — etapa B)
