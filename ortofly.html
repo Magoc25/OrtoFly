@@ -276,6 +276,8 @@ footer{
       </div>
       <div class="row">
         <div class="field"><label for="zonalRadius">Raio do buffer (m)</label><input id="zonalRadius" type="number" min="0.1" step="0.5" value="2" /></div>
+        <div class="field"><label for="zonalColor">Cor</label><input id="zonalColor" type="color" value="#1a9e4b" onchange="zonalRedraw()" style="height:34px;padding:2px;cursor:pointer" /></div>
+        <div class="field"><label for="zonalStyle">Estilo</label><select id="zonalStyle" onchange="zonalRedraw()"><option value="solido">Círculo</option><option value="pontilhado">Pontilhado</option><option value="cruz">Círculo + cruz</option><option value="ponto">Círculo + ponto</option></select></div>
       </div>
       <button class="btn primary block" onclick="zonalCompute()" style="margin-top:4px">📊 Calcular estatística</button>
       <div id="zonalStatus" class="spec" style="margin-top:6px"></div>
@@ -434,7 +436,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.11.1</span>
+  <span id="appVersion">© MGC · v1.11.2</span>
 </footer>
 
 <!-- PIX modal -->
@@ -560,7 +562,7 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.10.1 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.11.1';
+const APP_VERSION = '1.11.2';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1360,34 +1362,41 @@ function zonalCompute(){
   const labels=_labelBands(reportIdx.length), nd=gr.noDataValue;
   const W=gr.width, H=gr.height, px=gr.pixelWidth, py=gr.pixelHeight;
 
+  // gera as coordenadas no CRS do raster (X,Y) + lat/lon a partir de (a,b) interpretados como lat/lon ou E/N
+  const toXYll=(lat,lon)=>{ if(geoRaster) return {X:lon,Y:lat,lat,lon}; const xy=lonLatToRaster(lon,lat,epsg); return xy?{X:xy[0],Y:xy[1],lat,lon}:null; };
+  const enToXYll=(E,N)=>{ if(geoRaster) return {X:E,Y:N,lat:N,lon:E}; let lat=null,lon=null; if(zinfo){ const ll=utmToLatLon(E,N,zinfo.zone,zinfo.south); lat=ll[0]; lon=ll[1]; } return {X:E,Y:N,lat,lon}; };
+  const inside=c=>{ if(!c) return false; const cc=(c.X-gr.xmin)/px, cr=(gr.ymax-c.Y)/py; return cc>=0&&cc<W&&cr>=0&&cr<H; };
+  let swapCount=0;
   const results=pts.map(p=>{
-    // resolve coordenadas no CRS do raster (X,Y) e em lat/lon (p/ mapa/GeoJSON)
-    let X,Y,lat=null,lon=null;
-    if(geoInput){ lat=p.v0; lon=p.v1;
-      if(geoRaster){ X=lon; Y=lat; } else { const xy=lonLatToRaster(lon,lat,epsg); if(!xy) return {...p,error:'CRS não suportado'}; X=xy[0]; Y=xy[1]; }
-    } else { const en=_splitEN(p.v0,p.v1); X=en[0]; Y=en[1];   // E, N no CRS do raster
-      if(geoRaster){ lon=X; lat=Y; } else if(zinfo){ const ll=utmToLatLon(X,Y,zinfo.zone,zinfo.south); lat=ll[0]; lon=ll[1]; } }
+    // candidatos: ordem declarada + ordem trocada; escolhe a que cai DENTRO do raster (corrige X/Y invertidos)
+    let cands;
+    if(geoInput){ cands=[toXYll(p.v0,p.v1), toXYll(p.v1,p.v0)]; }
+    else { const sw=_splitEN(p.v0,p.v1); cands=[enToXYll(sw[0],sw[1]), enToXYll(sw[1],sw[0])]; }
+    cands=cands.filter(Boolean);
+    let used=cands.find(inside); const usedSwap=!!used&&used!==cands[0];
+    if(!used) return {...p,X:cands[0]&&cands[0].X,Y:cands[0]&&cands[0].Y,lat:cands[0]&&cands[0].lat,lon:cands[0]&&cands[0].lon,error:'ponto fora do raster'};
+    if(usedSwap) swapCount++;
+    const {X,Y,lat,lon}=used;
     const ccol=(X-gr.xmin)/px, crow=(gr.ymax-Y)/py;
     let rpx,rpy;
     if(geoRaster){ const latR=(lat||0)*Math.PI/180, dLat=radius/110540, dLon=radius/((111320*Math.cos(latR))||1e-9); rpx=dLon/px; rpy=dLat/py; }
     else { rpx=radius/px; rpy=radius/py; }   // raster projetado: pixel em metros
     const c0=Math.max(0,Math.floor(ccol-rpx)), c1=Math.min(W-1,Math.ceil(ccol+rpx));
     const r0=Math.max(0,Math.floor(crow-rpy)), r1=Math.min(H-1,Math.ceil(crow+rpy));
-    if(c1<c0||r1<r0) return {...p,lat,lon,error:'ponto fora do raster'};
     const acc=reportIdx.map(()=>[]);
     for(let r=r0;r<=r1;r++){ const dr=(r+0.5-crow)/rpy; const rowA=alphaIdx>=0?vals[alphaIdx][r]:null;
       for(let c=c0;c<=c1;c++){ const dc=(c+0.5-ccol)/rpx; if(dc*dc+dr*dr>1) continue; if(rowA&&!rowA[c]) continue;
         for(let k=0;k<reportIdx.length;k++){ const v=vals[reportIdx[k]][r][c]; if(v==null||isNaN(v)||(nd!=null&&v===nd)) continue; acc[k].push(v); } } }
     const bands=acc.map((vv,k)=>{ if(!vv.length) return {label:labels[k],n:0}; let s=0,mn=Infinity,mx=-Infinity; for(const v of vv){ s+=v; if(v<mn)mn=v; if(v>mx)mx=v; } const mean=s/vv.length; let sq=0; for(const v of vv) sq+=(v-mean)*(v-mean); return {label:labels[k],n:vv.length,mean,std:Math.sqrt(sq/vv.length),min:mn,max:mx,median:_median(vv)}; });
     const n=Math.max(0,...bands.map(b=>b.n||0));
-    return {...p,X,Y,lat,lon,radius,bands,n,error:n?null:'sem pixels válidos no buffer'};
+    return {...p,X,Y,lat,lon,radius,bands,n,swapped:usedSwap,error:n?null:'sem pixels válidos no buffer'};
   });
 
   _zonalResults={epsg,radius,labels,results,geoInput};
   renderZonalTable(_zonalResults); drawZonalCircles(results,radius);
   const ok=results.filter(r=>!r.error).length;
   const modo=geoInput?'lat,lon':'E,N (metros'+(zinfo?'':', sem georref. p/ mapa')+')';
-  $('zonalStatus').textContent=`${ok}/${results.length} ponto(s) com dados · entrada ${modo} · raster EPSG:${epsg||'?'} · raio ${radius} m`;
+  $('zonalStatus').textContent=`${ok}/${results.length} ponto(s) com dados · entrada ${modo} · raster EPSG:${epsg||'?'} · raio ${radius} m`+(swapCount?` · ⚠️ X/Y trocados corrigidos em ${swapCount}`:'');
   $('zonalExports').classList.toggle('hidden',!ok);
   $('zonalClearBtn').classList.remove('hidden');
   if(ok) toast('Estatística calculada ✅');
@@ -1406,13 +1415,20 @@ function renderZonalTable(z){
 }
 
 function _zcoord(r){ return (r.lat!=null&&r.lon!=null)?`${r.lat.toFixed(5)}, ${r.lon.toFixed(5)}`:`E,N: ${_zfmt(r.X)}, ${_zfmt(r.Y)}`; }
+function zonalRedraw(){ if(_zonalResults) drawZonalCircles(_zonalResults.results,_zonalResults.radius); }
 function drawZonalCircles(results,radius){
   if(!map) return; if(_zonalLayer){ _zonalLayer.remove(); _zonalLayer=null; }
   _zonalLayer=L.layerGroup(); let drawn=0;
-  results.forEach(r=>{ if(!(r.lat>=-90&&r.lat<=90&&r.lon>=-180&&r.lon<=180)) return; const ok=!r.error; drawn++;
-    L.circle([r.lat,r.lon],{radius,color:ok?'#1a9e4b':'#e0533d',weight:2,fillOpacity:.12})
-      .bindPopup(`<b>${esc(r.name)}</b><br>${r.lat.toFixed(5)}, ${r.lon.toFixed(5)}`+(ok&&r.bands?'<br>'+r.bands.map(b=>`${esc(b.label)}: ${_zfmt(b.mean)} (n=${b.n})`).join('<br>'):`<br><i>${esc(r.error||'')}</i>`))
-      .addTo(_zonalLayer); });
+  const color=($('zonalColor')&&$('zonalColor').value)||'#1a9e4b';
+  const style=($('zonalStyle')&&$('zonalStyle').value)||'solido';
+  const dash=style==='pontilhado'?'5,5':null;
+  results.forEach(r=>{ if(!(r.lat>=-90&&r.lat<=90&&r.lon>=-180&&r.lon<=180)) return; const ok=!r.error; const col=ok?color:'#e0533d'; drawn++;
+    L.circle([r.lat,r.lon],{radius,color:col,weight:2,dashArray:dash,fillOpacity:.10})
+      .bindPopup(`<b>${esc(r.name)}</b><br>${r.lat.toFixed(5)}, ${r.lon.toFixed(5)}`+(r.swapped?' <span style="color:#e0a13d">(X/Y corrigidos)</span>':'')+(ok&&r.bands?'<br>'+r.bands.map(b=>`${esc(b.label)}: ${_zfmt(b.mean)} (n=${b.n})`).join('<br>'):`<br><i>${esc(r.error||'')}</i>`))
+      .addTo(_zonalLayer);
+    if(ok && style==='ponto') L.circleMarker([r.lat,r.lon],{radius:2.5,color:col,weight:1,fillColor:col,fillOpacity:1,interactive:false}).addTo(_zonalLayer);
+    if(ok && style==='cruz') L.marker([r.lat,r.lon],{interactive:false,keyboard:false,icon:L.divIcon({className:'zonal-cross',html:`<svg width="14" height="14" style="overflow:visible"><line x1="7" y1="0" x2="7" y2="14" stroke="${col}" stroke-width="2"/><line x1="0" y1="7" x2="14" y2="7" stroke="${col}" stroke-width="2"/></svg>`,iconSize:[14,14],iconAnchor:[7,7]})}).addTo(_zonalLayer);
+  });
   _zonalLayer.addTo(map);
   return drawn;
 }

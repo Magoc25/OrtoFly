@@ -5,6 +5,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.11.2] — Junho 2026
+
+### ✨ Estatística por pontos — estilos de marcador e correção de X/Y trocados
+
+- **Cor e estilo dos círculos** configuráveis: seletor de **cor** + **estilo** (Círculo, Pontilhado, Círculo + cruz no centro, Círculo + ponto no centro). Muda na hora, sem recalcular.
+- **Correção automática de X/Y invertidos:** o app testa a ordem informada e a ordem trocada e usa a que **cai dentro do raster**. Em UTM já detectava E/N pela magnitude (Norte ≫ Este); agora também corrige **lat/lon trocados** em coordenadas geográficas. Quando corrige, avisa no status (`⚠️ X/Y trocados corrigidos`) e no popup do ponto.
+- Os círculos continuam em **tamanho real** (raio em metros no terreno).
+
+---
+
 ## [1.11.1] — Junho 2026
 
 ### 🐛 Estatística por pontos — aceita coordenadas UTM e SIRGAS 2000
