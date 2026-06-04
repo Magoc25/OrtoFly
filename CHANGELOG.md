@@ -5,6 +5,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.12.0] — Junho 2026
+
+### ✨ Ajuste por pontos de controle (GCP) — corrige pontos ou o ortomosaico
+
+- Nova seção **📐 Ajuste por pontos de controle** (opcional) na ferramenta de estatística. Você informa pares **de → para** (coordenada errada → verdadeira, ex.: **RTK**) e o app calcula a transformação: **1 par = deslocamento; 2+ = Helmert** (deslocamento + rotação + escala) por mínimos quadrados, mostrando o **resíduo (RMS)**.
+- **Dois alvos, à sua escolha:** aplicar o ajuste aos **pontos** (ex.: marcados com GPS de mão tipo Garmin, depois corrigidos por um ponto RTK conhecido) **ou deslocar o próprio ortomosaico** no mapa (útil quando a ortho do drone, sem GCP, está deslocada alguns metros do real).
+- Os pontos de controle podem ser **digitados** (lat/lon ou UTM) ou **clicados na imagem** (botão "📍 Clicar o ponto 'de' no mapa"), reaproveitando a feição visível na ortho. Ao aplicar/remover o ajuste, a estatística é reamostrada automaticamente.
+- ℹ️ O ajuste corrige o erro **sistemático** (deslocamento/rotação/escala). O ruído **aleatório** de cada leitura de GPS de mão não é removido — para isso, várias leituras (média) ou RTK.
+
+---
+
 ## [1.11.2] — Junho 2026
 
 ### ✨ Estatística por pontos — estilos de marcador e correção de X/Y trocados

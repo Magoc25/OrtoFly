@@ -110,6 +110,8 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent); o
 .zonal-tbl{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
 .zonal-tbl th{color:var(--muted);font-weight:600;text-align:right;padding:4px 6px;border-bottom:1px solid var(--border)}
 .zonal-tbl td{text-align:right;padding:4px 6px;border-bottom:1px solid var(--border)}
+.zonal-gcp summary{cursor:pointer;font-weight:700;font-size:12.5px;color:var(--text);padding:4px 0}
+.zonal-gcp[open] summary{margin-bottom:2px}
 .viewer3d-content{position:relative;width:96vw;height:92dvh;max-width:1400px;background:var(--surface);border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:column;overflow:hidden}
 .viewer3d-bar{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border)}
 .viewer3d-canvas{flex:1;min-height:0;background:#0a141d;position:relative}
@@ -287,6 +289,28 @@ footer{
         <button class="btn sm" onclick="zonalExportGeoJSON()">⬇ GeoJSON</button>
       </div>
       <button class="btn sm block hidden" id="zonalClearBtn" onclick="clearZonal()" style="margin-top:8px">🗑️ Limpar pontos do mapa</button>
+
+      <details class="zonal-gcp" style="margin-top:10px">
+        <summary>📐 Ajuste por pontos de controle (opcional)</summary>
+        <p class="hint" style="margin-top:6px">Corrige um deslocamento usando feições conhecidas (ex.: <b>RTK</b>). Informe pares <b>de → para</b> (coordenada errada → verdadeira). <b>1 par</b> = só deslocamento; <b>2+</b> = deslocamento + rotação/escala (mostra o resíduo). É <b>opcional</b>.</p>
+        <div class="field" style="margin-top:6px">
+          <label for="gcpPairs">Pares de controle — <b>de =&gt; para</b> (1 por linha)</label>
+          <textarea id="gcpPairs" rows="3" placeholder="443160.10 9221930.50 =&gt; 443162.71 9221928.44&#10;ou clique 'de' no mapa e digite o RTK após =&gt;" style="resize:vertical;width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px;font-family:inherit;font-size:12.5px;font-variant-numeric:tabular-nums"></textarea>
+        </div>
+        <button class="btn sm block" onclick="gcpPickFrom()" style="margin-top:2px">📍 Clicar o ponto "de" no mapa</button>
+        <div class="field" style="margin-top:8px">
+          <label>Aplicar a:</label>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;margin-top:2px">
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="gcpTarget" value="pontos" checked style="width:auto"> Pontos (ex.: Garmin)</label>
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="gcpTarget" value="ortho" style="width:auto"> Ortomosaico (deslocar)</label>
+          </div>
+        </div>
+        <div class="btn-grid" style="margin-top:8px">
+          <button class="btn sm" onclick="gcpApply()">✓ Aplicar ajuste</button>
+          <button class="btn sm" onclick="gcpClear()">↺ Remover ajuste</button>
+        </div>
+        <div id="gcpStatus" class="spec" style="margin-top:6px"></div>
+      </details>
     </div>
     </div><!-- /tab-imagens -->
 
@@ -436,7 +460,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.11.2</span>
+  <span id="appVersion">© MGC · v1.12.0</span>
 </footer>
 
 <!-- PIX modal -->
@@ -562,7 +586,7 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.10.1 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.11.2';
+const APP_VERSION = '1.12.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -627,7 +651,7 @@ function initMap(){
 /* ---------- desenho da AOI ---------- */
 let drawing=false, draftPts=[], draftLayer=null;
 function startDraw(){ if(!map){ toast('Mapa indisponível','error'); return; } clearArea(); drawing=true; draftPts=[]; map.doubleClickZoom.disable(); $('drawBar').classList.add('active'); $('drawCount').textContent='0'; map.getContainer().style.cursor='crosshair'; }
-function onMapClick(e){ if(!drawing) return; draftPts.push([e.latlng.lat,e.latlng.lng]); updateDraft(); }
+function onMapClick(e){ if(_pickCb){ const cb=_pickCb; _pickCb=null; map.getContainer().style.cursor=''; cb(e.latlng); return; } if(!drawing) return; draftPts.push([e.latlng.lat,e.latlng.lng]); updateDraft(); }
 function updateDraft(){ if(draftLayer){draftLayer.remove();draftLayer=null;} if(draftPts.length){ draftLayer=L.polygon(draftPts,{color:'#14b88a',weight:2,dashArray:'5,6',fillOpacity:.06}).addTo(map);} $('drawCount').textContent=draftPts.length; }
 function finishDraw(){ if(draftPts.length<3){ toast('Marque pelo menos 3 vértices'); return; } state.polygon=draftPts.slice(); endDraw(); renderAOI(); fitAOI(); recompute(); toast('Área definida ✅'); }
 function cancelDraw(){ endDraw(); }
@@ -1245,7 +1269,7 @@ function cmapRGB(t,name){ if(name==='grayscale'){ const v=Math.max(0,Math.min(1,
 function cmapCSS(t,name){ const c=cmapRGB(t,name); return `rgb(${c[0]*255|0},${c[1]*255|0},${c[2]*255|0})`; }
 
 /* --- 2D raster (GeoTIFF/COG) --- */
-let rasterLayer=null, _rasterMeta=null;
+let rasterLayer=null, _rasterMeta=null, _rasterShift={dx:0,dy:0}, _gcpTransform=null, _pickCb=null;
 function rasterStatus(t){ const e=$('rasterStatus'); if(e) e.textContent=t||''; }
 function openRaster(){ $('rasterInput').click(); }
 function tiffPhotometric(ab){ try{ const dv=new DataView(ab); const le=dv.getUint16(0,false)===0x4949; const g16=o=>dv.getUint16(o,le),g32=o=>dv.getUint32(o,le); if(g16(2)!==42) return null; const ifd=g32(4),n=g16(ifd); for(let i=0;i<n;i++){ const o=ifd+2+i*12; if(g16(o)===262) return (g16(o+2)===3)?g16(o+8):g32(o+8); } return null; }catch(e){ return null; } }
@@ -1267,7 +1291,8 @@ async function handleRasterFile(file){
     const ab=await file.arrayBuffer(); const gr=await PG(ab); const ycc=tiffPhotometric(ab)===6;
     const bands=gr.numberOfRasters||1;
     const mn=(gr.mins&&gr.mins[0]!=null)?gr.mins[0]:gr.minValue, mx=(gr.maxs&&gr.maxs[0]!=null)?gr.maxs[0]:gr.maxValue;
-    _rasterMeta={gr,bands,mn,mx,ycc};
+    _rasterMeta={gr,bands,mn,mx,ycc,orig:{xmin:gr.xmin,xmax:gr.xmax,ymin:gr.ymin,ymax:gr.ymax}};
+    _rasterShift={dx:0,dy:0}; _gcpTransform=null;   // novo raster: zera ajuste por GCP
     if(rasterLayer) rasterLayer.remove();
     rasterLayer=buildRasterLayer().addTo(map);
     try{ map.fitBounds(rasterLayer.getBounds()); }catch(e){}
@@ -1278,7 +1303,7 @@ async function handleRasterFile(file){
 }
 function setRasterOpacity(){ if(rasterLayer) rasterLayer.setOpacity((+$('rasterOpacity').value||100)/100); }
 function recolorRaster(){ if(!rasterLayer||!_rasterMeta||_rasterMeta.bands>=3) return; rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); }
-function clearRaster(){ if(rasterLayer){ rasterLayer.remove(); rasterLayer=null; } _rasterMeta=null; $('rasterCtrls').classList.add('hidden'); rasterStatus(''); }
+function clearRaster(){ if(rasterLayer){ rasterLayer.remove(); rasterLayer=null; } _rasterMeta=null; _rasterShift={dx:0,dy:0}; _gcpTransform=null; if($('gcpStatus'))$('gcpStatus').textContent=''; $('rasterCtrls').classList.add('hidden'); rasterStatus(''); }
 
 /* ═══════════════ ESTATÍSTICA ZONAL (pontos + buffer circular) ═══════════════ */
 let _zonalLayer=null, _zonalResults=null;
@@ -1376,7 +1401,9 @@ function zonalCompute(){
     let used=cands.find(inside); const usedSwap=!!used&&used!==cands[0];
     if(!used) return {...p,X:cands[0]&&cands[0].X,Y:cands[0]&&cands[0].Y,lat:cands[0]&&cands[0].lat,lon:cands[0]&&cands[0].lon,error:'ponto fora do raster'};
     if(usedSwap) swapCount++;
-    const {X,Y,lat,lon}=used;
+    let {X,Y,lat,lon}=used;
+    if(_gcpTransform){ const t=gcpTransform(X,Y); X=t[0]; Y=t[1];   // corrige os pontos (ex.: Garmin) por GCP
+      if(geoRaster){ lon=X; lat=Y; } else if(zinfo){ const ll=utmToLatLon(X,Y,zinfo.zone,zinfo.south); lat=ll[0]; lon=ll[1]; } else { lat=null; lon=null; } }
     const ccol=(X-gr.xmin)/px, crow=(gr.ymax-Y)/py;
     let rpx,rpy;
     if(geoRaster){ const latR=(lat||0)*Math.PI/180, dLat=radius/110540, dLon=radius/((111320*Math.cos(latR))||1e-9); rpx=dLon/px; rpy=dLat/py; }
@@ -1457,6 +1484,54 @@ function zonalExportGeoJSON(){
   downloadBlob(new Blob([JSON.stringify({type:'FeatureCollection',properties:{app:'OrtoFly',raio_m:radius},features:feats},null,2)],{type:'application/geo+json'}),'ortofly_zonal.geojson'); toast('GeoJSON exportado ✅');
 }
 function clearZonal(){ if(_zonalLayer){ _zonalLayer.remove(); _zonalLayer=null; } _zonalResults=null; $('zonalResult').innerHTML=''; $('zonalStatus').textContent=''; $('zonalExports').classList.add('hidden'); $('zonalClearBtn').classList.add('hidden'); }
+
+/* ───── Ajuste por pontos de controle (GCP): corrige pontos (Garmin) ou desloca o ortomosaico ───── */
+// resolve (v0,v1) -> {X,Y} no CRS do raster carregado, detectando lat/lon vs E,N
+function _rasterCRS(){ const gr=_rasterMeta&&_rasterMeta.gr; if(!gr) return null; const epsg=+gr.projection||0; const geoRaster=(epsg===4326)||(!epsg&&Math.abs(gr.xmin)<=180&&Math.abs(gr.ymax)<=90); return {gr,epsg,geoRaster,zinfo:utmZoneOf(epsg)}; }
+function zResolveXY(v0,v1){ const c=_rasterCRS(); if(!c) return null;
+  if(Math.abs(v0)<=90&&Math.abs(v1)<=180){ const lat=v0,lon=v1; if(c.geoRaster) return {X:lon,Y:lat}; const xy=lonLatToRaster(lon,lat,c.epsg); return xy?{X:xy[0],Y:xy[1]}:null; }
+  const en=_splitEN(v0,v1); return {X:en[0],Y:en[1]}; }
+function parseGcpPairs(txt){ const out=[]; (txt||'').split(/\r?\n/).forEach(line=>{ const raw=line.trim(); if(!raw) return; const parts=raw.split(/=>|->/); if(parts.length<2) return;
+  const fn=(parts[0].match(/[+-]?\d+(?:\.\d+)?/g)||[]).map(Number), tn=(parts[1].match(/[+-]?\d+(?:\.\d+)?/g)||[]).map(Number);
+  if(fn.length<2||tn.length<2) return; out.push({f0:fn[0],f1:fn[1],t0:tn[0],t1:tn[1]}); }); return out; }
+// ajusta transformação de similaridade (Helmert) por mínimos quadrados; 1 par = translação
+function fitHelmert(P){ const n=P.length;
+  if(n===1) return {a:1,b:0,c:P[0].tx-P[0].fx,d:P[0].ty-P[0].fy,n,rms:0,type:'translação'};
+  let Sx=0,Sy=0,Su=0,Sv=0,Sxx=0,Sxu=0,Sxv=0;
+  P.forEach(p=>{ Sx+=p.fx; Sy+=p.fy; Su+=p.tx; Sv+=p.ty; Sxx+=p.fx*p.fx+p.fy*p.fy; Sxu+=p.fx*p.tx+p.fy*p.ty; Sxv+=p.fx*p.ty-p.fy*p.tx; });
+  const den=Sxx-(Sx*Sx+Sy*Sy)/n; if(Math.abs(den)<1e-9) return {a:1,b:0,c:(Su-Sx)/n,d:(Sv-Sy)/n,n,rms:0,type:'translação'};
+  const a=(Sxu-(Sx*Su+Sy*Sv)/n)/den, b=(Sxv-(Sx*Sv-Sy*Su)/n)/den, c=(Su-a*Sx+b*Sy)/n, d=(Sv-b*Sx-a*Sy)/n;
+  let se=0; P.forEach(p=>{ const px=a*p.fx-b*p.fy+c, py=b*p.fx+a*p.fy+d; se+=(px-p.tx)**2+(py-p.ty)**2; });
+  return {a,b,c,d,n,rms:Math.sqrt(se/n),type:'Helmert'}; }
+function gcpTransform(x,y){ const t=_gcpTransform; if(!t) return [x,y]; return [t.a*x-t.b*y+t.c, t.b*x+t.a*y+t.d]; }
+function setRasterShift(dx,dy){ if(!_rasterMeta||!_rasterMeta.gr||!_rasterMeta.orig) return; const gr=_rasterMeta.gr, o=_rasterMeta.orig;
+  gr.xmin=o.xmin+dx; gr.xmax=o.xmax+dx; gr.ymin=o.ymin+dy; gr.ymax=o.ymax+dy; _rasterShift={dx,dy};
+  if(rasterLayer){ rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); } }
+function gcpPickFrom(){ if(!map){ toast('Mapa indisponível','error'); return; }
+  _pickCb=(ll)=>{ const ta=$('gcpPairs'); const pre=(ta.value&&!ta.value.endsWith('\n'))?'\n':''; ta.value+=pre+`${ll.lat.toFixed(7)}, ${ll.lng.toFixed(7)} => `; ta.focus(); toast('Capturado "de" — agora digite a coordenada real (RTK) após "=>"'); };
+  map.getContainer().style.cursor='crosshair'; toast('Clique no mapa a feição de referência (visível na imagem)'); }
+function gcpApply(){
+  if(!_rasterMeta||!_rasterMeta.gr){ toast('Carregue um raster (GeoTIFF/COG) primeiro','error'); return; }
+  const pairs=parseGcpPairs($('gcpPairs').value);
+  if(!pairs.length){ toast('Informe ao menos um par de controle no formato: de => para','error'); return; }
+  const P=pairs.map(p=>{ const f=zResolveXY(p.f0,p.f1), t=zResolveXY(p.t0,p.t1); return (f&&t)?{fx:f.X,fy:f.Y,tx:t.X,ty:t.Y}:null; }).filter(Boolean);
+  if(!P.length){ toast('Não consegui resolver as coordenadas dos pares (confira o CRS)','error'); return; }
+  const tr=fitHelmert(P);
+  const target=(document.querySelector('input[name="gcpTarget"]:checked')||{}).value||'pontos';
+  if(target==='ortho'){
+    let dx=0,dy=0; P.forEach(p=>{ dx+=p.tx-p.fx; dy+=p.ty-p.fy; }); dx/=P.length; dy/=P.length;
+    _gcpTransform=null; setRasterShift(dx,dy);
+    let se=0; P.forEach(p=>{ se+=(p.fx+dx-p.tx)**2+(p.fy+dy-p.ty)**2; }); const rms=Math.sqrt(se/P.length);
+    $('gcpStatus').textContent=`🗺️ Ortomosaico deslocado · dx ${dx.toFixed(2)} m, dy ${dy.toFixed(2)} m · ${P.length} GCP${P.length>1?` · resíduo ${rms.toFixed(2)} m`:''}`;
+  } else {
+    setRasterShift(0,0); _gcpTransform=tr;
+    const esc2=tr.type==='Helmert'?` · escala ${(Math.hypot(tr.a,tr.b)).toFixed(5)} · rot ${(Math.atan2(tr.b,tr.a)*180/Math.PI).toFixed(3)}°`:'';
+    $('gcpStatus').textContent=`📍 Ajuste nos pontos · ${tr.type} · ${P.length} GCP · RMS ${tr.rms.toFixed(2)} m${esc2}`;
+  }
+  toast('Ajuste aplicado ✅');
+  if($('zonalPts').value.trim()) zonalCompute();   // reamostra com o ajuste
+}
+function gcpClear(){ _gcpTransform=null; setRasterShift(0,0); if($('gcpStatus'))$('gcpStatus').textContent=''; if(_rasterMeta&&$('zonalPts').value.trim()) zonalCompute(); toast('Ajuste removido'); }
 
 /* --- 3D (three.js) --- */
 let _3d=null, _3dObj=null, _ptBase=0.1;
