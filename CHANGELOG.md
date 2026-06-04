@@ -5,6 +5,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.17.1] — Junho 2026
+
+### ✨ Exports da estatística agora dizem o CRS (zip + LEIA-ME)
+
+- O CSV/TXT/GeoJSON da estatística por buffer passam a sair em **.zip com um LEIA-ME** explicando cada coluna e o sistema de referência.
+- **CSV/TXT:** nova coluna **`epsg`** (o código do CRS das colunas `x, y` — o mesmo da imagem) e um arquivo **`.prj`** com o CRS (WGS84/SIRGAS UTM, 4326, 3857), que o QGIS costuma aplicar sozinho ao abrir os pontos por `x, y`.
+- **GeoJSON:** a geometria continua em **WGS84/EPSG:4326** (padrão do formato, abre direto); o EPSG das colunas `x, y` vai na propriedade **`epsg_xy`**.
+- Recapitulando: `x, y` saem **no mesmo CRS da imagem** (ex.: EPSG:31983) e `lat, lon` em WGS84 — agora isso fica **documentado** no próprio pacote.
+
+---
+
 ## [1.17.0] — Junho 2026
 
 ### ✨ Fecha a Fase 2 — importar pontos, raio por ponto e estatística da área

@@ -500,7 +500,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.17.0</span>
+  <span id="appVersion">© MGC · v1.17.1</span>
 </footer>
 
 <!-- PIX modal -->
@@ -634,7 +634,7 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.10.1 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.17.0';
+const APP_VERSION = '1.17.1';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1645,26 +1645,59 @@ function _zcsv(s){ s=String(s==null?'':s); return /[",\n;]/.test(s)?'"'+s.replac
 function _znum(v){ return (v==null||isNaN(v))?'':(+v); }
 function _zround(v){ return (v==null||isNaN(v))?null:Math.round(v*1e4)/1e4; }
 
+// WKT do CRS (p/ o .prj que acompanha o CSV) — WGS84/SIRGAS UTM, 4326 e 3857; null se desconhecido
+function _wktForEPSG(epsg){ epsg=+epsg||0;
+  if(epsg===4326) return 'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]';
+  if(epsg===3857) return 'PROJCS["WGS 84 / Pseudo-Mercator",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]],PROJECTION["Mercator_1SP"],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1]]';
+  const z=utmZoneOf(epsg); if(!z) return null; const cm=(z.zone-1)*6-180+3, fn=z.south?10000000:0, sirgas=(epsg>=31978&&epsg<=31985);
+  const geog=sirgas?'GEOGCS["SIRGAS 2000",DATUM["Sistema_de_Referencia_Geocentrico_para_las_AmericaS_2000",SPHEROID["GRS 1980",6378137,298.257222101]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]':'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]';
+  const nm=sirgas?`SIRGAS 2000 / UTM zone ${z.zone}S`:`WGS 84 / UTM zone ${z.zone}${z.south?'S':'N'}`;
+  return `PROJCS["${nm}",${geog},PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",${cm}],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",${fn}],UNIT["metre",1]]`;
+}
+function _zonalReadme(fmt){
+  const epsg=_zonalResults.epsg||0, crs=epsg?('EPSG:'+epsg):'não definido', hasPrj=!!_wktForEPSG(epsg);
+  let t=`Estatística por buffer (zonal) — OrtoFly v${APP_VERSION}.\n\n`;
+  t+=`SISTEMA DE REFERÊNCIA (CRS):\n- lat, lon: graus, WGS84 (EPSG:4326).\n- x, y: no CRS DA IMAGEM = ${crs} (em UTM são E, N em metros — o mesmo da imagem que você carregou).\n\n`;
+  if(fmt==='geojson'){
+    t+=`ARQUIVO: ortofly_zonal.geojson\n- A GEOMETRIA (pontos) está em WGS84 / EPSG:4326 (lon, lat), conforme o padrão GeoJSON (RFC 7946) — abre direto no QGIS, sem configurar CRS.\n- Cada ponto traz também x, y (no CRS da imagem) e as estatísticas por banda nas propriedades.\n- A propriedade "epsg_xy" (no topo do arquivo) informa o EPSG das colunas x, y.\n`;
+    return t;
+  }
+  t+=`ARQUIVO: ortofly_zonal.${fmt}  (separador: ${fmt==='txt'?'TABULAÇÃO':'vírgula'})\nCOLUNAS: ponto | lat | lon | x | y | epsg | raio_m | banda | n | media | desvio | min | max | mediana\n  (banda = R/G/B, "Valor", ou o índice de vegetação quando ativo)\n\n`;
+  t+=`COMO ABRIR NO QGIS (usando x, y no CRS da imagem):\n 1) Camada > Adicionar Camada > Camada de Texto Delimitado.\n 2) Geometria de ponto: X = x, Y = y.\n 3) CRS da geometria: ${crs}.${hasPrj?` O arquivo .prj deste pacote descreve esse CRS; muitas versões do QGIS o aplicam automaticamente (se não, selecione ${crs} na mão).`:''}\n Alternativa: X = lon, Y = lat, com CRS = EPSG:4326.\n\nObs.: um CSV/TXT puro não guarda o CRS; por isso este pacote traz a coluna "epsg", ${hasPrj?'o .prj ':''}e este LEIA-ME.\n`;
+  return t;
+}
 function _zonalRows(sep){
-  const {results,radius}=_zonalResults;
+  const {results,radius,epsg}=_zonalResults;
   const q=sep==='\t'?(s=>String(s==null?'':s).replace(/[\t\r\n]/g,' ')):_zcsv;
-  const rows=[['ponto','lat','lon','x','y','raio_m','banda','n','media','desvio','min','max','mediana'].join(sep)];
-  results.forEach(r=>{ const c=[q(r.name),_znum(r.lat),_znum(r.lon),_znum(r.X),_znum(r.Y),_znum(r.radius!=null?r.radius:radius)];
+  const rows=[['ponto','lat','lon','x','y','epsg','raio_m','banda','n','media','desvio','min','max','mediana'].join(sep)];
+  results.forEach(r=>{ const c=[q(r.name),_znum(r.lat),_znum(r.lon),_znum(r.X),_znum(r.Y),(epsg||''),_znum(r.radius!=null?r.radius:radius)];
     if(r.error||!r.bands){ rows.push(c.concat(['','','','','','']).join(sep)); return; }
     r.bands.forEach(b=>rows.push(c.concat([q(b.label),b.n||0,_znum(b.mean),_znum(b.std),_znum(b.min),_znum(b.max),_znum(b.median)]).join(sep))); });
   return rows.join('\n');
 }
-function zonalExportCSV(){ if(!_zonalResults){ toast('Calcule a estatística primeiro','error'); return; } downloadBlob(new Blob([_zonalRows(',')],{type:'text/csv'}),'ortofly_zonal.csv'); toast('CSV exportado ✅'); }
-function zonalExportTXT(){ if(!_zonalResults){ toast('Calcule a estatística primeiro','error'); return; } downloadBlob(new Blob([_zonalRows('\t')],{type:'text/plain'}),'ortofly_zonal.txt'); toast('TXT (tabulação) exportado ✅'); }
-function zonalExportGeoJSON(){
+async function _zonalDownloadZip(files, zipname){
+  try{ const zip=new JSZip(); files.forEach(f=>{ if(f) zip.file(f.name,f.content); }); const out=await zip.generateAsync({type:'blob'}); downloadBlob(out, zipname); return true; }
+  catch(e){ console.error('[zip]',e); toast('Erro ao gerar o zip: '+e.message,'error'); return false; }
+}
+async function zonalExportCSV(){ if(!_zonalResults){ toast('Calcule a estatística primeiro','error'); return; }
+  const wkt=_wktForEPSG(_zonalResults.epsg);
+  const ok=await _zonalDownloadZip([{name:'ortofly_zonal.csv',content:_zonalRows(',')}, wkt&&{name:'ortofly_zonal.prj',content:wkt}, {name:'LEIA-ME.txt',content:_zonalReadme('csv')}],'ortofly_zonal_csv.zip');
+  if(ok) toast('CSV exportado (zip) ✅'); }
+async function zonalExportTXT(){ if(!_zonalResults){ toast('Calcule a estatística primeiro','error'); return; }
+  const wkt=_wktForEPSG(_zonalResults.epsg);
+  const ok=await _zonalDownloadZip([{name:'ortofly_zonal.txt',content:_zonalRows('\t')}, wkt&&{name:'ortofly_zonal.prj',content:wkt}, {name:'LEIA-ME.txt',content:_zonalReadme('txt')}],'ortofly_zonal_txt.zip');
+  if(ok) toast('TXT exportado (zip) ✅'); }
+async function zonalExportGeoJSON(){
   if(!_zonalResults){ toast('Calcule a estatística primeiro','error'); return; }
-  const {results,radius}=_zonalResults;
+  const {results,radius,epsg}=_zonalResults;
   const feats=results.map(r=>{ const props={nome:r.name,raio_m:(r.radius!=null?r.radius:radius),x:_zround(r.X),y:_zround(r.Y)};
     if(!r.error&&r.bands) r.bands.forEach(b=>{ props[b.label+'_media']=_zround(b.mean); props[b.label+'_dp']=_zround(b.std); props[b.label+'_min']=_zround(b.min); props[b.label+'_max']=_zround(b.max); props[b.label+'_mediana']=_zround(b.median); props[b.label+'_n']=b.n||0; });
     else props.erro=r.error;
     const geometry=(r.lat!=null&&r.lon!=null)?{type:'Point',coordinates:[r.lon,r.lat]}:null;   // GeoJSON é WGS84; sem lat/lon (CRS desconhecido) vai geometry null + x/y nas props
     return {type:'Feature',geometry,properties:props}; });
-  downloadBlob(new Blob([JSON.stringify({type:'FeatureCollection',properties:{app:'OrtoFly',raio_m:radius},features:feats},null,2)],{type:'application/geo+json'}),'ortofly_zonal.geojson'); toast('GeoJSON exportado ✅');
+  const gj={type:'FeatureCollection',properties:{app:'OrtoFly',versao:APP_VERSION,epsg_xy:(epsg?('EPSG:'+epsg):null),raio_m:radius},features:feats};
+  const ok=await _zonalDownloadZip([{name:'ortofly_zonal.geojson',content:JSON.stringify(gj,null,2)}, {name:'LEIA-ME.txt',content:_zonalReadme('geojson')}],'ortofly_zonal_geojson.zip');
+  if(ok) toast('GeoJSON exportado (zip) ✅');
 }
 function clearZonal(){ if(_zonalLayer){ _zonalLayer.remove(); _zonalLayer=null; } if(_zonalPickLayer) _zonalPickLayer.clearLayers(); _zonalResults=null; $('zonalResult').innerHTML=''; $('zonalStatus').textContent=''; $('zonalExports').classList.add('hidden'); if($('zonalExtra'))$('zonalExtra').classList.add('hidden'); $('zonalClearBtn').classList.add('hidden'); }
 
