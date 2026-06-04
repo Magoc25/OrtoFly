@@ -8,7 +8,7 @@ Desenvolvido por **Marlon Gomes da Costa (MGC Dev)**
 > Não representa, não é financiado e não tem vínculo institucional com o IFMA
 > ou qualquer outra organização.
 
-[![Versão](https://img.shields.io/badge/versão-1.0.0-blue)](#changelog)
+[![Versão](https://img.shields.io/badge/versão-1.10.2-blue)](./CHANGELOG.md)
 [![Licença](https://img.shields.io/badge/licença-não%20comercial-orange)](#-licença-e-termos-de-uso)
 [![PIX](https://img.shields.io/badge/apoie-PIX-brightgreen)](#-apoiar-o-projeto)
 [![Dispositivos ativos](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/Magoc25/OrtoFly/main/stats.json&query=$.active_30d&label=dispositivos%20ativos%20(30d)&color=blue&suffix=%20dispositivos)](./stats.json)
@@ -64,9 +64,13 @@ Para você, basta clicar na URL pública da seção [▶ Abrir agora](#-abrir-ag
 
 ## ✨ O que é
 
-O **OrtoFly** é um aplicativo web progressivo (PWA) de **fotogrametria aérea para drones DJI**. A primeira versão entrega o módulo de **planejamento de voo**: você desenha a área de interesse sobre um mapa de satélite, define o GSD (resolução no solo) desejado e as sobreposições, e o app calcula a altura de voo, gera a grade de mapeamento e exporta a missão em formatos que a DJI e outros apps de voo entendem.
+O **OrtoFly** é um aplicativo web progressivo (PWA) de **fotogrametria aérea para drones DJI** que cobre o **fluxo completo** direto no navegador, em três etapas:
 
-A proposta de longo prazo segue uma **arquitetura híbrida**: o navegador cuida de tudo o que é leve (planejamento, organização, visualização 2D/3D, geoprocessamento e pré-visualizações), enquanto o processamento fotogramétrico pesado (ortomosaico rigoroso, DSM/DTM, nuvem de pontos e malha 3D) fica para um backend opcional baseado em OpenDroneMap. As fases seguintes (importação de imagens + EXIF, mosaico rápido local, visualizador 2D/3D e backend ODM) serão adicionadas progressivamente.
+1. **✈️ Voo** — desenhe a área de interesse sobre o mapa de satélite, defina o GSD (resolução no solo) e as sobreposições; o app calcula a altura de voo, gera a grade de mapeamento e exporta a missão (KMZ/WPML, KML, GeoJSON, CSV).
+2. **📷 Imagens** — importe as fotos DJI (lê EXIF/GPS e plota os centros no mapa), gere um **mosaico rápido** de pré-visualização e **visualize os resultados** em 2D (GeoTIFF/COG) e 3D (nuvem de pontos / malha).
+3. **⚙️ Processar** — gere o **ortomosaico métrico** (e DSM/DTM, nuvem de pontos e malha 3D) a partir das suas fotos, conectando-se a um servidor **NodeODM/OpenDroneMap** que roda **no seu próprio computador**.
+
+A arquitetura é **híbrida**: o navegador cuida de tudo o que é leve (planejamento, organização, geoprocessamento, pré-visualizações e visualização 2D/3D), enquanto o processamento fotogramétrico pesado fica para o backend **opcional** baseado em OpenDroneMap — que você controla, sem enviar nada para a nuvem.
 
 O OrtoFly **não controla o drone diretamente** — por restrições do SDK da DJI, ele **exporta a missão** para você executar no app oficial (DJI Fly / DJI Pilot 2) ou em apps compatíveis.
 
@@ -74,17 +78,27 @@ O OrtoFly **não controla o drone diretamente** — por restrições do SDK da D
 
 ## 🚀 Funcionalidades
 
-**Disponível na v1.0 — Planejamento de voo:**
+### ✈️ Planejamento de voo
 
 - **Desenho da área (AOI)** — desenhe o polígono da área a mapear sobre imagem de satélite (Esri) ou OpenStreetMap.
-- **Banco de câmeras DJI** — Mini 3/4 Pro, Air 3 / 3S, Mavic 3 / 3 Classic / 3E, Phantom 4 Pro/RTK e mais, com specs de sensor para o cálculo de GSD.
-- **Calculadora fotogramétrica** — GSD (cm/px), altura de voo, pegada da imagem no solo, espaçamento entre fotos e entre linhas a partir das sobreposições longitudinal e lateral.
+- **Banco de câmeras DJI** — Mini 3/4 Pro, Air 3 / 3S, Mavic 3 / 3 Classic / 3E, Phantom 4 Pro/RTK e mais, com specs de sensor para o cálculo de GSD (ou câmera personalizada).
+- **Calculadora fotogramétrica** — GSD (cm/px), altura de voo, pegada da imagem no solo, espaçamento entre fotos e entre linhas a partir das sobreposições longitudinal e lateral. Informe um **GSD desejado** e o app calcula a **altura de voo** correspondente.
 - **Geração da grade** — padrão "vai e volta" (lawnmower) recortado na área, com opção de grade cruzada (cross-grid) para melhor reconstrução 3D, direção das linhas automática ou manual.
 - **Estimativas operacionais** — número de fotos, número de linhas, distância total, tempo de voo estimado e número de baterias.
 - **Exportação de missão** — **KMZ (WPML, DJI Pilot 2)**, **KML**, **GeoJSON** e **CSV (Litchi)**; importação/exportação de áreas em GeoJSON.
 - **Projetos** — salve, reabra, exporte e importe seus planos de voo (JSON), tudo no dispositivo.
 
-**Em desenvolvimento (próximas fases):** importação de imagens DJI + leitura de EXIF/GPS, mosaico rápido local, visualizador 2D (GeoTIFF/COG) e 3D (nuvem de pontos / malha), e integração com backend OpenDroneMap.
+### 📷 Imagens, pré-mosaico e visualização
+
+- **Importação de fotos DJI + EXIF** — lê GPS, altitude, data e modelo das fotos e plota os centros no mapa (as imagens ficam só na sessão, não são enviadas nem salvas). Gera a **envoltória** da área a partir das fotos.
+- **Mosaico rápido (GPS)** — pré-mosaico **não métrico** que posiciona as fotos pelo GPS/rumo/altitude, com exportação em PNG + world file. É um preview aproximado (para o resultado métrico, use a aba Processar).
+- **Visualizador 2D** — abre **ortomosaico/DSM (GeoTIFF/COG)** no mapa, com paletas para DSM e controle de opacidade.
+- **Visualizador 3D** — abre **nuvem de pontos** (LAS/LAZ/PLY) ou **malha** (OBJ/glTF/GLB) no navegador.
+
+### ⚙️ Processamento (ortomosaico métrico) — opcional
+
+- **Integração com NodeODM (OpenDroneMap)** — conecta a um servidor **local** (seu computador) ou em **VM na nuvem**, processa as suas fotos e gera **ortomosaico**, **DSM/DTM**, **nuvem de pontos** e **malha 3D** — sem enviar nada para serviços de terceiros.
+- **Fluxo de resultado limpo** — ao concluir, **salve** os produtos dentro do app (abrem offline) ou **descarte**, liberando o disco do servidor.
 
 ---
 
@@ -119,8 +133,8 @@ Guias passo a passo (bem detalhados, mesmo para quem não usa terminal):
 
 | Onde rodar | Guia |
 |---|---|
-| 🖥️ **Windows** | [Configurar no Windows (WSL + Docker)](./docs/Guia-Local-Windows-WSL-NodeODM.md) |
-| 🍎 **macOS** | [Configurar no Mac (Docker)](./docs/Guia-Local-macOS-NodeODM.md) |
+| 🖥️ **Windows** | [Configurar no Windows (WSL + Docker)](./Guia-Local-Windows-WSL-NodeODM.md) |
+| 🍎 **macOS** | [Configurar no Mac (Docker)](./Guia-Local-macOS-NodeODM.md) |
 | ☁️ **VM grátis na nuvem (Oracle Cloud)** | _em breve_ |
 
 > 💡 É **opcional** — use só se quiser gerar os produtos de fotogrametria. Tudo roda **localmente**, suas imagens não saem do seu dispositivo.
@@ -143,7 +157,7 @@ Ao concluir, o ODM gera um pacote (`all.zip`) com os produtos de fotogrametria. 
 
 No app: **🗺️ Ortomosaico** e **⛰️ DSM** abrem direto no visualizador 2D; **🧊 Nuvem (3D)** abre a nuvem `.laz` em 3D no navegador; **⬇ Tudo (.zip)** baixa o pacote completo (abra também no **CloudCompare/QGIS**).
 
-> 📘 **Dicas de qualidade, confiabilidade e "por que usar o OrtoFly":** veja o **[Guia de Boas Práticas e Qualidade](./docs/Boas-Praticas-e-Qualidade.md)** — voo, sobreposição, modo Rápido vs Completo, e a precisão dos produtos (ODM / GCP / RTK).
+> 📘 **Dicas de qualidade, confiabilidade e "por que usar o OrtoFly":** veja o **[Guia de Boas Práticas e Qualidade](./Boas-Praticas-e-Qualidade.md)** — voo, sobreposição, modo Rápido vs Completo, e a precisão dos produtos (ODM / GCP / RTK).
 
 ---
 

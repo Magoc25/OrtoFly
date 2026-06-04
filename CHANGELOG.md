@@ -5,13 +5,23 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.10.2] — Junho 2026
+
+### ✨ Interface mais clara e documentação revisada
+
+- **Abas "Imagens" e "Ver" unificadas** em uma única aba **📷 Imagens**: importação de fotos + EXIF, mosaico rápido e o visualizador de resultados (2D GeoTIFF/COG e 3D nuvem/malha) agora ficam juntos. As abas passam a ser **✈️ Voo · 📷 Imagens · ⚙️ Processar**.
+- **Botão do GSD renomeado** para **"→ Altura de voo"** (antes "↳ altura", cujo símbolo podia ser lido como "l,"). Ele calcula a altura de voo a partir do **GSD desejado** — não é largura × altura.
+- **Documentação revisada e reorganizada:** README atualizado para o fluxo atual (todas as fases entregues, não mais "em desenvolvimento"); guias passo a passo (`Boas-Praticas`, `Guia-Local-Windows`, `Guia-Local-macOS`) movidos para a raiz; pasta `docs/` reservada para documentos arquivados.
+
+---
+
 ## [1.10.1] — Junho 2026
 
 ### 🐛 Corrigido — conexão com o NodeODM local no Chrome/Edge (e aviso do Safari)
 
 - **NodeODM local (`127.0.0.1`) agora só conecta após clicar em "Testar".** O app não fica mais tentando conexões automáticas (no carregamento, ao digitar a URL e no monitor a cada 10 s) antes de um gesto do usuário.
 - **Por quê:** o Chrome/Edge passaram a exigir uma **permissão de "rede local"** para um site `https://` acessar o `127.0.0.1`. As requisições **automáticas** eram **bloqueadas sem mostrar o aviso** (erro *"Permission was denied… loopback address space"* / "Failed to fetch"). Disparando a conexão **só no clique em "Testar"**, o navegador exibe o aviso de forma limpa → o usuário clica **Permitir** uma vez e conecta. A autorização fica salva (e a permissão do Chrome persiste por site), então o status ao vivo volta a atualizar sozinho nas próximas vezes.
-- **Guia macOS atualizado** (`docs/Guia-Local-macOS-NodeODM.md`): use **Chrome/Edge** (o **Safari bloqueia** `https://→http://127.0.0.1` e não há como liberar), clique em **Permitir** no aviso de rede local, e como **reverter** caso tenha clicado em "Bloquear".
+- **Guia macOS atualizado** (`Guia-Local-macOS-NodeODM.md`): use **Chrome/Edge** (o **Safari bloqueia** `https://→http://127.0.0.1` e não há como liberar), clique em **Permitir** no aviso de rede local, e como **reverter** caso tenha clicado em "Bloquear".
 
 ---
 

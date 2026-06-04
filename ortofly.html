@@ -197,7 +197,6 @@ footer{
     <div class="tabs" role="tablist">
       <button class="tab active" data-tab="voo" onclick="setTab('voo')">✈️ Voo</button>
       <button class="tab" data-tab="imagens" onclick="setTab('imagens')">📷 Imagens</button>
-      <button class="tab" data-tab="ver" onclick="setTab('ver')">🗺️ Ver</button>
       <button class="tab" data-tab="proc" onclick="setTab('proc')">⚙️ Processar</button>
     </div>
 
@@ -242,10 +241,7 @@ footer{
         <button class="btn sm hidden" id="mosaicClearBtn" onclick="clearMosaic()">🗑️ Remover</button>
       </div>
     </div>
-    </div><!-- /tab-imagens -->
 
-    <!-- ABA: Visualizar -->
-    <div id="tab-ver" class="tab-panel hidden">
     <!-- Visualizar resultados -->
     <div class="card">
       <h2>🗺️ Visualizar resultados</h2>
@@ -265,7 +261,7 @@ footer{
       </div>
       <p class="hint">2D: ortomosaico/DSM (GeoTIFF/COG) no mapa. 3D: nuvem LAS/LAZ/PLY ou malha OBJ/glTF/GLB.</p>
     </div>
-    </div><!-- /tab-ver -->
+    </div><!-- /tab-imagens -->
 
     <!-- ABA: Voo -->
     <div id="tab-voo" class="tab-panel">
@@ -299,7 +295,7 @@ footer{
       </div>
       <div class="row">
         <div class="field"><label for="gsdTarget">GSD desejado (cm/px)</label><input id="gsdTarget" type="number" step="0.1" placeholder="ex: 3.0" /></div>
-        <button class="btn sm" style="align-self:flex-end" onclick="applyTargetGsd()">↳ altura</button>
+        <button class="btn sm" style="align-self:flex-end" onclick="applyTargetGsd()">→ Altura de voo</button>
       </div>
       <div class="field" style="margin:4px 0 9px">
         <label>Sobreposição frontal — <span id="foVal">75%</span></label>
@@ -413,7 +409,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.10.1</span>
+  <span id="appVersion">© MGC · v1.10.2</span>
 </footer>
 
 <!-- PIX modal -->
@@ -539,7 +535,7 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.10.1 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.10.1';
+const APP_VERSION = '1.10.2';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1012,7 +1008,7 @@ function wire(){
 function openAbout(){ $('aboutModal').classList.remove('hidden'); }
 function closeAbout(){ $('aboutModal').classList.add('hidden'); }
 function setTab(name){
-  ['voo','imagens','ver','proc'].forEach(t=>{
+  ['voo','imagens','proc'].forEach(t=>{
     const p=$('tab-'+t); if(p) p.classList.toggle('hidden', t!==name);
     const b=document.querySelector('.tab[data-tab="'+t+'"]'); if(b) b.classList.toggle('active', t===name);
   });
@@ -1462,7 +1458,7 @@ async function odmExtract(kind){ const zip=await odmGetZip(); const re=ODM_RE[ki
 async function odmFetch(asset){ const u=odmUrlVal(); const r=await fetch(u+'/task/'+_odmTask+'/download/'+asset); if(!r.ok) throw new Error('HTTP '+r.status); return await r.blob(); }
 async function odmOpenZip(kind,viewer){ if(!_odmSavedMode && (!odmUrlVal()||!_odmTask)) return;
   try{ const {blob,name}=await odmExtract(kind); odmStatus('Abrindo '+name+'…'); const file=new File([blob],name,{type:blob.type});
-    if(viewer==='2d'){ setTab('ver'); await handleRasterFile(file); } else { await handle3DFile(file); } odmStatus('');
+    if(viewer==='2d'){ setTab('imagens'); await handleRasterFile(file); } else { await handle3DFile(file); } odmStatus('');
   }catch(e){ console.error('[ODM] openZip',e); toast('Falha ao abrir: '+e.message,'error'); odmStatus('❌ '+e.message,true); } }
 async function odmGrabZip(kind){ if(!_odmSavedMode && (!odmUrlVal()||!_odmTask)) return;
   try{ const {blob,name}=await odmExtract(kind); downloadBlob(blob,'ortofly_'+name); toast('Baixado: '+name); }catch(e){ console.error('[ODM] grabZip',e); toast('Falha: '+e.message,'error'); } }
