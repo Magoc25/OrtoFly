@@ -470,7 +470,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.13.0</span>
+  <span id="appVersion">© MGC · v1.13.1</span>
 </footer>
 
 <!-- PIX modal -->
@@ -604,7 +604,7 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.10.1 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.13.0';
+const APP_VERSION = '1.13.1';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1578,20 +1578,22 @@ async function exportRasterImage(withPoints){
       for(let ox=0;ox<ow;ox++){ const sx=Math.min(W-1,Math.floor(ox/scale)); for(let bd=0;bd<nb;bd++) buf[bd]=vals[bd][sy][sx];
         const col=colorFn(nb===1?buf[0]:buf), o=(oy*ow+ox)*4; if(col){ data[o]=col[0]; data[o+1]=col[1]; data[o+2]=col[2]; data[o+3]=255; } } }
     ctx.putImageData(img,0,0);
-    if(withPoints){ const color=($('zonalColor')&&$('zonalColor').value)||'#1a9e4b';
-      ctx.lineWidth=Math.max(1.5,ow/700); ctx.font=`${Math.max(11,Math.round(ow/90))}px sans-serif`; ctx.textBaseline='bottom';
-      _zonalResults.results.forEach(r=>{ if(r.X==null||r.Y==null) return; const cx=((r.X-gr.xmin)/gr.pixelWidth)*scale, cy=((gr.ymax-r.Y)/gr.pixelHeight)*scale, rpx=(_zonalResults.radius/gr.pixelWidth)*scale, col=r.error?'#e0533d':color;
-        ctx.strokeStyle=col; ctx.fillStyle=col;
-        ctx.beginPath(); ctx.arc(cx,cy,Math.max(2,rpx),0,2*Math.PI); ctx.stroke();
-        ctx.beginPath(); ctx.arc(cx,cy,Math.max(1.2,ow/500),0,2*Math.PI); ctx.fill();
-        ctx.fillText(r.name, cx+Math.max(2,rpx)+2, cy-2); }); }
+    if(withPoints){ const color=($('zonalColor')&&$('zonalColor').value)||'#1a9e4b'; const style=($('zonalStyle')&&$('zonalStyle').value)||'solido';
+      const lw=Math.max(1.5,ow/700); ctx.font=`${Math.max(11,Math.round(ow/90))}px sans-serif`; ctx.textBaseline='bottom';
+      _zonalResults.results.forEach(r=>{ if(r.X==null||r.Y==null) return; const cx=((r.X-gr.xmin)/gr.pixelWidth)*scale, cy=((gr.ymax-r.Y)/gr.pixelHeight)*scale, rpx=Math.max(2,(_zonalResults.radius/gr.pixelWidth)*scale), col=r.error?'#e0533d':color;
+        ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=lw;
+        ctx.setLineDash(style==='pontilhado'?[lw*3,lw*3]:[]);
+        ctx.beginPath(); ctx.arc(cx,cy,rpx,0,2*Math.PI); ctx.stroke(); ctx.setLineDash([]);
+        if(style==='ponto'){ ctx.beginPath(); ctx.arc(cx,cy,Math.max(1.5,ow/450),0,2*Math.PI); ctx.fill(); }
+        else if(style==='cruz'){ const k=Math.max(4,rpx*0.5); ctx.beginPath(); ctx.moveTo(cx-k,cy); ctx.lineTo(cx+k,cy); ctx.moveTo(cx,cy-k); ctx.lineTo(cx,cy+k); ctx.stroke(); }
+        ctx.fillText(r.name, cx+rpx+3, cy-2); }); }
     const pw=gr.pixelWidth/scale, ph=gr.pixelHeight/scale;
     const wld=[pw,0,0,-ph,gr.xmin+pw/2,gr.ymax-ph/2].map(v=>v.toFixed(10)).join('\n')+'\n';
     const blob=await new Promise(res=>cv.toBlob(res,'image/png'));
     const base=withPoints?'ortofly_figura_pontos':'ortofly_imagem_corrigida';
     const sh=_rasterShift&&(_rasterShift.dx||_rasterShift.dy)?`Georreferencia JA INCLUI a correcao por pontos de controle (dx=${_rasterShift.dx.toFixed(2)} m, dy=${_rasterShift.dy.toFixed(2)} m).`:'Sem correcao por pontos de controle aplicada.';
     const zip=new JSZip(); zip.file(base+'.png',blob); zip.file(base+'.pgw',wld);
-    zip.file('LEIAME.txt',`Imagem exportada pelo OrtoFly (v${APP_VERSION}).\nO arquivo .pgw (world file) georreferencia o .png. CRS: EPSG:${(+gr.projection||'?')} — defina este CRS ao abrir no QGIS.\n${sh}\n${withPoints?'A figura inclui os buffers (circulos) e os nomes dos pontos para uso em metodologia.':''}`);
+    zip.file('LEIAME.txt',`Imagem exportada pelo OrtoFly (v${APP_VERSION}).\n\nO arquivo .pgw (world file) georreferencia o .png. CRS: EPSG:${(+gr.projection||'?')} — defina este CRS ao abrir no QGIS.\n${sh}\n${withPoints?'A figura inclui os buffers (circulos) e os nomes dos pontos para uso em metodologia.\n':''}\nOBSERVACAO: este e um PNG georreferenciado (raster + world file). Ele abre direto no QGIS e e ideal para mapas e figuras. NAO e um GeoTIFF: para um GeoTIFF corrigido "de verdade" (com o cabecalho/CRS reescrito no proprio arquivo), o navegador nao e o ambiente ideal — use o QGIS (ferramenta Georeferencer) se voce precisar do GeoTIFF corrigido.\n`);
     const out=await zip.generateAsync({type:'blob'}); downloadBlob(out, base+'.zip');
     rasterStatus(''); toast('Imagem exportada (PNG + worldfile) ✅');
   }catch(e){ console.error('[img export]',e); rasterStatus(''); toast('Erro ao exportar imagem: '+e.message,'error'); }

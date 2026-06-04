@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.13.1] — Junho 2026
+
+### 🐛 Correções na exportação de imagem
+
+- A **figura PNG** agora respeita o **estilo de círculo** escolhido na tela (Círculo, Pontilhado, Círculo + cruz, Círculo + ponto) — antes saía sempre sólido com ponto no centro.
+- O **LEIA-ME** do `.zip` foi ampliado: deixa claro que é um **PNG georreferenciado** (raster + world file), que abre direto no QGIS e serve para mapas/figuras, e que **não** é um GeoTIFF — para um GeoTIFF corrigido "de verdade" (cabeçalho/CRS reescrito), use o QGIS (Georeferencer).
+
+---
+
 ## [1.13.0] — Junho 2026
 
 ### ✨ Exportar imagem, M&M e melhorias na estatística por pontos
