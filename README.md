@@ -8,7 +8,7 @@ Desenvolvido por **Marlon Gomes da Costa (MGC Dev)**
 > Não representa, não é financiado e não tem vínculo institucional com o IFMA
 > ou qualquer outra organização.
 
-[![Versão](https://img.shields.io/badge/versão-1.10.3-blue)](./CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/versão-1.11.0-blue)](./CHANGELOG.md)
 [![Licença](https://img.shields.io/badge/licença-não%20comercial-orange)](#-licença-e-termos-de-uso)
 [![PIX](https://img.shields.io/badge/apoie-PIX-brightgreen)](#-apoiar-o-projeto)
 [![Dispositivos ativos](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/Magoc25/OrtoFly/main/stats.json&query=$.active_30d&label=dispositivos%20ativos%20(30d)&color=blue&suffix=%20dispositivos)](./stats.json)
@@ -94,6 +94,7 @@ O OrtoFly **não controla o drone diretamente** — por restrições do SDK da D
 - **Mosaico rápido (GPS)** — pré-mosaico **não métrico** que posiciona as fotos pelo GPS/rumo/altitude, com exportação em PNG + world file. É um preview aproximado (para o resultado métrico, use a aba Processar).
 - **Visualizador 2D** — abre **ortomosaico/DSM (GeoTIFF/COG)** no mapa, com paletas para DSM e controle de opacidade.
 - **Visualizador 3D** — abre **nuvem de pontos** (LAS/LAZ/PLY) ou **malha** (OBJ/glTF/GLB) no navegador.
+- **Estatística por pontos (zonal)** — informe pontos (`lat, lon`) e um raio (buffer circular) e o app amostra os pixels do raster carregado dentro de cada círculo, calculando **média, desvio-padrão, mín, máx e mediana por banda** (útil para NDVI/índices, DSM ou ortomosaico). Exporta os resultados em **CSV** e **GeoJSON**.
 
 ### ⚙️ Processamento (ortomosaico métrico) — opcional
 

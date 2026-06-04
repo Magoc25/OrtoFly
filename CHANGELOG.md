@@ -5,6 +5,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.11.0] — Junho 2026
+
+### ✨ Nova ferramenta — Estatística por pontos (zonal) sobre o raster
+
+- Na aba **📷 Imagens**, abaixo do visualizador 2D, chega a **📊 Estatística por pontos**: informe pontos (`lat, lon`, um por linha, com nome opcional) e um **raio de buffer (m)**, e o app amostra os pixels do **raster carregado** (ortomosaico, DSM ou um índice como NDVI) dentro de cada círculo, calculando **n, média, desvio-padrão, mín, máx e mediana por banda** — equivalente à *estatística zonal* do QGIS, só que no navegador.
+- Os **círculos** são desenhados no mapa (verde = com dados, vermelho = sem) com a média no popup, e os resultados saem em **CSV** e **GeoJSON** para levar ao QGIS/Excel/relatório.
+- Reprojeção feita no próprio app (lat/lon → UTM/WGS84 ou EPSG:4326/3857, sem biblioteca extra), respeitando **nodata** e a **transparência (alfa)** do raster. Para NDVI "de verdade" é preciso um raster com banda de infravermelho (drone multiespectral) ou um índice já pronto; com ortho RGB, em breve será possível gerar índices por RGB no próprio app.
+
+---
+
 ## [1.10.3] — Junho 2026
 
 ### 🐛 Corrigido — satélite (Esri) sumindo ao dar zoom
