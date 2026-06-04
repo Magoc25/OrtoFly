@@ -5,6 +5,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.10.1] — Junho 2026
+
+### 🐛 Corrigido — conexão com o NodeODM local no Chrome/Edge (e aviso do Safari)
+
+- **NodeODM local (`127.0.0.1`) agora só conecta após clicar em "Testar".** O app não fica mais tentando conexões automáticas (no carregamento, ao digitar a URL e no monitor a cada 10 s) antes de um gesto do usuário.
+- **Por quê:** o Chrome/Edge passaram a exigir uma **permissão de "rede local"** para um site `https://` acessar o `127.0.0.1`. As requisições **automáticas** eram **bloqueadas sem mostrar o aviso** (erro *"Permission was denied… loopback address space"* / "Failed to fetch"). Disparando a conexão **só no clique em "Testar"**, o navegador exibe o aviso de forma limpa → o usuário clica **Permitir** uma vez e conecta. A autorização fica salva (e a permissão do Chrome persiste por site), então o status ao vivo volta a atualizar sozinho nas próximas vezes.
+- **Guia macOS atualizado** (`docs/Guia-Local-macOS-NodeODM.md`): use **Chrome/Edge** (o **Safari bloqueia** `https://→http://127.0.0.1` e não há como liberar), clique em **Permitir** no aviso de rede local, e como **reverter** caso tenha clicado em "Bloquear".
+
+---
+
 ## [1.10.0] — Junho 2026
 
 ### ✨ Fluxo limpo de projeto — Salvar/Descartar (corrige a instabilidade do NodeODM local)

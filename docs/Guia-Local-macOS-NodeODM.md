@@ -3,7 +3,7 @@
 Guia para rodar o **NodeODM** (motor de fotogrametria do OpenDroneMap) no **macOS** e usá-lo na aba
 **⚙️ Processar** do OrtoFly para gerar **ortomosaico, DSM, nuvem de pontos e malha 3D** — tudo no seu Mac, **de graça**.
 
-> 🍏 **No macOS a rede é mais simples que no Windows:** o `localhost`/`127.0.0.1` funcionam direto, sem ajustes.
+> 🌐 **Use o Chrome ou o Edge** para abrir o OrtoFly. O **Safari não funciona** com o NodeODM local (ele bloqueia a conexão da página `https://` para o `http://127.0.0.1`, mesmo sendo no seu próprio Mac).
 > 🧑‍💻 O "Terminal" é o app de comandos do Mac: **Launchpad → Terminal** (ou Spotlight **⌘+Espaço** → digite "Terminal"). Cole os comandos e dê Enter.
 
 ## ✅ Resultado final
@@ -57,18 +57,25 @@ Escolha **um** jeito de instalar o Docker:
 ---
 
 ## ▶ Configurar no app
-1. Abra o OrtoFly: **https://magoc25.github.io/OrtoFly/ortofly.html**
+1. Abra o OrtoFly **no Chrome ou Edge** (não no Safari): **https://magoc25.github.io/OrtoFly/ortofly.html**
 2. Aba **⚙️ Processar** → **💻 PC Local** → URL **`http://127.0.0.1:3000`** → **Testar**.
-3. **✅ NodeODM vX.Y.Z** → **📷 Selecionar imagens** → **Nome** → deixe **☑ Rápido** → **🚀 Enviar e processar**.
-4. Ao concluir, **🗺️ Ortomosaico (2D)** abre no visualizador georreferenciado.
+3. 🔔 **O Chrome vai perguntar se o site pode acessar a sua rede local** → clique em **Permitir**. *(É a permissão para a página falar com o NodeODM no `127.0.0.1`. Se clicar em Bloquear, não conecta — veja como reverter na Solução de problemas.)*
+4. **✅ NodeODM vX.Y.Z** → **📷 Selecionar imagens** → **Nome** → deixe **☑ Rápido** → **🚀 Enviar e processar**.
+5. Ao concluir, **🗺️ Ortomosaico (2D)** abre no visualizador georreferenciado.
 
 ---
 
 ## 🔧 Solução de problemas
-- **"Failed to fetch" / não conecta:**
+- **Estou no Safari e não conecta:** o Safari **bloqueia** a conexão `https://` → `http://127.0.0.1` (mesmo sendo local) e **não tem como liberar**. **Use o Chrome ou o Edge.**
+- **"Failed to fetch" / não conecta (Chrome/Edge):**
   1. Confirme o Docker rodando: `docker ps` no Terminal deve listar **nodeodm**. Se não: `docker start nodeodm` (no Colima, antes: `colima start`).
-  2. Abra **http://127.0.0.1:3000/info** no navegador. Abriu? Então é **cache do app** → recarregue com **⌘+Shift+R**.
-  3. Use `127.0.0.1` (o app já usa por padrão).
+  2. Abra **http://127.0.0.1:3000/info** no navegador. **Apareceu o JSON?** Então o servidor está ok e o problema é a **permissão de rede local** (próximo item).
+  3. Use `127.0.0.1` (o app já usa por padrão) e recarregue com **⌘+Shift+R**.
+- **"Permission was denied... loopback address space" (Chrome/Edge):** você clicou em **Bloquear** no aviso de acesso à rede local. Para reverter:
+  1. Abra `chrome://settings/content/all` (no Edge: `edge://settings/content/all`).
+  2. Busque **`github.io`**, clique no item e **apague-o** (ícone de lixeira) — isso zera a permissão.
+  3. Volte ao OrtoFly, recarregue com **⌘+Shift+R** e clique em **Testar**. Quando o Chrome perguntar sobre a **rede local**, clique em **Permitir**. ✅
+  > 💡 Esse aviso de "rede local" é um recurso novo do Chrome/Edge, liberado aos poucos. Por isso pode aparecer num computador e não em outro, mesmo com a mesma URL.
 - **Apple Silicon (M1/M2/M3...):** a imagem `opendronemap/nodeodm` tem versão **ARM nativa** — roda direto. Se algum dia reclamar de arquitetura, force `--platform linux/amd64` (emulação, mais lenta).
 
 ## 🔁 Reusar / parar

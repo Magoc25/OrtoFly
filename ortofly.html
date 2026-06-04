@@ -413,7 +413,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.10.0</span>
+  <span id="appVersion">© MGC · v1.10.1</span>
 </footer>
 
 <!-- PIX modal -->
@@ -538,8 +538,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.10.0 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.10.0';
+/* ═══════════════ OrtoFly v1.10.1 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.10.1';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1369,6 +1369,10 @@ async function loadLAS(file){
 let _odmTask=null, _odmFiles=null, _odmPoll=null;
 let _odmSaved=false, _odmSavedMode=false, _odmZipRaw=null, _odmResultProj=null;
 let _odmMode='local';
+let _odmAuto=false; // só conecta sozinho depois que o usuário clica "Testar" (evita o bloqueio de "rede local" do Chrome ao acessar 127.0.0.1)
+function odmIsLoopback(u){ return /\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:|$|\/)/i.test(u||''); }
+function odmAuthKey(u){ return LS+'_odm_auth_'+(u||''); }
+function odmAutoAllowed(){ const u=odmUrlVal(); return !odmIsLoopback(u) || _odmAuto || localStorage.getItem(odmAuthKey(u))==='1'; }
 function odmModeKey(m){ return LS+'_odm_url_'+(m||_odmMode); }
 function odmDefaultUrl(m){ return m==='local'?'http://127.0.0.1:3000':''; }
 function odmInitMode(){
@@ -1395,6 +1399,7 @@ async function odmPing(){
   if(_odmPinging) return; _odmPinging=true;
   const u=odmUrlVal(), txt=$('odmConnTxt');
   if(!u){ if(txt)txt.textContent='Informe a URL do NodeODM'; _odmPinging=false; return; }
+  if(!odmAutoAllowed()){ if(txt)txt.textContent='🔌 Clique em “Testar” para conectar'; _odmPinging=false; return; }
   try{ const c=new AbortController(), t=setTimeout(()=>c.abort(),4500);
     const r=await fetch(u+'/info',{signal:c.signal}); clearTimeout(t); if(!r.ok) throw 0; const j=await r.json(); _odmInfo=j;
     if(txt)txt.textContent='🟢 Conectado · NodeODM v'+(j.version||'?')+' · fila '+(j.taskQueueCount!=null?j.taskQueueCount:'?');
@@ -1408,8 +1413,10 @@ function odmPickImages(){ $('odmImages').click(); }
 function odmOnImages(fs){ _odmFiles=[...fs].filter(f=>/^image\//.test(f.type)||/\.(jpe?g|tiff?|png)$/i.test(f.name)); $('odmImgCount').textContent=_odmFiles.length?`${_odmFiles.length} imagem(ns) selecionada(s)`:''; }
 async function odmTest(){ const u=odmUrlVal(); if(!u){ toast('Informe a URL do NodeODM','error'); return; }
   localStorage.setItem(odmModeKey(_odmMode),u); odmStatus('Conectando…');
-  try{ const r=await fetch(u+'/info'); if(!r.ok) throw new Error('HTTP '+r.status); const j=await r.json();
+  try{ const r=await fetch(u+'/info'); if(!r.ok) throw new Error('HTTP '+r.status); const j=await r.json(); _odmInfo=j;
+    if(odmIsLoopback(u)){ _odmAuto=true; localStorage.setItem(odmAuthKey(u),'1'); } // autorizado: libera o status ao vivo (agora e em recargas futuras)
     odmStatus(`✅ ${j.name||'NodeODM'} v${j.version||'?'} · fila: ${j.taskQueueCount!=null?j.taskQueueCount:'?'} · engine: ${j.engine||'ODM'}`);
+    odmPing();
   }catch(e){ console.error('[ODM] test',e); odmStatus('❌ Não conectou ('+e.message+'). NodeODM rodando? URL certa? (https→http só funciona com localhost)',true); } }
 async function odmCreate(){ const u=odmUrlVal(); if(!u){ toast('Configure e teste a URL do NodeODM','error'); return; }
   if(!_odmFiles||!_odmFiles.length){ toast('Selecione as imagens','error'); return; }
@@ -1618,7 +1625,7 @@ async function submitReview(){
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&c.app===APP_VERSION&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
   try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now(),app:APP_VERSION})); }catch(e){}
 })();
-(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.10.0', CK=LS+'_update_check', TTL=24*60*60*1000;
+(async()=>{ if(!revClient) return; const LOCAL_VERSION='1.10.1', CK=LS+'_update_check', TTL=24*60*60*1000;
   const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
     if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));
