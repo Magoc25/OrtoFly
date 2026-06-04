@@ -108,7 +108,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent); o
 .photo-row .pm{color:var(--hint);font-variant-numeric:tabular-nums;flex-shrink:0}
 .photo-row.nogps .pn{color:var(--hint);opacity:.7}
 .zonal-tbl{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
-.zonal-tbl th{color:var(--muted);font-weight:600;text-align:right;padding:4px 6px;border-bottom:1px solid var(--border)}
+.zonal-tbl th{color:var(--muted);font-weight:600;text-align:right;padding:4px 6px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface)}
 .zonal-tbl td{text-align:right;padding:4px 6px;border-bottom:1px solid var(--border)}
 .zonal-gcp summary{cursor:pointer;font-weight:700;font-size:12.5px;color:var(--text);padding:4px 0}
 .zonal-gcp[open] summary{margin-bottom:2px}
@@ -262,6 +262,7 @@ footer{
           <div class="field"><label for="rasterCmap">Paleta (DSM)</label><select id="rasterCmap"><option value="terrain">Terreno</option><option value="viridis">Viridis</option><option value="grayscale">Cinza</option></select></div>
         </div>
         <div class="field" style="margin-bottom:8px"><label>Opacidade — <span id="rasterOpacityVal">100%</span></label><input id="rasterOpacity" type="range" min="20" max="100" value="100" /></div>
+        <button class="btn sm block" onclick="exportRasterImage(false)" style="margin-bottom:6px">⬇ Imagem (PNG + worldfile)</button>
         <button class="btn sm block" onclick="clearRaster()">🗑️ Remover raster</button>
       </div>
       <p class="hint">2D: ortomosaico/DSM (GeoTIFF/COG) no mapa. 3D: nuvem LAS/LAZ/PLY ou malha OBJ/glTF/GLB.</p>
@@ -281,12 +282,17 @@ footer{
         <div class="field"><label for="zonalColor">Cor</label><input id="zonalColor" type="color" value="#1a9e4b" onchange="zonalRedraw()" style="height:34px;padding:2px;cursor:pointer" /></div>
         <div class="field"><label for="zonalStyle">Estilo</label><select id="zonalStyle" onchange="zonalRedraw()"><option value="solido">Círculo</option><option value="pontilhado">Pontilhado</option><option value="cruz">Círculo + cruz</option><option value="ponto">Círculo + ponto</option></select></div>
       </div>
-      <button class="btn primary block" onclick="zonalCompute()" style="margin-top:4px">📊 Calcular estatística</button>
+      <button class="btn primary block" onclick="zonalCompute()" style="margin-top:4px">📊 Buffer e Estatísticas</button>
       <div id="zonalStatus" class="spec" style="margin-top:6px"></div>
-      <div id="zonalResult" style="margin-top:8px;overflow-x:auto"></div>
+      <div id="zonalResult" style="margin-top:8px;max-height:178px;overflow:auto"></div>
       <div class="btn-grid hidden" id="zonalExports" style="margin-top:8px">
         <button class="btn sm" onclick="zonalExportCSV()">⬇ CSV</button>
+        <button class="btn sm" onclick="zonalExportTXT()">⬇ TXT</button>
         <button class="btn sm" onclick="zonalExportGeoJSON()">⬇ GeoJSON</button>
+      </div>
+      <div class="btn-grid hidden" id="zonalExtra" style="margin-top:6px">
+        <button class="btn sm" onclick="exportRasterImage(true)">⬇ Figura PNG (com pontos)</button>
+        <button class="btn sm" onclick="showMM('Material e Métodos — Buffer e Estatísticas', mmZonal())">📝 M&amp;M</button>
       </div>
       <button class="btn sm block hidden" id="zonalClearBtn" onclick="clearZonal()" style="margin-top:8px">🗑️ Limpar pontos do mapa</button>
 
@@ -310,6 +316,7 @@ footer{
           <button class="btn sm" onclick="gcpClear()">↺ Remover ajuste</button>
         </div>
         <div id="gcpStatus" class="spec" style="margin-top:6px"></div>
+        <button class="btn sm block hidden" id="gcpMMBtn" onclick="showMM('Material e Métodos — Ajuste por pontos de controle', mmGcp())" style="margin-top:6px">📝 M&amp;M deste ajuste</button>
       </details>
     </div>
     </div><!-- /tab-imagens -->
@@ -424,7 +431,10 @@ footer{
         </div>
         <p id="odmModeHint" class="hint" style="margin-top:6px"></p>
         <div id="odmStatus" class="spec"></div>
-        <button class="btn sm" style="margin-top:8px" onclick="openCiteModal()">📑 Como citar (app + ODM)</button>
+        <div class="btn-grid" style="margin-top:8px">
+          <button class="btn sm" onclick="openCiteModal()">📑 Como citar</button>
+          <button class="btn sm" onclick="showMM('Material e Métodos — Ortomosaico (ODM)', citeText().mm)">📝 M&amp;M</button>
+        </div>
       </div>
       <div class="card">
         <h2>Nova tarefa</h2>
@@ -460,7 +470,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.12.0</span>
+  <span id="appVersion">© MGC · v1.13.0</span>
 </footer>
 
 <!-- PIX modal -->
@@ -470,6 +480,14 @@ footer{
     <div class="modal-header"><div class="modal-title">📑 Como citar (app + ODM)</div><button class="modal-close-btn" type="button" onclick="closeCiteModal()">✕</button></div>
     <p class="hint" style="margin-top:0">Cite o <b>OrtoFly</b> e o motor <b>OpenDroneMap (ODM)</b>. A versão do ODM é a detectada quando você está conectado.</p>
     <div id="citeBody"></div>
+  </div>
+</div>
+<div id="mmModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closeMM()"></div>
+  <div class="modal-content">
+    <div class="modal-header"><div class="modal-title" id="mmTitle">📝 Material e Métodos</div><button class="modal-close-btn" type="button" onclick="closeMM()">✕</button></div>
+    <p class="hint" style="margin-top:0">Texto pronto para a seção de <b>Material e Métodos</b> do seu trabalho. Revise e adapte (o app não substitui a responsabilidade técnica do autor).</p>
+    <div id="mmBody"></div>
   </div>
 </div>
 <div id="pixModal" class="modal hidden">
@@ -586,7 +604,7 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.10.1 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.12.0';
+const APP_VERSION = '1.13.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1269,7 +1287,7 @@ function cmapRGB(t,name){ if(name==='grayscale'){ const v=Math.max(0,Math.min(1,
 function cmapCSS(t,name){ const c=cmapRGB(t,name); return `rgb(${c[0]*255|0},${c[1]*255|0},${c[2]*255|0})`; }
 
 /* --- 2D raster (GeoTIFF/COG) --- */
-let rasterLayer=null, _rasterMeta=null, _rasterShift={dx:0,dy:0}, _gcpTransform=null, _pickCb=null;
+let rasterLayer=null, _rasterMeta=null, _rasterShift={dx:0,dy:0}, _gcpTransform=null, _gcpLast=null, _pickCb=null;
 function rasterStatus(t){ const e=$('rasterStatus'); if(e) e.textContent=t||''; }
 function openRaster(){ $('rasterInput').click(); }
 function tiffPhotometric(ab){ try{ const dv=new DataView(ab); const le=dv.getUint16(0,false)===0x4949; const g16=o=>dv.getUint16(o,le),g32=o=>dv.getUint32(o,le); if(g16(2)!==42) return null; const ifd=g32(4),n=g16(ifd); for(let i=0;i<n;i++){ const o=ifd+2+i*12; if(g16(o)===262) return (g16(o+2)===3)?g16(o+8):g32(o+8); } return null; }catch(e){ return null; } }
@@ -1425,6 +1443,7 @@ function zonalCompute(){
   const modo=geoInput?'lat,lon':'E,N (metros'+(zinfo?'':', sem georref. p/ mapa')+')';
   $('zonalStatus').textContent=`${ok}/${results.length} ponto(s) com dados · entrada ${modo} · raster EPSG:${epsg||'?'} · raio ${radius} m`+(swapCount?` · ⚠️ X/Y trocados corrigidos em ${swapCount}`:'');
   $('zonalExports').classList.toggle('hidden',!ok);
+  $('zonalExtra').classList.toggle('hidden',!ok);
   $('zonalClearBtn').classList.remove('hidden');
   if(ok) toast('Estatística calculada ✅');
   else toast('Nenhum ponto retornou pixels — confira lat/lon e se cobrem o raster','error');
@@ -1464,15 +1483,17 @@ function _zcsv(s){ s=String(s==null?'':s); return /[",\n;]/.test(s)?'"'+s.replac
 function _znum(v){ return (v==null||isNaN(v))?'':(+v); }
 function _zround(v){ return (v==null||isNaN(v))?null:Math.round(v*1e4)/1e4; }
 
-function zonalExportCSV(){
-  if(!_zonalResults){ toast('Calcule a estatística primeiro','error'); return; }
+function _zonalRows(sep){
   const {results,radius}=_zonalResults;
-  const rows=[['ponto','lat','lon','x','y','raio_m','banda','n','media','desvio','min','max','mediana'].join(',')];
-  results.forEach(r=>{ const c=[_zcsv(r.name),_znum(r.lat),_znum(r.lon),_znum(r.X),_znum(r.Y),radius];
-    if(r.error||!r.bands){ rows.push(c.concat(['','','','','','']).join(',')); return; }
-    r.bands.forEach(b=>rows.push(c.concat([_zcsv(b.label),b.n||0,_znum(b.mean),_znum(b.std),_znum(b.min),_znum(b.max),_znum(b.median)]).join(','))); });
-  downloadBlob(new Blob([rows.join('\n')],{type:'text/csv'}),'ortofly_zonal.csv'); toast('CSV exportado ✅');
+  const q=sep==='\t'?(s=>String(s==null?'':s).replace(/[\t\r\n]/g,' ')):_zcsv;
+  const rows=[['ponto','lat','lon','x','y','raio_m','banda','n','media','desvio','min','max','mediana'].join(sep)];
+  results.forEach(r=>{ const c=[q(r.name),_znum(r.lat),_znum(r.lon),_znum(r.X),_znum(r.Y),radius];
+    if(r.error||!r.bands){ rows.push(c.concat(['','','','','','']).join(sep)); return; }
+    r.bands.forEach(b=>rows.push(c.concat([q(b.label),b.n||0,_znum(b.mean),_znum(b.std),_znum(b.min),_znum(b.max),_znum(b.median)]).join(sep))); });
+  return rows.join('\n');
 }
+function zonalExportCSV(){ if(!_zonalResults){ toast('Calcule a estatística primeiro','error'); return; } downloadBlob(new Blob([_zonalRows(',')],{type:'text/csv'}),'ortofly_zonal.csv'); toast('CSV exportado ✅'); }
+function zonalExportTXT(){ if(!_zonalResults){ toast('Calcule a estatística primeiro','error'); return; } downloadBlob(new Blob([_zonalRows('\t')],{type:'text/plain'}),'ortofly_zonal.txt'); toast('TXT (tabulação) exportado ✅'); }
 function zonalExportGeoJSON(){
   if(!_zonalResults){ toast('Calcule a estatística primeiro','error'); return; }
   const {results,radius}=_zonalResults;
@@ -1522,16 +1543,78 @@ function gcpApply(){
     let dx=0,dy=0; P.forEach(p=>{ dx+=p.tx-p.fx; dy+=p.ty-p.fy; }); dx/=P.length; dy/=P.length;
     _gcpTransform=null; setRasterShift(dx,dy);
     let se=0; P.forEach(p=>{ se+=(p.fx+dx-p.tx)**2+(p.fy+dy-p.ty)**2; }); const rms=Math.sqrt(se/P.length);
+    _gcpLast={target:'ortho',type:'translação',n:P.length,rms,dx,dy};
     $('gcpStatus').textContent=`🗺️ Ortomosaico deslocado · dx ${dx.toFixed(2)} m, dy ${dy.toFixed(2)} m · ${P.length} GCP${P.length>1?` · resíduo ${rms.toFixed(2)} m`:''}`;
   } else {
     setRasterShift(0,0); _gcpTransform=tr;
+    _gcpLast={target:'pontos',type:tr.type,n:P.length,rms:tr.rms,dx:0,dy:0};
     const esc2=tr.type==='Helmert'?` · escala ${(Math.hypot(tr.a,tr.b)).toFixed(5)} · rot ${(Math.atan2(tr.b,tr.a)*180/Math.PI).toFixed(3)}°`:'';
     $('gcpStatus').textContent=`📍 Ajuste nos pontos · ${tr.type} · ${P.length} GCP · RMS ${tr.rms.toFixed(2)} m${esc2}`;
   }
+  if($('gcpMMBtn')) $('gcpMMBtn').classList.remove('hidden');
   toast('Ajuste aplicado ✅');
   if($('zonalPts').value.trim()) zonalCompute();   // reamostra com o ajuste
 }
-function gcpClear(){ _gcpTransform=null; setRasterShift(0,0); if($('gcpStatus'))$('gcpStatus').textContent=''; if(_rasterMeta&&$('zonalPts').value.trim()) zonalCompute(); toast('Ajuste removido'); }
+function gcpClear(){ _gcpTransform=null; _gcpLast=null; setRasterShift(0,0); if($('gcpStatus'))$('gcpStatus').textContent=''; if($('gcpMMBtn'))$('gcpMMBtn').classList.add('hidden'); if(_rasterMeta&&$('zonalPts').value.trim()) zonalCompute(); toast('Ajuste removido'); }
+
+/* ───── Exportar imagem (PNG + worldfile): usa a georreferência ATUAL (já corrigida por GCP) ───── */
+function _rasterColorFn(){
+  const {gr,mn,mx,bands,ycc}=_rasterMeta; const cmap=$('rasterCmap')?$('rasterCmap').value:'terrain';
+  if(bands<3){ const span=(mx-mn)||1; return v=>{ const val=Array.isArray(v)?v[0]:v; if(val==null||isNaN(val)||val===gr.noDataValue) return null; const c=cmapRGB((val-mn)/span,cmap); return [c[0]*255|0,c[1]*255|0,c[2]*255|0]; }; }
+  const mxs=(gr.maxs||[]).slice(0,3).filter(x=>x!=null&&isFinite(x)); const peak=mxs.length?Math.max(...mxs):255; const sc=peak>255?255/peak:1;
+  return v=>{ if(!v) return null; const a=(bands>=4)?v[3]:255; if(a===0) return null; let r=v[0],g=v[1],b=v[2]; if(r==null&&g==null&&b==null) return null; if(gr.noDataValue!=null&&r===gr.noDataValue&&g===gr.noDataValue&&b===gr.noDataValue) return null; if(ycc){ const Y=r,Cb=g-128,Cr=b-128; r=Y+1.402*Cr; g=Y-0.344136*Cb-0.714136*Cr; b=Y+1.772*Cb; } const cl=x=>Math.max(0,Math.min(255,Math.round((x||0)*sc))); return [cl(r),cl(g),cl(b)]; };
+}
+async function exportRasterImage(withPoints){
+  if(!_rasterMeta||!_rasterMeta.gr){ toast('Carregue um raster (GeoTIFF/COG) primeiro','error'); return; }
+  const gr=_rasterMeta.gr, vals=gr.values; if(!vals||!vals.length||!vals[0]){ toast('Raster sem pixels em memória','error'); return; }
+  if(withPoints && (!_zonalResults||!_zonalResults.results.length)){ toast('Gere o buffer/estatística primeiro (não há pontos)','error'); return; }
+  try{
+    rasterStatus('Renderizando imagem…');
+    const W=gr.width, H=gr.height, nb=gr.numberOfRasters||vals.length;
+    const MAX=2500, scale=Math.min(1, MAX/Math.max(W,H)); const ow=Math.max(1,Math.round(W*scale)), oh=Math.max(1,Math.round(H*scale));
+    const cv=document.createElement('canvas'); cv.width=ow; cv.height=oh; const ctx=cv.getContext('2d');
+    const img=ctx.createImageData(ow,oh), data=img.data, colorFn=_rasterColorFn(), buf=new Array(nb);
+    for(let oy=0;oy<oh;oy++){ const sy=Math.min(H-1,Math.floor(oy/scale));
+      for(let ox=0;ox<ow;ox++){ const sx=Math.min(W-1,Math.floor(ox/scale)); for(let bd=0;bd<nb;bd++) buf[bd]=vals[bd][sy][sx];
+        const col=colorFn(nb===1?buf[0]:buf), o=(oy*ow+ox)*4; if(col){ data[o]=col[0]; data[o+1]=col[1]; data[o+2]=col[2]; data[o+3]=255; } } }
+    ctx.putImageData(img,0,0);
+    if(withPoints){ const color=($('zonalColor')&&$('zonalColor').value)||'#1a9e4b';
+      ctx.lineWidth=Math.max(1.5,ow/700); ctx.font=`${Math.max(11,Math.round(ow/90))}px sans-serif`; ctx.textBaseline='bottom';
+      _zonalResults.results.forEach(r=>{ if(r.X==null||r.Y==null) return; const cx=((r.X-gr.xmin)/gr.pixelWidth)*scale, cy=((gr.ymax-r.Y)/gr.pixelHeight)*scale, rpx=(_zonalResults.radius/gr.pixelWidth)*scale, col=r.error?'#e0533d':color;
+        ctx.strokeStyle=col; ctx.fillStyle=col;
+        ctx.beginPath(); ctx.arc(cx,cy,Math.max(2,rpx),0,2*Math.PI); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx,cy,Math.max(1.2,ow/500),0,2*Math.PI); ctx.fill();
+        ctx.fillText(r.name, cx+Math.max(2,rpx)+2, cy-2); }); }
+    const pw=gr.pixelWidth/scale, ph=gr.pixelHeight/scale;
+    const wld=[pw,0,0,-ph,gr.xmin+pw/2,gr.ymax-ph/2].map(v=>v.toFixed(10)).join('\n')+'\n';
+    const blob=await new Promise(res=>cv.toBlob(res,'image/png'));
+    const base=withPoints?'ortofly_figura_pontos':'ortofly_imagem_corrigida';
+    const sh=_rasterShift&&(_rasterShift.dx||_rasterShift.dy)?`Georreferencia JA INCLUI a correcao por pontos de controle (dx=${_rasterShift.dx.toFixed(2)} m, dy=${_rasterShift.dy.toFixed(2)} m).`:'Sem correcao por pontos de controle aplicada.';
+    const zip=new JSZip(); zip.file(base+'.png',blob); zip.file(base+'.pgw',wld);
+    zip.file('LEIAME.txt',`Imagem exportada pelo OrtoFly (v${APP_VERSION}).\nO arquivo .pgw (world file) georreferencia o .png. CRS: EPSG:${(+gr.projection||'?')} — defina este CRS ao abrir no QGIS.\n${sh}\n${withPoints?'A figura inclui os buffers (circulos) e os nomes dos pontos para uso em metodologia.':''}`);
+    const out=await zip.generateAsync({type:'blob'}); downloadBlob(out, base+'.zip');
+    rasterStatus(''); toast('Imagem exportada (PNG + worldfile) ✅');
+  }catch(e){ console.error('[img export]',e); rasterStatus(''); toast('Erro ao exportar imagem: '+e.message,'error'); }
+}
+
+/* ───── Material e Métodos (M&M) — texto pronto por ferramenta ───── */
+function mmZonal(){
+  if(!_zonalResults) return 'Gere o buffer/estatística primeiro.';
+  const {radius,results,epsg,geoInput,labels}=_zonalResults, yr=new Date().getFullYear();
+  const n=results.length, ok=results.filter(r=>!r.error).length;
+  const bandsTxt=labels.length===1?'a banda do raster':`as ${labels.length} bandas (${labels.join(', ')})`;
+  return `As estatísticas por ponto (estatística zonal) foram obtidas no aplicativo OrtoFly (Costa, ${yr}; versão ${APP_VERSION}). Em cada um dos ${n} pontos (${ok} com dados) definiu-se um buffer circular de ${radius} m de raio sobre o raster carregado (CRS EPSG:${epsg||'não definido'}). Os pixels cujo centro caiu dentro de cada círculo — excluídos os de máscara ou sem dado (nodata/transparência) — foram amostrados e, para ${bandsTxt}, calcularam-se o número de pixels (n), a média, o desvio-padrão, o mínimo, o máximo e a mediana. As coordenadas dos pontos foram fornecidas em ${geoInput?'graus (latitude, longitude)':'UTM (E, N)'}${geoInput&&epsg&&epsg!==4326?', reprojetadas para o CRS do raster,':''} e associadas aos pixels por correspondência direta de coordenadas.`;
+}
+function mmGcp(){
+  if(!_gcpLast) return 'Aplique um ajuste por pontos de controle primeiro.';
+  const g=_gcpLast;
+  if(g.target==='ortho') return `O ortomosaico foi corrigido geometricamente no OrtoFly (versão ${APP_VERSION}) por translação, a partir de ${g.n} ponto(s) de controle de referência (ex.: levantados com GNSS-RTK), deslocando-o em dx=${g.dx.toFixed(2)} m e dy=${g.dy.toFixed(2)} m${g.n>1?` (resíduo médio de ${g.rms.toFixed(2)} m)`:''} para o alinhamento às coordenadas verdadeiras.`;
+  return `As coordenadas dos pontos foram ajustadas no OrtoFly (versão ${APP_VERSION}) por transformação ${g.type==='Helmert'?'de similaridade (Helmert — translação, rotação e escala), estimada por mínimos quadrados':'de translação'}, a partir de ${g.n} ponto(s) de controle de referência (ex.: GNSS-RTK)${g.n>1?`, com erro residual (RMSE) de ${g.rms.toFixed(2)} m`:''}.`;
+}
+function showMM(title,text){ if(!$('mmModal')) return; $('mmTitle').textContent='📝 '+title; const e=s=>String(s).replace(/[&<>]/g,m=>m==='&'?'&amp;':m==='<'?'&lt;':'&gt;');
+  $('mmBody').innerHTML='<div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="btn sm" onclick="citeCopy(this)">Copiar</button></div><pre style="white-space:pre-wrap;word-break:break-word;font-size:12.5px;border:1px solid var(--border);border-radius:8px;padding:8px;margin:0">'+e(text)+'</pre>';
+  $('mmModal').classList.remove('hidden'); }
+function closeMM(){ $('mmModal').classList.add('hidden'); }
 
 /* --- 3D (three.js) --- */
 let _3d=null, _3dObj=null, _ptBase=0.1;
@@ -1833,7 +1916,7 @@ OpenDroneMap Authors. (${y}). ODM (Versão ${odmv}) [Software]. https://github.c
 function openCiteModal(){
   const c=citeText(), e=s=>s.replace(/[&<>]/g,m=>m==='&'?'&amp;':m==='<'?'&lt;':'&gt;');
   const block=(t,x)=>'<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px"><b style="font-size:13px">'+t+'</b><button class="btn sm" onclick="citeCopy(this)">Copiar</button></div><pre style="white-space:pre-wrap;word-break:break-word;font-size:12px;border:1px solid var(--border);border-radius:8px;padding:8px;margin:0">'+e(x)+'</pre></div>';
-  $('citeBody').innerHTML=block('📝 Material e Métodos',c.mm)+block('📚 ABNT',c.abnt)+block('📗 APA',c.apa)+block('💻 BibTeX',c.bib);
+  $('citeBody').innerHTML=block('📚 ABNT',c.abnt)+block('📗 APA',c.apa)+block('💻 BibTeX',c.bib);
   $('citeModal').classList.remove('hidden');
 }
 function closeCiteModal(){ $('citeModal').classList.add('hidden'); }

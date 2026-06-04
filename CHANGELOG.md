@@ -5,6 +5,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.13.0] — Junho 2026
+
+### ✨ Exportar imagem, M&M e melhorias na estatística por pontos
+
+- **Exportar imagem (PNG + worldfile):** novo botão no visualizador 2D baixa o raster como **PNG georreferenciado** (com `.pgw`), usando a **georreferência atual — já com a correção por pontos de controle**, se aplicada. Resolve o "preciso baixar a imagem corrigida".
+- **Figura com pontos:** na ferramenta de estatística, botão **⬇ Figura PNG (com pontos)** gera uma imagem com os **buffers e os nomes** desenhados — pronta para a metodologia de um trabalho.
+- **Botões 📝 M&M (Material e Métodos):** cada ferramenta que entrega produto agora gera um **texto pronto de Material e Métodos** descrevendo como foi processado — na **estatística por pontos**, no **ajuste por pontos de controle** e no **ortomosaico** (aba Processar). Na aba Processar, o **M&M** ficou **separado** do **Como citar** (padronização).
+- **Estatística por pontos:** botão renomeado para **"Buffer e Estatísticas"**; a tabela de resultados agora tem **altura fixa com rolagem** (cabeçalho fixo) para não empurrar os botões; e novo export em **TXT (separado por tabulação)** — ordem **CSV · TXT · GeoJSON**.
+
+---
+
 ## [1.12.0] — Junho 2026
 
 ### ✨ Ajuste por pontos de controle (GCP) — corrige pontos ou o ortomosaico
