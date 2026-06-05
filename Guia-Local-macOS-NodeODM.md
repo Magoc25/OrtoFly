@@ -9,10 +9,13 @@ Guia para rodar o **NodeODM** (motor de fotogrametria do OpenDroneMap) no **macO
 ## ✅ Resultado final
 - NodeODM rodando em `http://127.0.0.1:3000`, conectado ao OrtoFly.
 
-## 💻 Requisitos
+## 💻 Requisitos (hardware)
 - macOS razoavelmente recente (Big Sur 11+).
 - Saber se seu Mac é **Apple Silicon** (M1/M2/M3/M4) ou **Intel** —  menu  → **Sobre Este Mac**.
-- ~5–10 GB livres em disco.
+- **Disco livre:** o ODM usa **muito** rascunho — planeje **5–10× o tamanho do conjunto de fotos**; para **DSM/modo completo**, **dezenas de GB** (ex.: **50 GB+**). Veja **🧹 Limpeza de disco** abaixo.
+- **RAM:** mínimo prático **8 GB** (poucas dezenas de fotos + **Rápido**); **16 GB** confortável; **32 GB+** para **DSM/modo completo**. *(No Colima/Docker Desktop você ainda escolhe quanto disso entregar — veja "Dar mais memória".)*
+
+> ℹ️ Falha em **modo completo (DSM)** quase sempre é **disco cheio** ou **RAM insuficiente**.
 
 ---
 
@@ -91,15 +94,34 @@ Escolha **um** jeito de instalar o Docker:
 - **Depois de reiniciar o Mac:** rode `colima start` — o NodeODM **volta sozinho** (foi criado com `--restart unless-stopped`). Se não voltar: `docker start nodeodm`.
 - **Não precisa recriar nada:** o container `nodeodm` já existe; o `docker run` da instalação é **só na primeira vez**. No dia a dia é só ligar/desligar.
 
-## 🧠 Dar mais memória ao NodeODM (Colima) — para muitas fotos
-Por padrão o Colima sobe com **2 CPU / 2 GB de RAM**, o que limita o ODM (com muitas fotos fica lento ou falha). Para aumentar — **precisa parar e subir de novo** (não muda com a máquina ligada):
+## 🧠 Dar mais memória/CPU ao NodeODM — para muitas fotos
+**Colima** sobe com **2 CPU / 2 GB de RAM** por padrão, o que limita o ODM (com muitas fotos fica lento ou **falha**). Para aumentar — **precisa parar e subir de novo**:
 ```bash
 colima stop
-colima start --cpu 6 --memory 8
+colima start --cpu 6 --memory 16
 ```
-- Use no máximo ~**metade a ⅔ da RAM** do Mac: **16 GB → `--memory 8`**, **8 GB → `--memory 4`**. Não dê tudo, senão o macOS engasga.
-- A configuração **fica salva**: os próximos `colima start` já usam esses valores (não precisa repetir os flags).
-- Confira em **http://127.0.0.1:3000/info** — o `totalMemory` deve subir.
+- Use no máximo ~**metade a ⅔ da RAM** do Mac: **32 GB → `--memory 16`**, **16 GB → `--memory 8`**, **8 GB → `--memory 4`**. Não dê tudo, senão o macOS engasga.
+- A configuração **fica salva** (os próximos `colima start` já usam). Confira em **http://127.0.0.1:3000/info** — `totalMemory`/`totalCores`.
+
+**Docker Desktop:** ajuste em **⚙️ Settings → Resources** → barras de **CPU / Memory** (e **Virtual disk limit**) → **Apply & restart**.
+
+## 🧹 Limpeza de disco (importante!)
+O NodeODM guarda **todas as tarefas** (fotos + intermediários + resultados) até você apagá-las. Cada processamento — em especial **DSM/modo completo** — pode ocupar **dezenas de GB**. Sem limpar, o disco enche e **novos processamentos falham**.
+
+**No dia a dia, pelo app** (igual ao Windows): **💾 Salvar** ou **🗑️ Descartar** cada tarefa; tarefa que **falhou também ocupa disco**; aba **⚙️ Processar → 🧹 Limpar tudo do NodeODM** remove todas de uma vez.
+
+**Recuperar o espaço no Mac** (de vez em quando):
+1. Apague as tarefas (pelo app em *Limpar tudo*, ou no Terminal):
+   ```bash
+   docker exec nodeodm sh -lc "rm -rf /var/www/data/*"
+   docker restart nodeodm
+   docker system prune -f
+   ```
+2. O **disco virtual** do Docker no Mac também não encolhe sozinho. Para devolver o espaço:
+   - **Docker Desktop:** ícone 🐞 **Troubleshoot → Clean / Purge data** (ou **Settings → Resources** → reduza o **Virtual disk limit**). Versões recentes também recuperam sozinhas com o tempo.
+   - **Colima:** limpeza total da VM — `colima stop` → `colima delete` → `colima start` → recrie com `docker run -d --name nodeodm --restart unless-stopped -p 3000:3000 opendronemap/nodeodm` *(você já salva os produtos no app)*.
+
+---
 
 ## 📝 Notas
 - Tudo roda **no seu Mac** — as fotos **não** vão para servidores externos.

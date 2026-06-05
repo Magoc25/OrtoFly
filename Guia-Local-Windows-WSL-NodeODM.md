@@ -11,10 +11,14 @@ a partir das suas fotos — tudo no seu computador, **sem nuvem**.
 - Um servidor **NodeODM** rodando no seu PC em `http://127.0.0.1:3000`.
 - O OrtoFly conectado a ele (aba **Processar → 💻 PC Local**).
 
-## 💻 Requisitos
+## 💻 Requisitos (hardware)
 - Windows 10 (versão 2004+) ou Windows 11.
-- ~5–10 GB livres em disco (imagem do NodeODM + arquivos de processamento).
-- Internet (só na 1ª vez, para baixar).
+- **Disco livre:** o ODM usa **muito** espaço de rascunho — planeje **5–10× o tamanho do conjunto de fotos** livre. Para **DSM / modo completo**, conte com **dezenas de GB** (ex.: **50 GB+**). Veja **🧹 Limpeza de disco** mais abaixo (essencial!).
+- **RAM:** mínimo prático **8 GB** (poucas dezenas de fotos + **Rápido**); **16 GB** confortável; **32 GB+** para **DSM/modo completo** e datasets grandes.
+- **CPU:** 4+ núcleos (mais = mais rápido).
+- Internet só na 1ª vez (baixa a imagem ~3 GB).
+
+> ℹ️ ODM é **faminto por disco e RAM**. Falha em **modo completo (DSM)** quase sempre é **disco cheio** ou **RAM insuficiente** — veja **Memória e CPU** e **Limpeza de disco** abaixo.
 
 ---
 
@@ -149,6 +153,21 @@ timeout /t 3 /nobreak >nul
 
 ---
 
+## 🧠 Memória e CPU do WSL (para datasets maiores)
+Por padrão o WSL usa **~50% da RAM** do PC e **todos os núcleos**. Se o ODM ficar lento ou **falhar por falta de memória**, ajuste o `%USERPROFILE%\.wslconfig` (junte com as linhas de rede que você já criou no passo B.4):
+```ini
+[wsl2]
+networkingMode=mirrored
+firewall=false
+memory=24GB
+processors=8
+swap=8GB
+```
+Depois `wsl --shutdown` e reabra. Confira em `http://127.0.0.1:3000/info` (o `totalMemory` deve subir).
+> Regra de bolso: dê ao WSL no máximo ~**⅔ a ¾** da RAM do PC (deixe folga para o Windows). Ex.: **16 GB → `memory=10GB`**; **32 GB → `memory=24GB`**.
+
+---
+
 ## 🧹 Limpeza de disco (importante!)
 
 O NodeODM guarda **todas as tarefas** (fotos + resultados + intermediários) em disco **até você apagá-las**. Cada processamento — principalmente com **DSM (modo completo)** — pode ocupar **dezenas de GB**. Se não limpar, o disco enche e **novos processamentos falham** (falha de DSM quase sempre é **disco cheio**).
@@ -160,9 +179,11 @@ O NodeODM guarda **todas as tarefas** (fotos + resultados + intermediários) em 
 
 **⚠️ No Windows (WSL) há um detalhe:** apagar as tarefas libera o espaço **dentro** do disco virtual do WSL (`ext4.vhdx`), mas esse arquivo **não encolhe sozinho** — o **C:** só recupera o espaço depois de **compactar** o disco virtual.
 
-### Limpeza completa (recupera o espaço no C:)
+### Recuperar o espaço no C: (de vez em quando)
 
-1. **Apague as tarefas do NodeODM** (pelo app em *Limpar tudo*, ou no PowerShell):
+> **No dia a dia, basta o app** (botões acima) — não precisa de script. Os passos abaixo são só **ocasionais**, para **devolver o espaço ao C:** (o app não consegue compactar o disco do WSL sozinho). O **passo 2 (compactar) é o essencial**; **pule o passo 1** se você já usou **🧹 Limpar tudo** no app.
+
+1. **(Se ainda não limpou pelo app) Apague as tarefas do NodeODM** no PowerShell:
    ```powershell
    wsl -d Ubuntu -u root -- docker exec nodeodm sh -lc "rm -rf /var/www/data/*"
    wsl -d Ubuntu -u root -- docker restart nodeodm
