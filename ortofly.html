@@ -506,7 +506,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.18.0</span>
+  <span id="appVersion">© MGC · v1.18.1</span>
 </footer>
 
 <!-- PIX modal -->
@@ -640,7 +640,7 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.10.1 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.18.0';
+const APP_VERSION = '1.18.1';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -2124,8 +2124,6 @@ async function odmOpenZip(kind,viewer){ if(!_odmSavedMode && (!odmUrlVal()||!_od
   try{ const {blob,name}=await odmExtract(kind); odmStatus('Abrindo '+name+'…'); const file=new File([blob],name,{type:blob.type});
     if(viewer==='2d'){ setTab('imagens'); await handleRasterFile(file); } else { await handle3DFile(file); } odmStatus('');
   }catch(e){ console.error('[ODM] openZip',e); toast('Falha ao abrir: '+e.message,'error'); odmStatus('❌ '+e.message,true); } }
-async function odmGrabZip(kind){ if(!_odmSavedMode && (!odmUrlVal()||!_odmTask)) return;
-  try{ const {blob,name}=await odmExtract(kind); downloadBlob(blob,'ortofly_'+name); toast('Baixado: '+name); }catch(e){ console.error('[ODM] grabZip',e); toast('Falha: '+e.message,'error'); } }
 async function odmDownload(asset){ if(!_odmSavedMode && (!odmUrlVal()||!_odmTask)) return; toast('Baixando '+asset+'…');
   try{ let blob; if(_odmSavedMode && asset==='all.zip' && _odmZipRaw){ blob=_odmZipRaw; } else { blob=await odmFetch(asset); } downloadBlob(blob,'ortofly_'+asset); }catch(e){ console.error('[ODM] download',e); toast('Falha: '+e.message,'error'); } }
 async function odmCancel(){ const u=odmUrlVal(); if(!u||!_odmTask) return; if(!confirm('Cancelar a tarefa?')) return;

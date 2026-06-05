@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.1] — Junho 2026
+
+### 🔍 Auditoria do código (limpeza)
+
+- Varredura completa do app: **0 IDs duplicados**, **0 handlers quebrados**, tratamento de erro defensivo, memória bem gerida (URLs revogadas, `ImageBitmap.close()`, objetos 3D liberados) e **avaliações compartilhadas com escape anti-XSS**.
+- Removida **1 função morta** (`odmGrabZip`, sobra do download por asset anterior ao `all.zip`) — única encontrada em 260 funções.
+
+---
+
 ## [1.18.0] — Junho 2026
 
 ### 🧹 Higiene de disco do NodeODM (corrige o disco enchendo)
