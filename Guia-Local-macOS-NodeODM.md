@@ -29,12 +29,24 @@ Guia para rodar o **NodeODM** (motor de fotogrametria do OpenDroneMap) no **macO
 
 ---
 
-Escolha **um** jeito de instalar o Docker:
+## 🤔 Docker Desktop ou Colima? (escolha um)
 
-| Opção | Para quem |
-|---|---|
-| **1 — Docker Desktop** | mais fácil (app com interface gráfica) |
-| **2 — Colima** | leve, 100% grátis/aberto, via Terminal |
+Os dois rodam o NodeODM **igualmente bem** — a diferença é *como* você lida com eles:
+
+| | 🐳 **Docker Desktop** | 🐧 **Colima** |
+|---|---|---|
+| **Como é** | App com **interface gráfica** (ícone na barra de menu; painéis de containers, logs) | Só **linha de comando** (Terminal), open-source |
+| **Instalação** | Baixar `.dmg` e arrastar — **sem terminal** | Precisa do **Homebrew** antes; tudo por comando |
+| **Memória/CPU p/ o ODM** | Ajusta por janelas (*Settings → Resources*) | **Você define no comando** (`--cpu`/`--memory`) — controle fino, ótimo p/ fotogrametria |
+| **Consumo em repouso** | Maior (~300–500 MB) | Menor (~100–200 MB) |
+| **Ao reiniciar o Mac** | Volta **sozinho** (se configurado p/ abrir com o Mac) | Você roda **`colima start`** antes de usar |
+| **Licença/custo** | Grátis p/ uso pessoal; **pago p/ empresas grandes** (>250 funcionários ou >US$ 10M) | **100% grátis** e aberto, sem restrição comercial |
+
+**Em uma linha:**
+- Quer o **caminho mais simples**, sem terminal, e usa Docker p/ outras coisas → **Docker Desktop**.
+- Quer **leveza**, **controle de RAM/CPU** p/ o processamento, ou está numa **empresa** (risco de licença) → **Colima**.
+
+Agora siga **a opção que você escolheu**:
 
 ## 1️⃣ Opção 1 — Docker Desktop (mais fácil)
 1. Acesse **https://www.docker.com/products/docker-desktop/** → **Download for Mac** → escolha **Apple Silicon** ou **Intel** conforme seu Mac.
