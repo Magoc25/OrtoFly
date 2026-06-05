@@ -16,11 +16,47 @@ Dicas para tirar bons produtos (ortomosaico, DSM, nuvem 3D) e entender a **confi
 - **Voo estável**, sem borrão; velocidade compatível com o tempo de obturador.
 - **GPS bom**; para precisão **absoluta**, use **GCPs** (pontos de controle no solo) ou drone **RTK**.
 
-## 3. Processamento (aba ⚙️ Processar / NodeODM)
-- **Rápido (fast-orthophoto):** ortomosaico **rápido**, mas **nuvem esparsa** (com buracos). Ótimo para um 1º resultado.
-- **Completo (desmarque o Rápido):** faz a **reconstrução densa** → nuvem/DSM **muito melhores** (mais lento).
-- **Gerar DSM:** marque para obter o **modelo de superfície** (o ODM não gera por padrão).
-- **Nº de fotos:** dezenas a centenas. Mais fotos = mais **RAM e tempo**.
+## 3. Processamento: Rápido × Completo (DSM)
+
+Na aba **⚙️ Processar / NodeODM** você escolhe entre dois caminhos. Eles **partem do mesmo lugar e divergem no meio** — entender isso evita rodar o modo pesado (e faminto por RAM) **sem precisar**.
+
+### A essência
+Os dois começam igual: o **SfM** (*Structure from Motion*) descobre de onde cada foto foi tirada e monta uma **nuvem esparsa** de pontos. A partir daí eles divergem:
+
+- **Rápido (`fast-orthophoto`)** — *pula* a parte pesada: monta uma **malha 2.5D grosseira** direto da nuvem esparsa e "estica" as fotos sobre ela para gerar **só o ortomosaico**.
+- **Completo (Gerar DSM)** — *roda* a parte pesada: **reconstrução densa (MVS)** → **malha 3D** → **DSM/DTM**. É o pipeline inteiro.
+
+### O que cada etapa faz (e onde a RAM some)
+
+| Etapa | Rápido | Completo (DSM) |
+|---|:---:|:---:|
+| SfM — poses + nuvem **esparsa** | ✅ | ✅ |
+| **MVS** — nuvem **densa** (densificação) | ❌ pula | ✅ **pesado (RAM)** |
+| **Malha 3D** + textura | ❌ pula | ✅ **pesado (RAM)** |
+| Georreferenciamento | ✅ | ✅ |
+| **DSM / DTM** (modelo de superfície) | ❌ | ✅ pesado |
+| Ortomosaico | ✅ (sobre malha grosseira) | ✅ (sobre superfície densa) |
+
+> A **MVS + malha + DSM** são justamente os passos que comem memória. O Rápido pula todos → **rápido e leve**; o Completo roda todos → **lento e faminto por RAM**. Por isso um conjunto grande (centenas de fotos) costuma **falhar por falta de RAM** no Completo e passar liso no Rápido. *(Veja **Memória e CPU** no guia de instalação do seu sistema.)*
+
+### O que você leva pra casa em cada um
+
+| Produto | Rápido | Completo (DSM) |
+|---|:---:|:---:|
+| 🗺️ Ortomosaico 2D | ✅ bom | ✅ melhor (menos distorção no relevo) |
+| ⛰️ DSM (altimetria / superfície) | ❌ não gera | ✅ |
+| 🧊 Nuvem 3D | ⚠️ só **esparsa** (com buracos) | ✅ **densa** |
+| 🧱 Malha 3D texturizada | ❌ | ✅ |
+
+> Por isso o DSM **só existe no modo Completo**: sem a reconstrução densa não há superfície para gerar o modelo — `Gerar DSM` e `Rápido` são **mutuamente exclusivos** (marcar DSM já desliga o Rápido).
+
+### Qual usar
+- **Rápido** → você só quer o **mapa 2D**: ortomosaico para NDVI/índices, contagem, medir área, inspeção visual. Terreno **mais plano** (lavoura). Quer velocidade e pouca RAM, ou tem **muitas fotos**. **Na dúvida, comece por aqui** — muitas vezes é tudo o que você precisa.
+- **Completo (DSM)** → você precisa de **altimetria, volume, curvas de nível, nuvem densa ou modelo 3D**, ou o terreno tem **relevo / estruturas altas** e você quer um ortomosaico mais limpo. Exige **RAM e tempo** (garanta memória/swap suficientes — veja o guia de instalação).
+
+> **Sobre precisão:** o georreferenciamento **horizontal** (posição no mapa) depende do **GPS/GCP** nos dois modos — o Rápido **não** deixa o mapa mais torto na horizontal em terreno plano. O que muda é a **superfície** usada para corrigir a perspectiva: em área plana o ortomosaico do Rápido já costuma servir; em área com altura (prédios, árvores, barrancos) o Completo corrige melhor. A parte **vertical / 3D (DSM)** é que só o Completo entrega de verdade.
+
+**Nº de fotos:** de dezenas a centenas. Mais fotos = mais **RAM e tempo** — especialmente no Completo.
 
 ## 4. "Buracos" na nuvem são normais
 A reconstrução depende de a **mesma textura** aparecer em várias fotos. Buracos vêm de: **modo Rápido**, **água/superfícies lisas**, **sombras**, **bordas** (menos sobreposição) e **objetos em movimento**. Para encher: **modo Completo + mais sobreposição + boa luz**.
