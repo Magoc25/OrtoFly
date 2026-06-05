@@ -153,18 +153,37 @@ timeout /t 3 /nobreak >nul
 
 ---
 
-## 🧠 Memória e CPU do WSL (para datasets maiores)
-Por padrão o WSL usa **~50% da RAM** do PC e **todos os núcleos**. Se o ODM ficar lento ou **falhar por falta de memória**, ajuste o `%USERPROFILE%\.wslconfig` (junte com as linhas de rede que você já criou no passo B.4):
+## 🧠 Memória e CPU do WSL (evita o "Not enough memory" e o PC travar)
+
+O **"Not enough memory"** do ODM — e até o **PC desligar sozinho** no meio do processamento — acontece quando o WSL fica sem memória. A defesa tem **duas peças**:
+
+- **`memory`** — quanta RAM o WSL pode usar. Deixe **~50% para o WSL** e **~50% para o Windows**. Se o WSL toma quase tudo, o **Windows trava/desliga**.
+- **`swap`** — a **rede de segurança**: memória virtual em disco que o WSL usa **quando a RAM acaba**. Em vez de **falhar**, o ODM fica mais lento e **conclui**. O swap **cresce conforme a necessidade** (de quase 0 até o teto que você definir). `swap` pequeno (ou ausente) = ODM morre por falta de memória.
+
+Edite o `%USERPROFILE%\.wslconfig` (junte com as linhas de rede do passo B.4):
 ```ini
 [wsl2]
 networkingMode=mirrored
 firewall=false
-memory=24GB
-processors=8
-swap=8GB
+memory=16GB
+swap=32GB
+
+[experimental]
+autoMemoryReclaim=gradual
 ```
-Depois `wsl --shutdown` e reabra. Confira em `http://127.0.0.1:3000/info` (o `totalMemory` deve subir).
-> Regra de bolso: dê ao WSL no máximo ~**⅔ a ¾** da RAM do PC (deixe folga para o Windows). Ex.: **16 GB → `memory=10GB`**; **32 GB → `memory=24GB`**.
+Depois **`wsl --shutdown`** e reabra. Confira em `http://127.0.0.1:3000/info` (o `totalMemory` deve refletir o `memory`).
+
+**Quanto usar — depende da RAM do seu PC:**
+
+| RAM do PC | `memory` (~50%) | `swap` (rede de segurança) |
+|---|---|---|
+| 8 GB  | `memory=4GB`  | `swap=8GB`  |
+| 16 GB | `memory=8GB`  | `swap=16GB` |
+| 32 GB | `memory=16GB` | `swap=32GB` |
+| 64 GB | `memory=32GB` | `swap=32GB` |
+
+> O `autoMemoryReclaim=gradual` devolve ao Windows a RAM que o WSL parou de usar (memória "progressiva"). Por padrão o WSL usa **todos os núcleos** da CPU — para limitar, acrescente `processors=8`.
+> Quer priorizar **velocidade** e usa pouco o Windows enquanto processa? Pode subir o `memory` para ~⅔–¾ da RAM (ex.: 32 GB → `memory=24GB`) — mas **deixe sempre folga** para o Windows, senão volta o risco de travar.
 
 ---
 
@@ -206,6 +225,32 @@ O NodeODM guarda **todas as tarefas** (fotos + resultados + intermediários) em 
    O NodeODM volta sozinho ao reabrir o WSL/Docker (política `--restart`).
 
 > 💡 Ajuste `Ubuntu` / `nodeodm` se o nome do seu distro/contêiner for diferente (`wsl -l -v` e `docker ps`).
+
+---
+
+## ♻️ Recuperar espaço depois de o PC desligar no meio (pagefile)
+
+Se o PC **desligou sozinho** durante um processamento pesado, pode ter sumido espaço no **C:** que os scripts de limpeza acima **não** recuperam — eles cuidam do disco do WSL; este é **outro** arquivo: o **`pagefile.sys`** (memória virtual do Windows). Sob pressão de RAM ele **incha** (dezenas de GB) e, com o desligamento abrupto, **fica preso grande** mesmo sem estar em uso.
+
+**Conferir** (PowerShell):
+```powershell
+Get-CimInstance Win32_PageFileUsage | Select-Object Name, AllocatedBaseSize
+```
+Se `AllocatedBaseSize` (em MB) estiver muito acima do normal (ex.: 20000–40000 = 20–40 GB), vale ajustar.
+
+**Recuperar — define um tamanho com teto e devolve o resto ao C::**
+1. **Win+R** → `sysdm.cpl` → Enter.
+2. Aba **Avançado** → em **Desempenho**, botão **Configurações…**.
+3. Aba **Avançado** → em **Memória virtual**, botão **Alterar…**.
+4. **Desmarque** "Gerenciar automaticamente o tamanho do arquivo de paginação".
+5. Selecione o disco **C:** → marque **Tamanho personalizado** e preencha:
+   - **Inicial (MB):** `4096` (4 GB)
+   - **Máximo (MB):** o **tamanho da sua RAM em MB** — 8 GB→`8192`, 16 GB→`16384`, 32 GB→`32768`, 64 GB→`65536`.
+6. **Definir** → **OK** → **OK**.
+7. **Reinicie o PC.** No próximo boot o `pagefile.sys` recria pequeno (4 GB) e **o espaço volta ao C:**.
+
+> **Por que "4 GB → tamanho da RAM"?** Começa pequeno (recupera o espaço) e só **cresce até o teto** se algum programa realmente precisar — sem ficar preso gigante de novo.
+> 💡 O pagefile do **Windows não acelera o ODM** (que roda no WSL, com a memória/swap do `.wslconfig`). Quem evita o "Not enough memory" é o **swap do WSL** (seção 🧠 acima).
 
 ---
 
