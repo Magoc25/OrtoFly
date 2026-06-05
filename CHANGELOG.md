@@ -5,6 +5,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.4] — Junho 2026
+
+### 🐛 Correção: falha do NodeODM dizia "disco cheio" mesmo com disco livre
+
+- Quando uma tarefa **falhava** (status 30), o app mostrava sempre a mesma mensagem chutando **"disco cheio"** — enganoso, pois no **modo completo (Gerar DSM)** a causa mais comum é **falta de memória (RAM)**, já que ele roda a reconstrução densa + malha + DSM (bem mais pesado que o `fast-orthophoto`).
+- Agora o app mostra o **motivo real** reportado pelo NodeODM (`status.errorMessage`) e um botão **📜 Ver log do NodeODM** que busca o console do ODM (`/task/<uuid>/output`) e exibe o final do log — onde aparece a causa de verdade: `Killed` / `exit code 137` = **memória**; `No space left on device` = **disco**.
+- A orientação foi reescrita para citar **RAM e disco** (não só disco). Como o app re-rastreia a tarefa ao recarregar, dá para reabrir o app e ver o log de uma falha **já ocorrida** (enquanto não descartar).
+
+---
+
 ## [1.18.3] — Junho 2026
 
 ### ⚠️ Aviso de versão em testes (beta) dentro do app

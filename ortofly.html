@@ -508,7 +508,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.18.3</span>
+  <span id="appVersion">© MGC · v1.18.4</span>
 </footer>
 
 <!-- PIX modal -->
@@ -651,8 +651,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.18.3 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.18.3';
+/* ═══════════════ OrtoFly v1.18.4 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.18.4';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -2114,7 +2114,7 @@ async function odmRefresh(){ const u=odmUrlVal(); if(!u||!_odmTask) return;
     $('odmTaskStatus').textContent=`${j.name||_odmTask} · ${codes[st]||('código '+st)}${pct!=null?' · '+pct+'%':''}${j.imagesCount?' · '+j.imagesCount+' img':''}`;
     const ob=$('odmBar'),ofl=$('odmBarFill'); if(ob){ if(st===20){ ob.style.display='block'; if(ofl) ofl.style.width=(pct||0)+'%'; } else ob.style.display='none'; }
     if(st===40){ if(_odmPoll) clearInterval(_odmPoll); odmShowOutputs(); }
-    else if(st===30||st===50){ if(_odmPoll) clearInterval(_odmPoll); const ob2=$('odmOutputs'); if(ob2){ ob2.classList.remove('hidden'); ob2.innerHTML='<p class="hint">'+(st===30?'❌ A tarefa <b>falhou</b>':'⏹️ Tarefa <b>cancelada</b>')+' — os dados parciais <b>ainda ocupam disco</b> no NodeODM. Clique em <b>🗑️ Descartar</b> acima para liberar (falha de DSM costuma ser <b>disco cheio</b>).</p>'; } }
+    else if(st===30||st===50){ if(_odmPoll) clearInterval(_odmPoll); odmShowFailure(st, j.status&&j.status.errorMessage); }
   }catch(e){ console.error('[ODM] info',e); $('odmTaskStatus').textContent='Erro ao consultar status: '+e.message; } }
 function odmShowOutputs(){ const box=$('odmOutputs'); if(!box) return; box.classList.remove('hidden'); const saved=_odmSavedMode;
   box.innerHTML='<div class="spec" style="margin-bottom:6px">'+(saved?'Resultado salvo ✅ — abrir/baixar (offline):':'Concluído ✅ — abrir/baixar (extraído do all.zip):')+'</div><div class="btn-grid">'+
@@ -2125,6 +2125,21 @@ function odmShowOutputs(){ const box=$('odmOutputs'); if(!box) return; box.class
     '</div>'+(saved
       ? '<p class="hint">Guardado no app (acessível offline). Para apagar, exclua o projeto na lista de projetos.</p>'
       : '<div class="btn-grid" style="margin-top:8px"><button class="btn sm" title="Guarda os produtos no app e APAGA a tarefa do NodeODM (libera o disco). Fica acessível mesmo com o NodeODM desligado." onclick="odmSaveResult()">💾 Salvar no projeto</button><button class="btn sm" title="Apaga as fotos e produtos do NodeODM (libera o disco) sem salvar." onclick="odmDiscard()">🗑️ Descartar</button></div><p class="hint">⚠️ Os dados ocupam disco no NodeODM até você <b>Salvar</b> (guarda no app + libera o servidor) ou <b>Descartar</b>. Esta versão entrega tudo no <b>all.zip</b> — o app baixa e extrai.</p>'); }
+/* falha/cancelamento: mostra o motivo REAL do NodeODM (errorMessage + log do ODM), em vez de chutar "disco cheio" */
+function odmShowFailure(st,err){ const box=$('odmOutputs'); if(!box) return; box.classList.remove('hidden');
+  const head=st===30?'❌ A tarefa <b>falhou</b>':'⏹️ Tarefa <b>cancelada</b>';
+  box.innerHTML=`<p class="hint">${head}${err?' — <b>motivo do NodeODM:</b> '+esc(err):''}</p>`+
+    (st===30?'<p class="hint">No <b>modo completo (Gerar DSM)</b> a causa costuma ser <b>falta de memória (RAM)</b> ou <b>disco cheio</b> — ele é bem mais pesado que o rápido. Veja o <b>log</b> p/ o motivo real: <i>Killed</i> ou <i>exit code 137</i> = memória; <i>No space left on device</i> = disco.</p>':'')+
+    '<div class="btn-grid" style="margin-top:6px"><button class="btn sm" onclick="odmShowLog()">📜 Ver log do NodeODM</button></div>'+
+    '<pre id="odmLog" class="hidden" style="max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:11px;line-height:1.45;background:var(--bg);color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:6px"></pre>'+
+    '<p class="hint" style="margin-top:6px">Os dados parciais <b>ainda ocupam disco</b> no NodeODM. Depois de ver o log, clique em <b>🗑️ Descartar</b> acima p/ liberar.</p>'; }
+async function odmShowLog(){ const pre=$('odmLog'); if(!pre) return; const u=odmUrlVal();
+  if(!u||!_odmTask){ pre.classList.remove('hidden'); pre.textContent='Sem tarefa no servidor (já descartada?).'; return; }
+  pre.classList.remove('hidden'); pre.textContent='Carregando log…';
+  try{ const r=await fetch(u+'/task/'+_odmTask+'/output'); if(!r.ok) throw new Error('HTTP '+r.status);
+    const data=await r.json(); const arr=Array.isArray(data)?data:String(data).split('\n');
+    pre.textContent=arr.slice(-80).join('\n').trim()||'(log vazio)'; pre.scrollTop=pre.scrollHeight;
+  }catch(e){ console.error('[ODM] output',e); pre.textContent='Não consegui ler o log: '+e.message+' (NodeODM ligado? tarefa ainda existe?)'; } }
 const ODM_RE={ortho:/odm_orthophoto\/odm_orthophoto\.tif$/i, dsm:/(^|\/)dsm\.tif$/i, dtm:/(^|\/)dtm\.tif$/i, laz:/georeferenced_model\.(laz|las)$/i};
 let _odmZip=null,_odmZipFor=null;
 async function odmGetZip(){ if(_odmZip&&(_odmSavedMode||_odmZipFor===_odmTask)) return _odmZip;
