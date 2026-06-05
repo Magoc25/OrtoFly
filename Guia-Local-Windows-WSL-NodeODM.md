@@ -229,6 +229,7 @@ autoMemoryReclaim=gradual
 ```powershell
 wsl --shutdown
 ```
+> **Não precisa fechar o NodeODM antes.** Ele roda **dentro do WSL**, então o `wsl --shutdown` já o desliga junto — só **não rode com uma tarefa processando** (ela seria perdida). Depois ele **não volta sozinho**: reabra no Passo 6. *(Se preferir um desligamento limpo, rode o `Desligar-NodeODM.bat` antes — opcional.)*
 
 **Passo 6.** Reabra o NodeODM (**duplo-clique no `Iniciar-NodeODM.bat`**) e confira em **http://127.0.0.1:3000/info** — o `totalMemory` deve refletir o `memory` que você definiu. ✅
 
