@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.3] — Junho 2026
+
+### ⚠️ Aviso de versão em testes (beta) dentro do app
+
+- O app passa a mostrar um **selo "beta"** no cabeçalho e um **aviso na primeira abertura**: o OrtoFly está funcional, mas **os produtos gerados (ortomosaico, DSM, nuvem, medidas, índices) devem ser validados** pelo usuário — de preferência com **GCP** e/ou software de referência (QGIS) — antes de uso técnico/laudos/decisões. Uso **por sua conta e risco, sem garantias**. Reforça o aviso já presente no README e convida ao **feedback** pela aba ⭐ Avaliações. O selo reabre o aviso a qualquer momento.
+
+---
+
 ## [1.18.2] — Junho 2026
 
 ### 🐛 Correção: app preso em versão antiga (cache do Service Worker)

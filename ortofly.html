@@ -130,6 +130,7 @@ footer{
 }
 .footer-btn:hover{background:rgba(255,255,255,.1);color:var(--text)}
 #appVersion{font-size:10px;color:var(--hint);user-select:none;margin-left:2px}
+.beta-badge{display:inline-block;margin-left:8px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#241a02;background:#f2c14e;border:none;border-radius:999px;cursor:pointer}
 /* map controls */
 .map-tools{position:absolute; top:86px; left:10px; z-index:1001; display:flex; flex-direction:column; gap:6px}
 .map-tools .icon-btn{box-shadow:0 2px 8px rgba(0,0,0,.4)}
@@ -172,6 +173,7 @@ footer{
 <body>
 <header>
   <div class="logo"><img src="./icon-192.png" alt="OrtoFly" /> OrtoFly</div>
+  <button class="beta-badge" type="button" title="Versão em testes — toque para detalhes" onclick="showBeta()">beta</button>
   <div class="grow"></div>
   <button class="icon-btn" title="Projetos salvos" onclick="openProjects()">📂</button>
   <button class="icon-btn" title="Como usar" onclick="openAbout()">❓</button>
@@ -506,7 +508,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.18.2</span>
+  <span id="appVersion">© MGC · v1.18.3</span>
 </footer>
 
 <!-- PIX modal -->
@@ -524,6 +526,16 @@ footer{
     <div class="modal-header"><div class="modal-title" id="mmTitle">📝 Material e Métodos</div><button class="modal-close-btn" type="button" onclick="closeMM()">✕</button></div>
     <p class="hint" style="margin-top:0">Texto pronto para a seção de <b>Material e Métodos</b> do seu trabalho. Revise e adapte (o app não substitui a responsabilidade técnica do autor).</p>
     <div id="mmBody"></div>
+  </div>
+</div>
+<div id="betaModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closeBeta()"></div>
+  <div class="modal-content">
+    <div class="modal-header"><div class="modal-title">🧪 Versão em testes (beta)</div><button class="modal-close-btn" type="button" onclick="closeBeta()">✕</button></div>
+    <p style="font-size:.9rem;line-height:1.5;margin:0 0 10px">O OrtoFly está <b>funcional</b> e você pode usá-lo à vontade — mas ainda <b>não passou por validação completa</b>.</p>
+    <p style="font-size:.9rem;line-height:1.5;margin:0 0 10px">Os produtos gerados (ortomosaico, DSM, nuvem de pontos, medidas e índices de vegetação) <b>podem conter imprecisões</b>. <b>Confira e valide os resultados</b> antes de usá-los em trabalhos técnicos, laudos ou decisões — de preferência com <b>pontos de controle (GCP)</b> e/ou um software de referência (ex.: QGIS). Uso <b>por sua conta e risco, sem garantias</b>.</p>
+    <p class="hint" style="margin:0 0 14px">💬 Testou? Sua opinião ajuda muito — conte como foi e como ficaram os produtos pela aba <b>⭐ Avaliações</b> (no rodapé).</p>
+    <button type="button" class="primary-btn" style="width:100%" onclick="ackBeta()">Entendi — vou validar os produtos</button>
   </div>
 </div>
 <div id="pixModal" class="modal hidden">
@@ -639,8 +651,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.18.2 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.18.2';
+/* ═══════════════ OrtoFly v1.18.3 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.18.3';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1916,6 +1928,10 @@ function showMM(title,text){ if(!$('mmModal')) return; $('mmTitle').textContent=
   $('mmBody').innerHTML='<div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="btn sm" onclick="citeCopy(this)">Copiar</button></div><pre style="white-space:pre-wrap;word-break:break-word;font-size:12.5px;border:1px solid var(--border);border-radius:8px;padding:8px;margin:0">'+e(text)+'</pre>';
   $('mmModal').classList.remove('hidden'); }
 function closeMM(){ $('mmModal').classList.add('hidden'); }
+function showBeta(){ const m=$('betaModal'); if(m) m.classList.remove('hidden'); }
+function closeBeta(){ const m=$('betaModal'); if(m) m.classList.add('hidden'); }
+function ackBeta(){ try{ localStorage.setItem(LS+'_beta_ack','1'); }catch(e){} closeBeta(); }
+(function(){ try{ if(!localStorage.getItem(LS+'_beta_ack')) setTimeout(showBeta, 700); }catch(e){} })();
 
 /* --- 3D (three.js) --- */
 let _3d=null, _3dObj=null, _ptBase=0.1;
