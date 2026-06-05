@@ -4,7 +4,17 @@ Guia para rodar o **NodeODM** (motor de fotogrametria do OpenDroneMap) no **macO
 **⚙️ Processar** do OrtoFly para gerar **ortomosaico, DSM, nuvem de pontos e malha 3D** — tudo no seu Mac, **de graça**.
 
 > 🌐 **Use o Chrome ou o Edge** para abrir o OrtoFly. O **Safari não funciona** com o NodeODM local (ele bloqueia a conexão da página `https://` para o `http://127.0.0.1`, mesmo sendo no seu próprio Mac).
-> 🧑‍💻 O "Terminal" é o app de comandos do Mac: **Launchpad → Terminal** (ou Spotlight **⌘+Espaço** → digite "Terminal"). Cole os comandos e dê Enter.
+
+> ## 🧑‍💻 Nunca usou o Terminal? Leia esta caixa uma vez
+>
+> Quase todos os passos abaixo são **comandos para o Terminal** (o app de comandos do Mac). Não há arquivos para criar — é só colar e teclar Enter.
+>
+> - **Abrir o Terminal:** **Launchpad → Terminal**, ou **⌘ + Espaço** (Spotlight) → digite **`Terminal`** → Enter.
+> - **Como colar:** copie o comando do guia → clique na janela do Terminal → tecle **⌘ + V** (colar) → tecle **Enter**.
+> - **Quando pedir senha:** alguns comandos (Homebrew) pedem a **senha do seu Mac**. Ao digitar, o Terminal **não mostra nada** — nem pontinhos. É **normal**: digite a senha "às cegas" e tecle **Enter**.
+> - ⚠️ **Fechar o Terminal NÃO desliga o NodeODM** — ele segue rodando em segundo plano (no Docker/Colima) até você mandar parar.
+>
+> 👉 Para não gerar dúvida, **cada passo abaixo repete** essas instruções.
 
 ## ✅ Resultado final
 - NodeODM rodando em `http://127.0.0.1:3000`, conectado ao OrtoFly.
@@ -30,7 +40,9 @@ Escolha **um** jeito de instalar o Docker:
 1. Acesse **https://www.docker.com/products/docker-desktop/** → **Download for Mac** → escolha **Apple Silicon** ou **Intel** conforme seu Mac.
 2. Abra o `.dmg` e **arraste o Docker** para a pasta **Aplicativos**.
 3. Abra o **Docker** (Launchpad → Docker). Autorize na 1ª vez (pode pedir sua senha). Espere a baleia 🐳 na barra de menu ficar **"running"**.
-4. Abra o **Terminal** e cole:
+4. **Suba o NodeODM:**
+
+   🟢 **Abra o Terminal** — *Launchpad → Terminal* (ou *⌘+Espaço → "Terminal"*). **Cole** o comando abaixo (**⌘+V**) e tecle **Enter**:
    ```bash
    docker run -d --name nodeodm --restart unless-stopped -p 3000:3000 opendronemap/nodeodm
    ```
@@ -38,20 +50,29 @@ Escolha **um** jeito de instalar o Docker:
 5. **Confira:** abra **http://127.0.0.1:3000/info** no navegador → JSON com `"version"`. ✅
 
 ## 2️⃣ Opção 2 — Colima (leve, grátis)
-1. Instale o **Homebrew** (gerenciador de pacotes do Mac), se ainda não tiver — cole no Terminal:
+
+1. **Instale o Homebrew** (gerenciador de pacotes do Mac), se ainda não tiver.
+
+   🟢 **No Terminal** — *Launchpad → Terminal*. **Cole** (**⌘+V**) e tecle **Enter**:
    ```bash
    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
    ```
-   *(siga as instruções; ao final ele pode pedir 2 comandos para adicionar o `brew` ao PATH — copie e cole)*
-2. Instale o Colima + o cliente Docker:
+   > Ele vai **pedir a senha do seu Mac** — digite "às cegas" (não aparece nada) e Enter. Ao final, pode mostrar **2 comandos** para adicionar o `brew` ao PATH: **copie e cole cada um** no Terminal e Enter.
+2. **Instale o Colima + o cliente Docker.**
+
+   🟢 **No Terminal** — **cole** e tecle **Enter**:
    ```bash
    brew install colima docker
    ```
-3. Inicie o Colima (a "máquina" que roda os containers):
+3. **Inicie o Colima** (a "máquina" que roda os containers).
+
+   🟢 **No Terminal** — **cole** e tecle **Enter**:
    ```bash
    colima start
    ```
-4. Suba o NodeODM:
+4. **Suba o NodeODM.**
+
+   🟢 **No Terminal** — **cole** e tecle **Enter**:
    ```bash
    docker run -d --name nodeodm --restart unless-stopped -p 3000:3000 opendronemap/nodeodm
    ```
@@ -71,7 +92,7 @@ Escolha **um** jeito de instalar o Docker:
 ## 🔧 Solução de problemas
 - **Estou no Safari e não conecta:** o Safari **bloqueia** a conexão `https://` → `http://127.0.0.1` (mesmo sendo local) e **não tem como liberar**. **Use o Chrome ou o Edge.**
 - **"Failed to fetch" / não conecta (Chrome/Edge):**
-  1. Confirme o Docker rodando: `docker ps` no Terminal deve listar **nodeodm**. Se não: `docker start nodeodm` (no Colima, antes: `colima start`).
+  1. Confirme o Docker rodando: 🟢 no Terminal, **cole** `docker ps` e Enter — deve listar **nodeodm**. Se não: `docker start nodeodm` (no Colima, antes: `colima start`).
   2. Abra **http://127.0.0.1:3000/info** no navegador. **Apareceu o JSON?** Então o servidor está ok e o problema é a **permissão de rede local** (próximo item).
   3. Use `127.0.0.1` (o app já usa por padrão) e recarregue com **⌘+Shift+R**.
 - **"Permission was denied... loopback address space" (Chrome/Edge):** você clicou em **Bloquear** no aviso de acesso à rede local. Para reverter:
@@ -84,6 +105,8 @@ Escolha **um** jeito de instalar o Docker:
 ## 🔁 Dia a dia — ligar, desligar e conferir
 > ⚠️ **Fechar o Terminal NÃO para o NodeODM.** Ele roda em segundo plano (dentro do Docker/Colima) até você mandar parar — o Terminal é só onde você digita os comandos.
 
+Todos os comandos desta tabela rodam 🟢 **no Terminal** (cole com **⌘+V** e tecle **Enter**):
+
 | Ação | Comando |
 |---|---|
 | **Conferir se está no ar** | `docker ps` — tem que listar **nodeodm** com status `Up` (ou abra `http://127.0.0.1:3000/info`) |
@@ -91,19 +114,24 @@ Escolha **um** jeito de instalar o Docker:
 | **Iniciar de novo** | `docker start nodeodm` |
 | **Desligar tudo** (libera RAM/CPU) | `docker stop nodeodm` e depois `colima stop` |
 
-- **Depois de reiniciar o Mac:** rode `colima start` — o NodeODM **volta sozinho** (foi criado com `--restart unless-stopped`). Se não voltar: `docker start nodeodm`.
+- **Depois de reiniciar o Mac:** 🟢 no Terminal, rode `colima start` — o NodeODM **volta sozinho** (foi criado com `--restart unless-stopped`). Se não voltar: `docker start nodeodm`.
 - **Não precisa recriar nada:** o container `nodeodm` já existe; o `docker run` da instalação é **só na primeira vez**. No dia a dia é só ligar/desligar.
 
 ## 🧠 Dar mais memória/CPU ao NodeODM — para muitas fotos
-**Colima** sobe com **2 CPU / 2 GB de RAM** por padrão, o que limita o ODM (com muitas fotos fica lento ou **falha**). Para aumentar — **precisa parar e subir de novo**:
+**Colima** sobe com **2 CPU / 2 GB de RAM** por padrão, o que limita o ODM (com muitas fotos fica lento ou **falha**). Para aumentar é preciso **parar e subir de novo**.
+
+🟢 **No Terminal** — **cole** o primeiro comando e **Enter**:
 ```bash
 colima stop
+```
+Em seguida **cole** este e **Enter** (ajuste os números pela RAM do seu Mac — veja a tabela):
+```bash
 colima start --cpu 6 --memory 16
 ```
 - Use no máximo ~**metade a ⅔ da RAM** do Mac: **32 GB → `--memory 16`**, **16 GB → `--memory 8`**, **8 GB → `--memory 4`**. Não dê tudo, senão o macOS engasga.
 - A configuração **fica salva** (os próximos `colima start` já usam). Confira em **http://127.0.0.1:3000/info** — `totalMemory`/`totalCores`.
 
-**Docker Desktop:** ajuste em **⚙️ Settings → Resources** → barras de **CPU / Memory** (e **Virtual disk limit**) → **Apply & restart**.
+**Docker Desktop:** não usa Terminal — ajuste em **⚙️ Settings → Resources** → barras de **CPU / Memory** (e **Virtual disk limit**) → **Apply & restart**.
 
 ## 🧹 Limpeza de disco (importante!)
 O NodeODM guarda **todas as tarefas** (fotos + intermediários + resultados) até você apagá-las. Cada processamento — em especial **DSM/modo completo** — pode ocupar **dezenas de GB**. Sem limpar, o disco enche e **novos processamentos falham**.
@@ -111,15 +139,26 @@ O NodeODM guarda **todas as tarefas** (fotos + intermediários + resultados) at�
 **No dia a dia, pelo app** (igual ao Windows): **💾 Salvar** ou **🗑️ Descartar** cada tarefa; tarefa que **falhou também ocupa disco**; aba **⚙️ Processar → 🧹 Limpar tudo do NodeODM** remove todas de uma vez.
 
 **Recuperar o espaço no Mac** (de vez em quando):
-1. Apague as tarefas (pelo app em *Limpar tudo*, ou no Terminal):
-   ```bash
-   docker exec nodeodm sh -lc "rm -rf /var/www/data/*"
-   docker restart nodeodm
-   docker system prune -f
-   ```
-2. O **disco virtual** do Docker no Mac também não encolhe sozinho. Para devolver o espaço:
-   - **Docker Desktop:** ícone 🐞 **Troubleshoot → Clean / Purge data** (ou **Settings → Resources** → reduza o **Virtual disk limit**). Versões recentes também recuperam sozinhas com o tempo.
-   - **Colima:** limpeza total da VM — `colima stop` → `colima delete` → `colima start` → recrie com `docker run -d --name nodeodm --restart unless-stopped -p 3000:3000 opendronemap/nodeodm` *(você já salva os produtos no app)*.
+
+**Passo 1 — Apague as tarefas** (pelo app em *Limpar tudo*, ou no Terminal).
+
+🟢 **No Terminal** — **cole** cada linha e tecle **Enter** (uma de cada vez):
+```bash
+docker exec nodeodm sh -lc "rm -rf /var/www/data/*"
+docker restart nodeodm
+docker system prune -f
+```
+
+**Passo 2 — Devolver o espaço do disco virtual do Docker** (ele não encolhe sozinho):
+- **Docker Desktop:** ícone 🐞 **Troubleshoot → Clean / Purge data** (ou **Settings → Resources** → reduza o **Virtual disk limit**). Versões recentes também recuperam sozinhas com o tempo.
+- **Colima:** limpeza total da VM. 🟢 No Terminal, **cole** uma linha de cada vez e Enter:
+  ```bash
+  colima stop
+  colima delete
+  colima start
+  docker run -d --name nodeodm --restart unless-stopped -p 3000:3000 opendronemap/nodeodm
+  ```
+  *(você já salva os produtos no app, então não perde resultados)*
 
 ---
 
