@@ -5,6 +5,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.5] — Junho 2026
+
+### ✨ Opção "Economizar RAM" no processamento (NodeODM)
+
+- Novo checkbox **Economizar RAM (resize 2048 · nuvem em baixa)** na aba ⚙️ Processar. Envia ao ODM `resize-to=2048` + `pc-quality=low`, cortando bastante o uso de memória — para **conjuntos grandes no modo completo (Gerar DSM)**, que costumam **estourar a RAM na texturização** (`Killed` / `Child returned 137`). É o "completo leve": ainda gera DSM/nuvem/3D, com menos detalhe.
+- A dica de falha por memória passa a sugerir marcar **Economizar RAM** (ou aumentar o `swap` no `.wslconfig`).
+- Guia **Boas práticas** atualizado: a Seção 3 documenta a nova opção.
+
+---
+
 ## [1.18.4] — Junho 2026
 
 ### 🐛 Correção: falha do NodeODM dizia "disco cheio" mesmo com disco livre

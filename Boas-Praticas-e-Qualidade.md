@@ -58,6 +58,14 @@ Os dois começam igual: o **SfM** (*Structure from Motion*) descobre de onde cad
 
 **Nº de fotos:** de dezenas a centenas. Mais fotos = mais **RAM e tempo** — especialmente no Completo.
 
+### Estourou a RAM no Completo? Use "Economizar RAM"
+Conjuntos grandes (centenas de fotos) costumam **morrer por falta de memória** no modo completo — quase sempre na **texturização** (no log: `Killed` / `Child returned 137`, e o próprio ODM diz *"You ran out of memory"*). Duas saídas, que **se somam**:
+
+- **No app:** marque **Economizar RAM** (envia `resize-to=2048` + `pc-quality=low`) — processa imagens menores e a nuvem densa em baixa, aliviando muito a memória. É o **"completo leve"**: ainda entrega DSM/nuvem/3D, só que com **menos detalhe**.
+- **No sistema:** aumente **memória/swap** do NodeODM (seção **🧠 Memória e CPU** do guia de instalação). O **swap** faz a etapa pesada **terminar devagar** em vez de ser morta — **sem perder qualidade**.
+
+> Ordem prática: 1º ajuste o `swap` (resolve sem abrir mão de detalhe); se ainda faltar, marque **Economizar RAM**; em último caso, **menos fotos por rodada** ou rode num **NodeODM na nuvem** (modo Servidor).
+
 ## 4. "Buracos" na nuvem são normais
 A reconstrução depende de a **mesma textura** aparecer em várias fotos. Buracos vêm de: **modo Rápido**, **água/superfícies lisas**, **sombras**, **bordas** (menos sobreposição) e **objetos em movimento**. Para encher: **modo Completo + mais sobreposição + boa luz**.
 

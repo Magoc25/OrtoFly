@@ -476,6 +476,7 @@ footer{
         <div class="row" style="margin-top:8px"><div class="field"><label for="odmName">Nome</label><input id="odmName" type="text" maxlength="40" placeholder="meu-voo" /></div></div>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;cursor:pointer"><input type="checkbox" id="odmFast" checked style="width:auto" /> Rápido (fast-orthophoto)</label>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;cursor:pointer"><input type="checkbox" id="odmDsm" style="width:auto" /> Gerar DSM (superfície · usa modo completo, mais lento)</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;cursor:pointer" title="Reduz o uso de memória: envia resize-to=2048 e pc-quality=low ao ODM (imagens menores + nuvem densa em baixa). Recomendado p/ conjuntos grandes no modo completo (Gerar DSM), que costuma estourar a RAM na texturização."><input type="checkbox" id="odmLite" style="width:auto" /> Economizar RAM (resize 2048 · nuvem em baixa) — conjuntos grandes</label>
         <button class="btn primary block" onclick="odmCreate()">🚀 Enviar e processar</button>
         <p class="hint">Dezenas–centenas de fotos. Datasets enormes podem pesar no upload.</p>
       </div>
@@ -508,7 +509,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.18.4</span>
+  <span id="appVersion">© MGC · v1.18.5</span>
 </footer>
 
 <!-- PIX modal -->
@@ -651,8 +652,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.18.4 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.18.4';
+/* ═══════════════ OrtoFly v1.18.5 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.18.5';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -2097,9 +2098,10 @@ async function odmTest(){ const u=odmUrlVal(); if(!u){ toast('Informe a URL do N
 async function odmCreate(){ const u=odmUrlVal(); if(!u){ toast('Configure e teste a URL do NodeODM','error'); return; }
   if(!_odmFiles||!_odmFiles.length){ toast('Selecione as imagens','error'); return; }
   if(_odmFiles.length<5 && !confirm('Poucas imagens ('+_odmFiles.length+'). O ODM costuma precisar de dezenas. Continuar?')) return;
-  const opts=[]; const wantDsm=$('odmDsm')&&$('odmDsm').checked;
+  const opts=[]; const wantDsm=$('odmDsm')&&$('odmDsm').checked; const lite=$('odmLite')&&$('odmLite').checked;
   if($('odmFast').checked && !wantDsm) opts.push({name:'fast-orthophoto',value:true});
   if(wantDsm) opts.push({name:'dsm',value:true});
+  if(lite){ opts.push({name:'resize-to',value:2048}); opts.push({name:'pc-quality',value:'low'}); } // economiza RAM: imagens menores + nuvem densa em baixa (alivia a texturização, que estoura a memória em conjuntos grandes)
   const fd=new FormData(); _odmFiles.forEach(f=>fd.append('images',f,f.name)); fd.append('name',($('odmName').value||'ortofly').trim()); fd.append('options',JSON.stringify(opts));
   odmStatus('Enviando '+_odmFiles.length+' imagens… (pode demorar)');
   try{ const r=await fetch(u+'/task/new',{method:'POST',body:fd}); const j=await r.json().catch(()=>({})); if(!r.ok||!j.uuid) throw new Error(j.error||('HTTP '+r.status));
@@ -2129,7 +2131,7 @@ function odmShowOutputs(){ const box=$('odmOutputs'); if(!box) return; box.class
 function odmShowFailure(st,err){ const box=$('odmOutputs'); if(!box) return; box.classList.remove('hidden');
   const head=st===30?'❌ A tarefa <b>falhou</b>':'⏹️ Tarefa <b>cancelada</b>';
   box.innerHTML=`<p class="hint">${head}${err?' — <b>motivo do NodeODM:</b> '+esc(err):''}</p>`+
-    (st===30?'<p class="hint">No <b>modo completo (Gerar DSM)</b> a causa costuma ser <b>falta de memória (RAM)</b> ou <b>disco cheio</b> — ele é bem mais pesado que o rápido. Veja o <b>log</b> p/ o motivo real: <i>Killed</i> ou <i>exit code 137</i> = memória; <i>No space left on device</i> = disco.</p>':'')+
+    (st===30?'<p class="hint">No <b>modo completo (Gerar DSM)</b> a causa costuma ser <b>falta de memória (RAM)</b> ou <b>disco cheio</b> — ele é bem mais pesado que o rápido. Veja o <b>log</b> p/ o motivo real: <i>Killed</i> ou <i>exit code 137</i> = memória; <i>No space left on device</i> = disco. Se for memória, marque <b>Economizar RAM</b> na próxima tarefa (ou aumente o <code>swap</code> no <code>.wslconfig</code>).</p>':'')+
     '<div class="btn-grid" style="margin-top:6px"><button class="btn sm" onclick="odmShowLog()">📜 Ver log do NodeODM</button></div>'+
     '<pre id="odmLog" class="hidden" style="max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:11px;line-height:1.45;background:var(--bg);color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:6px"></pre>'+
     '<p class="hint" style="margin-top:6px">Os dados parciais <b>ainda ocupam disco</b> no NodeODM. Depois de ver o log, clique em <b>🗑️ Descartar</b> acima p/ liberar.</p>'; }
