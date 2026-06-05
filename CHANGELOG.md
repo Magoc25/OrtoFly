@@ -5,6 +5,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.2] — Junho 2026
+
+### 🐛 Correção: app preso em versão antiga (cache do Service Worker)
+
+- O Service Worker servia o app sempre do **cache** (cache-first): atualizações só apareciam após **Ctrl+F5** e voltavam à versão antiga no acesso seguinte. Sintoma — o botão **🧹 Disco / manutenção** (novo na v1.18.0) não aparecia, enquanto o rodapé já mostrava a versão nova (lida à parte, sem cache), mascarando o problema.
+- Agora o app usa **network-first** para o HTML: carrega sempre a versão mais recente quando online e usa o cache só **offline** (ícones/manifest seguem em cache).
+- Resolve um efeito colateral: preso numa versão antiga, o app podia deixar **tarefas órfãs** no NodeODM (sem o rastreio/limpeza da v1.18.0). Com a versão sempre atual, o **🧹 Limpar tudo** passa a funcionar como esperado.
+
+---
+
 ## [1.18.1] — Junho 2026
 
 ### 🔍 Auditoria do código (limpeza)
