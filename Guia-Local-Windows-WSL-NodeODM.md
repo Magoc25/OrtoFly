@@ -149,6 +149,45 @@ timeout /t 3 /nobreak >nul
 
 ---
 
+## 🧹 Limpeza de disco (importante!)
+
+O NodeODM guarda **todas as tarefas** (fotos + resultados + intermediários) em disco **até você apagá-las**. Cada processamento — principalmente com **DSM (modo completo)** — pode ocupar **dezenas de GB**. Se não limpar, o disco enche e **novos processamentos falham** (falha de DSM quase sempre é **disco cheio**).
+
+**No dia a dia, pelo app:**
+- Ao concluir: **💾 Salvar no projeto** (guarda no app e apaga do servidor) ou **🗑️ Descartar** (apaga do servidor).
+- Tarefa que **falhou/cancelou** **também ocupa disco** → use **🗑️ Descartar**.
+- Aba **⚙️ Processar → 🧹 Limpar tudo do NodeODM**: remove de uma vez todas as tarefas que o app criou.
+
+**⚠️ No Windows (WSL) há um detalhe:** apagar as tarefas libera o espaço **dentro** do disco virtual do WSL (`ext4.vhdx`), mas esse arquivo **não encolhe sozinho** — o **C:** só recupera o espaço depois de **compactar** o disco virtual.
+
+### Limpeza completa (recupera o espaço no C:)
+
+1. **Apague as tarefas do NodeODM** (pelo app em *Limpar tudo*, ou no PowerShell):
+   ```powershell
+   wsl -d Ubuntu -u root -- docker exec nodeodm sh -lc "rm -rf /var/www/data/*"
+   wsl -d Ubuntu -u root -- docker restart nodeodm
+   ```
+2. **Compacte o disco virtual do WSL** (devolve o espaço ao C:). Crie **`compactar-wsl.bat`**, clique com o botão direito → **Executar como administrador**:
+   ```bat
+   @echo off
+   wsl --shutdown
+   timeout /t 5 /nobreak >nul
+   for /f "delims=" %%P in ('powershell -NoProfile -Command "(Get-ChildItem $env:LOCALAPPDATA\Packages\CanonicalGroupLimited.Ubuntu*\LocalState\ext4.vhdx).FullName"') do set "VHDX=%%P"
+   > "%TEMP%\c.txt" echo select vdisk file="%VHDX%"
+   >> "%TEMP%\c.txt" echo attach vdisk readonly
+   >> "%TEMP%\c.txt" echo compact vdisk
+   >> "%TEMP%\c.txt" echo detach vdisk
+   >> "%TEMP%\c.txt" echo exit
+   diskpart /s "%TEMP%\c.txt"
+   del "%TEMP%\c.txt"
+   pause
+   ```
+   O NodeODM volta sozinho ao reabrir o WSL/Docker (política `--restart`).
+
+> 💡 Ajuste `Ubuntu` / `nodeodm` se o nome do seu distro/contêiner for diferente (`wsl -l -v` e `docker ps`).
+
+---
+
 ## 📝 Notas
 - A imagem `opendronemap/nodeodm` é **multiarquitetura** (Intel/AMD e ARM).
 - Tudo roda **localmente** — suas fotos **não** vão para servidores externos.

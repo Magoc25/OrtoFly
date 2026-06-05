@@ -5,6 +5,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.0] — Junho 2026
+
+### 🧹 Higiene de disco do NodeODM (corrige o disco enchendo)
+
+- **Descartar agora é honesto:** confere se a tarefa foi realmente removida do NodeODM. Se não conseguir (servidor offline/ocupado), **avisa que ainda ocupa disco** e mantém o card para você tentar de novo — antes ele sumia dizendo "Descartado ✅" mesmo sem remover.
+- **Tarefa que falha/cancela** agora mostra um aviso de que **ocupa disco** e orienta a **🗑️ Descartar** (falha de DSM costuma ser **disco cheio**).
+- **Rastreio de todas as tarefas + 🧹 Limpar tudo do NodeODM:** o app passa a guardar o `uuid` de **toda** tarefa criada (o NodeODM não lista tarefas). Antes, ao criar uma nova, a anterior virava **órfã** ocupando disco para sempre. Novo botão (aba ⚙️ Processar → *Disco / manutenção*) remove **todas** de uma vez.
+- **Aviso do WSL:** o app e o guia explicam que, no Windows, liberar o NodeODM não devolve o espaço ao **C:** até **compactar o disco virtual do WSL** — com **passo a passo** no [Guia do Windows](./Guia-Local-Windows-WSL-NodeODM.md#-limpeza-de-disco-importante).
+
+---
+
 ## [1.17.2] — Junho 2026
 
 ### ✨ Importar pontos — TXT (tabulação) explícito

@@ -488,6 +488,12 @@ footer{
         </div>
         <div id="odmOutputs" class="hidden" style="margin-top:8px"></div>
       </div>
+      <div class="card">
+        <h2>🧹 Disco / manutenção</h2>
+        <button class="btn sm block" onclick="odmCleanAll()">🧹 Limpar tudo do NodeODM (liberar disco)</button>
+        <p class="hint" style="margin-top:6px">Remove do servidor <b>todas</b> as tarefas que o app criou (concluídas, falhas ou abandonadas). Use quando o disco do NodeODM encher.</p>
+        <p class="hint" style="margin-top:4px">⚠️ <b>Windows/WSL:</b> isso libera o disco <i>dentro</i> do servidor, mas o espaço só volta ao <b>C:</b> depois de <b>compactar o disco virtual do WSL</b> — veja a seção “Limpeza de disco” no guia do Windows.</p>
+      </div>
     </div>
   </aside>
 </div>
@@ -500,7 +506,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.17.2</span>
+  <span id="appVersion">© MGC · v1.18.0</span>
 </footer>
 
 <!-- PIX modal -->
@@ -634,7 +640,7 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.10.1 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.17.2';
+const APP_VERSION = '1.18.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -2081,7 +2087,7 @@ async function odmCreate(){ const u=odmUrlVal(); if(!u){ toast('Configure e test
   const fd=new FormData(); _odmFiles.forEach(f=>fd.append('images',f,f.name)); fd.append('name',($('odmName').value||'ortofly').trim()); fd.append('options',JSON.stringify(opts));
   odmStatus('Enviando '+_odmFiles.length+' imagens… (pode demorar)');
   try{ const r=await fetch(u+'/task/new',{method:'POST',body:fd}); const j=await r.json().catch(()=>({})); if(!r.ok||!j.uuid) throw new Error(j.error||('HTTP '+r.status));
-    _odmTask=j.uuid; localStorage.setItem(LS+'_odm_task',j.uuid); odmStatus('✅ Tarefa criada: '+j.uuid); $('odmTaskCard').classList.remove('hidden'); $('odmOutputs').classList.add('hidden'); odmStartPoll(); toast('Tarefa enviada ✅');
+    _odmTask=j.uuid; localStorage.setItem(LS+'_odm_task',j.uuid); odmTrack(j.uuid); odmStatus('✅ Tarefa criada: '+j.uuid); $('odmTaskCard').classList.remove('hidden'); $('odmOutputs').classList.add('hidden'); odmStartPoll(); toast('Tarefa enviada ✅');
   }catch(e){ console.error('[ODM] create',e); odmStatus('❌ Falha ao criar tarefa: '+e.message,true); toast('Falha: '+e.message,'error'); } }
 function odmStartPoll(){ if(_odmPoll) clearInterval(_odmPoll); odmRefresh(); _odmPoll=setInterval(odmRefresh,5000); }
 function odmClearCard(){ if(_odmPoll) clearInterval(_odmPoll); _odmTask=null; _odmZip=null; _odmZipFor=null; _odmZipRaw=null; _odmSavedMode=false; _odmResultProj=null; _odmSaved=false; localStorage.removeItem(LS+'_odm_task'); $('odmTaskCard').classList.add('hidden'); $('odmOutputs').classList.add('hidden'); odmStatus(''); }
@@ -2092,7 +2098,7 @@ async function odmRefresh(){ const u=odmUrlVal(); if(!u||!_odmTask) return;
     $('odmTaskStatus').textContent=`${j.name||_odmTask} · ${codes[st]||('código '+st)}${pct!=null?' · '+pct+'%':''}${j.imagesCount?' · '+j.imagesCount+' img':''}`;
     const ob=$('odmBar'),ofl=$('odmBarFill'); if(ob){ if(st===20){ ob.style.display='block'; if(ofl) ofl.style.width=(pct||0)+'%'; } else ob.style.display='none'; }
     if(st===40){ if(_odmPoll) clearInterval(_odmPoll); odmShowOutputs(); }
-    else if(st===30||st===50){ if(_odmPoll) clearInterval(_odmPoll); $('odmOutputs').classList.add('hidden'); }
+    else if(st===30||st===50){ if(_odmPoll) clearInterval(_odmPoll); const ob2=$('odmOutputs'); if(ob2){ ob2.classList.remove('hidden'); ob2.innerHTML='<p class="hint">'+(st===30?'❌ A tarefa <b>falhou</b>':'⏹️ Tarefa <b>cancelada</b>')+' — os dados parciais <b>ainda ocupam disco</b> no NodeODM. Clique em <b>🗑️ Descartar</b> acima para liberar (falha de DSM costuma ser <b>disco cheio</b>).</p>'; } }
   }catch(e){ console.error('[ODM] info',e); $('odmTaskStatus').textContent='Erro ao consultar status: '+e.message; } }
 function odmShowOutputs(){ const box=$('odmOutputs'); if(!box) return; box.classList.remove('hidden'); const saved=_odmSavedMode;
   box.innerHTML='<div class="spec" style="margin-bottom:6px">'+(saved?'Resultado salvo ✅ — abrir/baixar (offline):':'Concluído ✅ — abrir/baixar (extraído do all.zip):')+'</div><div class="btn-grid">'+
@@ -2132,6 +2138,20 @@ async function idbPut(k,v){ const db=await _idb(); return new Promise((res,rej)=
 async function idbGet(k){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readonly'); const q=tx.objectStore(IDB_STORE).get(k); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); }); }
 async function idbDel(k){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).delete(k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
 async function odmRemoveServer(uuid){ const u=odmUrlVal(); if(!u||!uuid) return false; try{ const fd=new FormData(); fd.append('uuid',uuid); const r=await fetch(u+'/task/remove',{method:'POST',body:fd}); return r.ok; }catch(e){ console.warn('[ODM] remove',e); return false; } }
+// rastreia TODAS as tarefas criadas (NodeODM não lista tarefas; sem isso, ao criar uma nova a anterior vira órfã no disco)
+function odmTracked(){ try{ return JSON.parse(localStorage.getItem(LS+'_odm_tasks')||'[]'); }catch(e){ return []; } }
+function odmTrack(uuid){ if(!uuid) return; const a=odmTracked(); if(!a.includes(uuid)){ a.push(uuid); localStorage.setItem(LS+'_odm_tasks',JSON.stringify(a)); } }
+function odmUntrack(uuid){ localStorage.setItem(LS+'_odm_tasks',JSON.stringify(odmTracked().filter(x=>x!==uuid))); }
+async function odmCleanAll(){
+  const u=odmUrlVal(); if(!u){ toast('Conecte ao NodeODM primeiro','error'); return; }
+  const list=odmTracked(); if(!list.length){ toast('Nenhuma tarefa registrada para limpar'); return; }
+  if(!confirm('Remover TODAS as '+list.length+' tarefa(s) que o app criou no NodeODM?\n\nLibera o disco do servidor. Não dá pra desfazer.')) return;
+  odmStatus('Limpando '+list.length+' tarefa(s) do NodeODM…'); let ok=0;
+  for(const uuid of list.slice()){ if(await odmRemoveServer(uuid)){ ok++; odmUntrack(uuid); } }
+  if(_odmTask && !odmTracked().includes(_odmTask)) odmClearCard();
+  odmStatus(`🧹 ${ok}/${list.length} tarefa(s) removida(s) do NodeODM.`+(ok<list.length?' Algumas falharam (servidor offline?).':'')+' No Windows/WSL, compacte o disco virtual p/ devolver o espaço ao C: (veja o guia).');
+  if(ok) toast('Limpou '+ok+' tarefa(s) do NodeODM ✅'); else toast('Nada removido (servidor offline?)','error');
+}
 async function odmSaveResult(){
   if(_odmSavedMode){ toast('Este resultado já está salvo'); return; }
   if(!_odmTask){ toast('Sem resultado para salvar','error'); return; }
@@ -2148,7 +2168,7 @@ async function odmSaveResult(){
     await idbPut('result_'+rec.id, _odmZipRaw);
     storeProjects(arr); state.name=name; if($('projName')) $('projName').value=name;
     const uuid=_odmTask; _odmSaved=true;
-    const removed=await odmRemoveServer(uuid);
+    const removed=await odmRemoveServer(uuid); if(removed) odmUntrack(uuid);
     if(_odmPoll) clearInterval(_odmPoll);
     _odmTask=null; localStorage.removeItem(LS+'_odm_task'); _odmSavedMode=true; _odmResultProj=rec.id;
     odmShowOutputs();
@@ -2157,12 +2177,13 @@ async function odmSaveResult(){
   }catch(e){ console.error('[ODM] save',e); _odmSaved=false; toast('Falha ao salvar: '+e.message,'error'); odmStatus('❌ '+e.message,true); }
 }
 async function odmDiscard(){
-  if(!_odmTask && !_odmSavedMode){ odmClearCard(); return; }
-  if(_odmTask && !confirm('Descartar este processamento?\n\nAs fotos e os produtos serão APAGADOS do NodeODM (libera o disco). Não dá pra desfazer.')) return;
   const uuid=_odmTask;
-  if(uuid){ odmStatus('Descartando e liberando o disco do NodeODM…'); await odmRemoveServer(uuid); }
-  odmClearCard();
-  toast('Descartado ✅');
+  if(!uuid){ odmClearCard(); return; }   // modo salvo / sem tarefa no servidor: só fecha o card
+  if(!confirm('Descartar este processamento?\n\nAs fotos e os produtos serão APAGADOS do NodeODM (libera o disco). Não dá pra desfazer.')) return;
+  odmStatus('Descartando e liberando o disco do NodeODM…');
+  const ok=await odmRemoveServer(uuid);
+  if(ok){ odmUntrack(uuid); odmClearCard(); toast('Descartado ✅ (disco do servidor liberado)'); }
+  else { odmStatus('❌ Não removi do NodeODM (servidor offline/ocupado?). A tarefa AINDA ocupa disco — ligue o NodeODM e tente de novo, ou use 🧹 Limpar tudo.',true); toast('Falha ao remover do NodeODM','error'); }  // mantém o card p/ retry (não some silenciosamente)
 }
 async function odmLoadSavedResult(id){
   try{ odmClearCard(); odmStatus('Carregando resultado salvo…');
