@@ -129,6 +129,20 @@ Todos os comandos desta tabela rodam 🟢 **no Terminal** (cole com **⌘+V** e 
 - **Depois de reiniciar o Mac:** 🟢 no Terminal, rode `colima start` — o NodeODM **volta sozinho** (foi criado com `--restart unless-stopped`). Se não voltar: `docker start nodeodm`.
 - **Não precisa recriar nada:** o container `nodeodm` já existe; o `docker run` da instalação é **só na primeira vez**. No dia a dia é só ligar/desligar.
 
+## ❓ Durante o processamento
+
+**Posso fechar a tampa do MacBook com uma tarefa rodando?**
+Pode — mas o Mac **dorme** e o processamento **congela** (a VM do Colima e o ODM dentro dela). Ao **levantar a tampa**, ele **continua de onde parou** (não perde nada; o app reconecta). Só que **enquanto dorme não avança** — não dá pra "fechar e deixar terminando".
+- Para **continuar com a tampa fechada:** modo **clamshell** (monitor externo + **na tomada** + teclado/mouse externos).
+- Ou **tampa aberta + na tomada**, impedindo o sleep: 🟢 no Terminal rode `caffeinate -dimsu` (segura o Mac acordado enquanto o comando estiver aberto), ou *Ajustes → Bateria → Adaptador → "Impedir que o Mac durma automaticamente"*.
+
+> ⚠️ **Dormir ≠ reiniciar.** Acordar e deixar seguir: ok. Mas **não** rode `colima stop`/`colima restart` nem `docker stop` no meio — isso **mata** a tarefa (vira falha).
+
+**O que acontece se eu cancelar (✖ Cancelar no app)?**
+O ODM **para na hora** e **libera RAM/CPU**, mas **nenhum produto é gerado** (status vira ⏹️ *cancelado*).
+- ⚠️ Os **dados parciais continuam ocupando disco** — cancelar **não apaga**. Clique em **🗑️ Descartar** para liberar (ou 🧹 **Limpar tudo**).
+- O NodeODM continua ligado, pronto para a próxima tarefa.
+
 ## 🧠 Dar mais memória/CPU ao NodeODM — para muitas fotos
 **Colima** sobe com **2 CPU / 2 GB de RAM** por padrão, o que limita o ODM (com muitas fotos fica lento ou **falha**). Para aumentar é preciso **parar e subir de novo**.
 
