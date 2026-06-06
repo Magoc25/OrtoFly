@@ -509,7 +509,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.18.8</span>
+  <span id="appVersion">© MGC · v1.18.9</span>
 </footer>
 
 <!-- PIX modal -->
@@ -654,8 +654,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.18.8 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.18.8';
+/* ═══════════════ OrtoFly v1.18.9 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.18.9';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1550,13 +1550,23 @@ function _zfmt(v){ if(v==null||isNaN(v)) return '—'; const x=Math.abs(v); retu
 
 function parseZonalPoints(txt){
   const pts=[];
+  // (a,b) parecem um par de coordenadas? lat/lon (≤90,≤180 em qualquer ordem) ou projetadas (ambas grandes)
+  const isCoordPair=(a,b)=> (Math.abs(a)<=90&&Math.abs(b)<=180) || (Math.abs(a)<=180&&Math.abs(b)<=90) || (Math.abs(a)>=1000&&Math.abs(b)>=1000);
   (txt||'').split(/\r?\n/).forEach(line=>{
     const raw=line.trim(); if(!raw) return;
     const toks=raw.split(/[\s,;]+/).filter(t=>t!=='');
     const nums=[], name=[];
     toks.forEach(t=>{ const v=Number(t); if(isFinite(v)) nums.push(v); else name.push(t); });
     if(nums.length<2) return;
-    pts.push({name:name.join(' ')||('P'+(pts.length+1)), v0:nums[0], v1:nums[1], r:(nums.length>=3&&nums[2]>0)?nums[2]:null}); // 3º número = raio do ponto (opcional)
+    let v0,v1,r=null,lab=name.join(' ');
+    // rótulo NUMÉRICO no início (ex.: "21" de arquivo de topografia): se o 1º número não forma par
+    // de coordenadas com o 2º, mas o 2º+3º formam, então o 1º é o ID do ponto — não uma coordenada.
+    if(!name.length && nums.length>=3 && !isCoordPair(nums[0],nums[1]) && isCoordPair(nums[1],nums[2])){
+      lab=String(nums[0]); v0=nums[1]; v1=nums[2]; r=(nums.length===4&&nums[3]>0)?nums[3]:null;
+    }else{
+      v0=nums[0]; v1=nums[1]; r=(nums.length>=3&&nums[2]>0)?nums[2]:null; // 3º número = raio do ponto (opcional)
+    }
+    pts.push({name:lab||('P'+(pts.length+1)), v0, v1, r});
   });
   return pts;
 }

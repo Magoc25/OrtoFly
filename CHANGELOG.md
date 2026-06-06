@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.9] — Junho 2026
+
+### 🐛 Correção — estatística por pontos falhava com rótulo numérico (ex.: arquivos de topografia)
+
+- Pontos com **ID numérico** (`21  443162.71  9221928.44`, comum em `.txt`/CSV de topografia) eram mal interpretados: o parser tratava **todo número** como coordenada, então o ID `21` virava a 1ª coordenada e a **coordenada Norte virava "raio"** → ponto caía fora do raster → *"nenhum ponto retornou pixels"*. (Colar com rótulo que tem letra, como `p21`, funcionava — daí a diferença.)
+- Agora o parser **reconhece um ID numérico no início**: se o 1º número não forma par de coordenadas com o 2º, mas o 2º+3º formam, o 1º é o **rótulo do ponto**. Vale para UTM e lat/lon, sem quebrar os formatos atuais (`lat, lon` · `P2, lat, lon` · `E, N, raio`). A detecção de ordem E/N e lat/lon×UTM continua automática.
+
+---
+
 ## [1.18.8] — Junho 2026
 
 ### ✨ Visualizador 3D — baixar a vista atual (PNG)
