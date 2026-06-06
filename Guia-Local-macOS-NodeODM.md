@@ -143,6 +143,8 @@ colima start --cpu 6 --memory 16
 - Use no máximo ~**metade a ⅔ da RAM** do Mac: **32 GB → `--memory 16`**, **16 GB → `--memory 8`**, **8 GB → `--memory 4`**. Não dê tudo, senão o macOS engasga.
 - A configuração **fica salva** (os próximos `colima start` já usam). Confira em **http://127.0.0.1:3000/info** — `totalMemory`/`totalCores`.
 
+> ⚠️ **Diferença importante vs. Windows/WSL:** no WSL dá pra configurar um **swap** grande (memória virtual em disco) que segura o ODM nos picos — o processamento **termina devagar** em vez de falhar. O **Colima não expõe** esse swap: aqui vale a **RAM real** do `--memory`. Por isso, em Mac com pouca RAM, dê o máximo que puder e — para **conjuntos grandes no modo completo (DSM)** — marque **Economizar RAM** no app (envia `pc-quality=low`, derruba o pico de memória na texturização). Veja o guia de **Boas práticas**.
+
 **Docker Desktop:** não usa Terminal — ajuste em **⚙️ Settings → Resources** → barras de **CPU / Memory** (e **Virtual disk limit**) → **Apply & restart**.
 
 ## 🧹 Limpeza de disco (importante!)
