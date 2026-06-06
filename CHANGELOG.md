@@ -5,6 +5,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.7] — Junho 2026
+
+### 🐛 Correção — nuvem `.laz`/`.las` escura (cor não natural)
+
+- O leitor de nuvem assumia RGB de **16 bits** (dividia por `65535`). Quando o arquivo guarda o RGB em **8 bits (0–255)** — comum em saídas do ODM —, isso deixava tudo **quase preto** (valores ~0,004). Agora o app **detecta a escala real** do RGB pelo valor máximo e normaliza por **255 ou 65535** conforme o caso, mostrando a **cor natural** dos pontos.
+- A barra de status passa a indicar **`· RGB 8-bit`**, **`· RGB 16-bit`** ou **`· elevação`** — assim dá pra ver na hora como o arquivo foi lido.
+- **Auditoria:** three.js (`0.128.0`) e a normalização original são da v1.3.0 e **nunca mudaram** — não houve regressão; o caso era específico de arquivos com RGB de 8 bits. *(Fallback de visibilidade continua disponível: seletor de cor dos pontos/fundo, v1.18.6.)*
+
+---
+
 ## [1.18.6] — Junho 2026
 
 ### 🐛 Correção — abrir `.laz` pelo seletor de arquivo do visualizador 3D
