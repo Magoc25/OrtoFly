@@ -509,7 +509,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.18.7</span>
+  <span id="appVersion">© MGC · v1.18.8</span>
 </footer>
 
 <!-- PIX modal -->
@@ -630,6 +630,7 @@ footer{
     <div id="viewer3dCanvas" class="viewer3d-canvas"></div>
     <div id="viewer3dCtrls" class="viewer3d-ctrls hidden">
       <button class="btn sm" onclick="reset3D()">↺ Centralizar</button>
+      <button class="btn sm" onclick="download3DView()" title="Baixa um PNG da vista 3D atual — exatamente como está na tela (posicione/gire e baixe)">⬇ Imagem</button>
       <label id="ptSizeRow" style="display:flex;align-items:center;gap:6px;font-size:12px">Pontos <input id="ptSize" type="range" min="1" max="12" value="3" style="width:90px" /></label>
       <label id="ptColorRow" style="display:flex;align-items:center;gap:6px;font-size:12px">Cor pts <input id="ptColor" type="color" value="#ffffff" oninput="setPtColor(this.value)" style="width:30px;height:22px;padding:0;border:none;background:none;cursor:pointer" /><button class="btn sm" onclick="resetPtColor()" title="Voltar à cor real (RGB/elevação) dos pontos">↺ real</button></label>
       <label id="wireRow" style="display:flex;align-items:center;gap:6px;font-size:12px"><input id="wireChk" type="checkbox" style="width:auto" onchange="toggleWire()" /> Wireframe</label>
@@ -653,8 +654,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.18.7 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.18.7';
+/* ═══════════════ OrtoFly v1.18.8 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.18.8';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1939,7 +1940,7 @@ function ackBeta(){ try{ localStorage.setItem(LS+'_beta_ack','1'); }catch(e){} c
 let _3d=null, _3dObj=null, _ptBase=0.1;
 function status3d(t){ const e=$('viewer3dStatus'); if(e) e.textContent=t||''; }
 function open3D(){ $('viewer3dInput').click(); }
-function open3DModal(){ $('viewer3dModal').classList.remove('hidden'); if(!_3d) init3D(); else onResize3D(); }
+function open3DModal(){ $('viewer3dModal').classList.remove('hidden'); if(!_3d) init3D(); else onResize3D(); requestAnimationFrame(()=>{ if(_3d) onResize3D(); }); }
 function close3DModal(){ $('viewer3dModal').classList.add('hidden'); }
 function init3D(){
   if(typeof THREE==='undefined'){ toast('three.js não carregou','error'); return; }
@@ -1964,6 +1965,7 @@ function fitCamera(obj){ const box=new THREE.Box3().setFromObject(obj); if(box.i
   const md=Math.max(size.x,size.y,size.z)||1; const cam=_3d.camera; cam.near=md/1000; cam.far=md*1000; cam.updateProjectionMatrix();
   _3d.controls.target.copy(center); cam.position.set(center.x,center.y+md*0.5,center.z+md*1.6); _3d.controls.update(); }
 function reset3D(){ if(_3dObj) fitCamera(_3dObj); }
+function download3DView(){ if(!_3d){ toast('Abra um modelo 3D primeiro','error'); return; } const r=_3d.renderer; r.render(_3d.scene,_3d.camera); r.domElement.toBlob(b=>{ if(b) downloadBlob(b,'ortofly_3d_'+Date.now()+'.png'); else toast('Falha ao gerar a imagem','error'); },'image/png'); }
 function set3DObject(obj){ if(!_3d) return; if(_3dObj){ _3d.scene.remove(_3dObj); disposeObj(_3dObj); } _3dObj=obj; _3d.scene.add(obj);
   const box=new THREE.Box3().setFromObject(obj); const md=box.isEmpty()?1:Math.max(...box.getSize(new THREE.Vector3()).toArray()); _ptBase=(md||1)/500;
   fitCamera(obj); updatePointSize();
@@ -1978,7 +1980,7 @@ function resetPtColor(){ _eachPtMat(m=>{ m.vertexColors=true; m.color.set(0xffff
 async function handle3DFile(file){
   const ext=(file.name.split('.').pop()||'').toLowerCase();
   if(typeof THREE==='undefined'){ toast('three.js não carregou (sem conexão?)','error'); return; }
-  open3DModal(); $('viewer3dCtrls').classList.add('hidden'); status3d('Carregando '+file.name+'…');
+  open3DModal(); const _cb=$('viewer3dCtrls'); if(_cb) _cb.classList.remove('hidden'); ['ptSizeRow','ptColorRow','wireRow'].forEach(id=>{ const e=$(id); if(e) e.style.display='none'; }); status3d('Carregando '+file.name+'…');   // barra visível já na abertura (controles por tipo aparecem ao carregar o objeto)
   try{
     if(ext==='las') await loadLAS(file);
     else if(ext==='laz') await loadLAZ(file);

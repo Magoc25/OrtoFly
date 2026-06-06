@@ -5,6 +5,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.8] — Junho 2026
+
+### ✨ Visualizador 3D — baixar a vista atual (PNG)
+
+- Novo botão **⬇ Imagem** na barra do 🧊 Visualizador 3D: posicione/gire a nuvem (ou malha) e **baixe um PNG exatamente como está na tela**. *(O canvas já era criado com `preserveDrawingBuffer`, então a captura sai fiel à vista.)*
+
+### 🐛 Correção — barra de ferramentas do 3D não aparecia na 1ª carga
+
+- A barra de controles só era revelada **depois** que o arquivo terminava de carregar. No **1º `.laz` da sessão** isso demora (baixa o decodificador laz-perf do CDN), dando a impressão de que a barra "não carregava" (só após recarregar). Agora a barra **aparece assim que o visualizador abre**; os controles por tipo (tamanho/cor dos pontos, wireframe) surgem quando o objeto carrega. Também força um **resize após abrir** para o canvas dimensionar certo de primeira.
+
+---
+
 ## [1.18.7] — Junho 2026
 
 ### 🐛 Correção — nuvem `.laz`/`.las` escura (cor não natural)
