@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.10] — Junho 2026
+
+### 📝 "Estatística por pontos" — texto mais claro (ID + coordenadas)
+
+- O rótulo e a dica do campo de pontos passam a **liderar com o que importa: ID + as 2 coordenadas** por linha. Fica explícito que o **raio do buffer vem do campo do app** (não precisa estar no arquivo) e que lat/lon × UTM (E, N) e a ordem são detectados automaticamente. O exemplo de UTM no placeholder usa ID numérico (`21`), refletindo o suporte da v1.18.9. O **raio por ponto** segue disponível como **opcional** (um número extra após as coordenadas).
+
+---
+
 ## [1.18.9] — Junho 2026
 
 ### 🐛 Correção — estatística por pontos falhava com rótulo numérico (ex.: arquivos de topografia)
