@@ -183,10 +183,11 @@ docker system prune -f
   ```bash
   colima stop
   colima delete
-  colima start
+  colima start --cpu 6 --memory 8
   docker run -d --name nodeodm --restart unless-stopped -p 3000:3000 opendronemap/nodeodm
   ```
   *(você já salva os produtos no app, então não perde resultados)*
+  > ⚠️ `colima delete` **apaga a VM, os containers, as imagens e as configurações** — mas **não desinstala** o Colima. Por isso: **(1)** no `colima start` use os **mesmos números** de `--cpu/--memory` da seção **🧠 Memória e CPU** — só `colima start` *sem flags* volta ao default **2 GB**!; **(2)** o `docker run` vai **baixar a imagem (~1,5 GB)** de novo (precisa de internet); **(3)** confira o `totalMemory` em **http://127.0.0.1:3000/info**.
 
 ---
 
