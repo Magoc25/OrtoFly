@@ -259,7 +259,7 @@ footer{
         <button class="btn" onclick="open3D()">🧊 Nuvem / 3D</button>
       </div>
       <input type="file" id="rasterInput" accept=".tif,.tiff,image/tiff" class="hidden" />
-      <input type="file" id="viewer3dInput" accept=".las,.ply,.obj,.glb,.gltf" class="hidden" />
+      <input type="file" id="viewer3dInput" accept=".las,.laz,.ply,.obj,.glb,.gltf" class="hidden" />
       <div id="rasterStatus" class="spec" style="margin-top:8px"></div>
       <div id="rasterCtrls" class="hidden" style="margin-top:8px">
         <div class="row" id="rasterCmapRow">
@@ -509,7 +509,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.18.5</span>
+  <span id="appVersion">© MGC · v1.18.6</span>
 </footer>
 
 <!-- PIX modal -->
@@ -631,8 +631,9 @@ footer{
     <div id="viewer3dCtrls" class="viewer3d-ctrls hidden">
       <button class="btn sm" onclick="reset3D()">↺ Centralizar</button>
       <label id="ptSizeRow" style="display:flex;align-items:center;gap:6px;font-size:12px">Pontos <input id="ptSize" type="range" min="1" max="12" value="3" style="width:90px" /></label>
+      <label id="ptColorRow" style="display:flex;align-items:center;gap:6px;font-size:12px">Cor pts <input id="ptColor" type="color" value="#ffffff" oninput="setPtColor(this.value)" style="width:30px;height:22px;padding:0;border:none;background:none;cursor:pointer" /><button class="btn sm" onclick="resetPtColor()" title="Voltar à cor real (RGB/elevação) dos pontos">↺ real</button></label>
       <label id="wireRow" style="display:flex;align-items:center;gap:6px;font-size:12px"><input id="wireChk" type="checkbox" style="width:auto" onchange="toggleWire()" /> Wireframe</label>
-      <button class="btn sm" onclick="toggle3DBg()">🎨 Fundo</button>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px">🎨 Fundo <input id="bg3d" type="color" value="#0a141d" oninput="setBg3D(this.value)" style="width:30px;height:22px;padding:0;border:none;background:none;cursor:pointer" /></label>
     </div>
   </div>
 </div>
@@ -652,8 +653,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.18.5 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.18.5';
+/* ═══════════════ OrtoFly v1.18.6 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.18.6';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1966,10 +1967,13 @@ function reset3D(){ if(_3dObj) fitCamera(_3dObj); }
 function set3DObject(obj){ if(!_3d) return; if(_3dObj){ _3d.scene.remove(_3dObj); disposeObj(_3dObj); } _3dObj=obj; _3d.scene.add(obj);
   const box=new THREE.Box3().setFromObject(obj); const md=box.isEmpty()?1:Math.max(...box.getSize(new THREE.Vector3()).toArray()); _ptBase=(md||1)/500;
   fitCamera(obj); updatePointSize();
-  const mesh=hasMesh(obj); $('viewer3dCtrls').classList.remove('hidden'); $('ptSizeRow').style.display=mesh?'none':''; $('wireRow').style.display=mesh?'':'none'; if($('wireChk')) $('wireChk').checked=false; }
-function updatePointSize(){ if(!_3dObj) return; const sz=_ptBase*(+$('ptSize').value||3); const ap=m=>{ if(m){ m.size=sz; m.sizeAttenuation=true; m.needsUpdate=true; } }; if(_3dObj.isPoints)(Array.isArray(_3dObj.material)?_3dObj.material:[_3dObj.material]).forEach(ap); _3dObj.traverse&&_3dObj.traverse(c=>{ if(c.isPoints)(Array.isArray(c.material)?c.material:[c.material]).forEach(ap); }); }
+  const mesh=hasMesh(obj); $('viewer3dCtrls').classList.remove('hidden'); $('ptSizeRow').style.display=mesh?'none':''; $('ptColorRow').style.display=mesh?'none':''; $('wireRow').style.display=mesh?'':'none'; if($('wireChk')) $('wireChk').checked=false; if($('ptColor')) $('ptColor').value='#ffffff'; }
+function _eachPtMat(fn){ if(!_3dObj) return; const ap=m=>{ if(m) fn(m); }; if(_3dObj.isPoints)(Array.isArray(_3dObj.material)?_3dObj.material:[_3dObj.material]).forEach(ap); _3dObj.traverse&&_3dObj.traverse(c=>{ if(c.isPoints)(Array.isArray(c.material)?c.material:[c.material]).forEach(ap); }); }
+function updatePointSize(){ const sz=_ptBase*(+$('ptSize').value||3); _eachPtMat(m=>{ m.size=sz; m.sizeAttenuation=true; m.needsUpdate=true; }); }
 function toggleWire(){ const on=$('wireChk').checked; const ap=m=>{ if(m)m.wireframe=on; }; if(_3dObj){ if(_3dObj.isMesh)(Array.isArray(_3dObj.material)?_3dObj.material:[_3dObj.material]).forEach(ap); _3dObj.traverse&&_3dObj.traverse(c=>{ if(c.isMesh)(Array.isArray(c.material)?c.material:[c.material]).forEach(ap); }); } }
-function toggle3DBg(){ if(!_3d) return; _3d.scene.background.setHex(_3d.scene.background.getHex()===0x0a141d?0xeef2f4:0x0a141d); }
+function setBg3D(hex){ if(_3d&&_3d.scene.background) _3d.scene.background.set(hex); }
+function setPtColor(hex){ _eachPtMat(m=>{ m.vertexColors=false; m.color.set(hex); m.needsUpdate=true; }); }   // override: pinta todos os pontos de uma cor só (bom p/ nuvem escura)
+function resetPtColor(){ _eachPtMat(m=>{ m.vertexColors=true; m.color.set(0xffffff); m.needsUpdate=true; }); if($('ptColor')) $('ptColor').value='#ffffff'; }   // volta à cor real (RGB/elevação)
 
 async function handle3DFile(file){
   const ext=(file.name.split('.').pop()||'').toLowerCase();

@@ -5,6 +5,20 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.6] — Junho 2026
+
+### 🐛 Correção — abrir `.laz` pelo seletor de arquivo do visualizador 3D
+
+- O seletor de arquivo do visualizador 3D **não listava `.laz`** (o `accept` era só `.las,.ply,.obj,.glb,.gltf`). Por isso, abrir uma nuvem **`.laz` baixada de uma pasta** não funcionava pelo botão da aba 📷 Imagens — só pelo botão **🧊 Nuvem (3D)** dos resultados (que extrai do `all.zip`). Adicionado `.laz` ao `accept`.
+- **Auditoria:** o decodificador (laz-perf/WASM → LAS) e o CSP **estavam corretos e intactos** desde a v1.9.x — não houve regressão no código; o `.laz` só nunca tinha sido incluído no filtro do seletor. *(Lembrete: decodificar `.laz` usa laz-perf via CDN — precisa de internet; offline, baixe o `.laz` e use o CloudCompare.)*
+
+### ✨ Visualizador 3D — cores ajustáveis (pontos e fundo)
+
+- **Cor do fundo:** seletor de cor (substitui o antigo toggle claro/escuro — agora qualquer cor; um cinza médio costuma dar o melhor contraste).
+- **Cor dos pontos:** seletor como **override** — padrão é a **cor real** (RGB das fotos / elevação); escolha uma cor para deixar nuvens **escuras** visíveis, e **↺ real** volta à original. Resolve o caso de pontos escuros em fundo escuro (combine com o slider de **tamanho dos pontos**).
+
+---
+
 ## [1.18.5] — Junho 2026
 
 ### ✨ Opção "Economizar RAM" no processamento (NodeODM)
