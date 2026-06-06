@@ -23,7 +23,7 @@ Na aba **⚙️ Processar / NodeODM** você escolhe entre dois caminhos. Eles **
 ### A essência
 Os dois começam igual: o **SfM** (*Structure from Motion*) descobre de onde cada foto foi tirada e monta uma **nuvem esparsa** de pontos. A partir daí eles divergem:
 
-- **Rápido (`fast-orthophoto`)** — *pula* a parte pesada: monta uma **malha 2.5D grosseira** direto da nuvem esparsa e "estica" as fotos sobre ela para gerar **só o ortomosaico**.
+- **Rápido (`fast-orthophoto`)** — pula a **nuvem densa** e a **malha 3D**. Mas ainda monta uma **malha 2.5D** da nuvem esparsa e **textura ela** (o **mesmo passo** do Completo) para gerar **só o ortomosaico**. ⚠️ Essa **texturização ainda consome RAM** — o Rápido é mais leve, não "de graça".
 - **Completo (Gerar DSM)** — *roda* a parte pesada: **reconstrução densa (MVS)** → **malha 3D** → **DSM/DTM**. É o pipeline inteiro.
 
 ### O que cada etapa faz (e onde a RAM some)
@@ -32,12 +32,13 @@ Os dois começam igual: o **SfM** (*Structure from Motion*) descobre de onde cad
 |---|:---:|:---:|
 | SfM — poses + nuvem **esparsa** | ✅ | ✅ |
 | **MVS** — nuvem **densa** (densificação) | ❌ pula | ✅ **pesado (RAM)** |
-| **Malha 3D** + textura | ❌ pula | ✅ **pesado (RAM)** |
+| **Malha** (superfície) | 2.5D (leve) | **3D** (pesado) |
+| **Texturização** (gera o ortho) | ✅ **pesado (RAM)** | ✅ **pesado (RAM)** |
 | Georreferenciamento | ✅ | ✅ |
 | **DSM / DTM** (modelo de superfície) | ❌ | ✅ pesado |
-| Ortomosaico | ✅ (sobre malha grosseira) | ✅ (sobre superfície densa) |
+| Ortomosaico | ✅ (sobre malha 2.5D) | ✅ (sobre superfície densa) |
 
-> A **MVS + malha + DSM** são justamente os passos que comem memória. O Rápido pula todos → **rápido e leve**; o Completo roda todos → **lento e faminto por RAM**. Por isso um conjunto grande (centenas de fotos) costuma **falhar por falta de RAM** no Completo e passar liso no Rápido. *(Veja **Memória e CPU** no guia de instalação do seu sistema.)*
+> ⚠️ **A texturização roda nos DOIS modos** e é um dos maiores consumidores de RAM (carrega muitas imagens ao mesmo tempo). Por isso **até o Rápido pode estourar a memória** com **muitas fotos/views** — não só o Completo. O Completo é **mais pesado ainda**: soma **MVS (nuvem densa) + malha 3D + DSM** por cima. Resumo: o Rápido é **mais leve, mas não imune**. *(Veja **Memória e CPU** no guia de instalação do seu sistema.)*
 
 ### O que você leva pra casa em cada um
 
@@ -46,25 +47,25 @@ Os dois começam igual: o **SfM** (*Structure from Motion*) descobre de onde cad
 | 🗺️ Ortomosaico 2D | ✅ bom | ✅ melhor (menos distorção no relevo) |
 | ⛰️ DSM (altimetria / superfície) | ❌ não gera | ✅ |
 | 🧊 Nuvem 3D | ⚠️ só **esparsa** (com buracos) | ✅ **densa** |
-| 🧱 Malha 3D texturizada | ❌ | ✅ |
+| 🧱 Malha 3D texturizada | ⚠️ só 2.5D (do ortho) | ✅ |
 
 > Por isso o DSM **só existe no modo Completo**: sem a reconstrução densa não há superfície para gerar o modelo — `Gerar DSM` e `Rápido` são **mutuamente exclusivos** (marcar DSM já desliga o Rápido).
 
 ### Qual usar
-- **Rápido** → você só quer o **mapa 2D**: ortomosaico para NDVI/índices, contagem, medir área, inspeção visual. Terreno **mais plano** (lavoura). Quer velocidade e pouca RAM, ou tem **muitas fotos**. **Na dúvida, comece por aqui** — muitas vezes é tudo o que você precisa.
+- **Rápido** → você só quer o **mapa 2D**: ortomosaico para NDVI/índices, contagem, medir área, inspeção visual. Terreno **mais plano** (lavoura). É **mais rápido e leve** que o Completo (mas **muitas fotos ainda pedem RAM** na texturização — veja abaixo). **Na dúvida, comece por aqui** — muitas vezes é tudo o que você precisa.
 - **Completo (DSM)** → você precisa de **altimetria, volume, curvas de nível, nuvem densa ou modelo 3D**, ou o terreno tem **relevo / estruturas altas** e você quer um ortomosaico mais limpo. Exige **RAM e tempo** (garanta memória/swap suficientes — veja o guia de instalação).
 
 > **Sobre precisão:** o georreferenciamento **horizontal** (posição no mapa) depende do **GPS/GCP** nos dois modos — o Rápido **não** deixa o mapa mais torto na horizontal em terreno plano. O que muda é a **superfície** usada para corrigir a perspectiva: em área plana o ortomosaico do Rápido já costuma servir; em área com altura (prédios, árvores, barrancos) o Completo corrige melhor. A parte **vertical / 3D (DSM)** é que só o Completo entrega de verdade.
 
 **Nº de fotos:** de dezenas a centenas. Mais fotos = mais **RAM e tempo** — especialmente no Completo.
 
-### Estourou a RAM no Completo? Use "Economizar RAM"
-Conjuntos grandes (centenas de fotos) costumam **morrer por falta de memória** no modo completo — quase sempre na **texturização** (no log: `Killed` / `Child returned 137`, e o próprio ODM diz *"You ran out of memory"*). Duas saídas, que **se somam**:
+### Estourou a RAM (`Killed` / `Child returned 137`)?
+Conjuntos grandes (muitas **fotos/views**) podem **morrer por falta de memória** na **texturização** — que roda **nos dois modos**, então acontece **mesmo no Rápido**, não só no Completo. No log: `Killed` / `Child returned 137`, e o próprio ODM diz *"You ran out of memory"*. Saídas, que **se somam** (em ordem):
 
-- **No app:** marque **Economizar RAM** (envia `resize-to=2048` + `pc-quality=low`) — processa imagens menores e a nuvem densa em baixa, aliviando muito a memória. É o **"completo leve"**: ainda entrega DSM/nuvem/3D, só que com **menos detalhe**.
-- **No sistema:** aumente **memória/swap** do NodeODM (seção **🧠 Memória e CPU** do guia de instalação). O **swap** faz a etapa pesada **terminar devagar** em vez de ser morta — **sem perder qualidade**.
-
-> Ordem prática: 1º ajuste o `swap` (resolve sem abrir mão de detalhe); se ainda faltar, marque **Economizar RAM**; em último caso, **menos fotos por rodada** ou rode num **NodeODM na nuvem** (modo Servidor).
+- **1º — Mais memória ao NodeODM:** no **WSL**, RAM + `swap` (o swap faz a etapa pesada **terminar devagar** em vez de morrer, **sem perder qualidade**). No **Colima/Mac**, vale a **RAM real** do `--memory` (não há swap grande). Veja **🧠 Memória e CPU** no guia de instalação.
+- **2º — Menos fotos por rodada:** o lever mais direto contra a texturização — ajuda **os dois modos** (divida a área em partes).
+- **3º — No app, "Economizar RAM"** (`resize-to=2048` + `pc-quality=low`): ajuda **principalmente no Completo** (baixa a nuvem densa → malha/texturização mais leves; é o **"completo leve"**, ainda entrega DSM/nuvem/3D com menos detalhe).
+- **Último caso:** rode num **NodeODM na nuvem** (modo Servidor) — sem o limite da sua máquina.
 
 ## 4. "Buracos" na nuvem são normais
 A reconstrução depende de a **mesma textura** aparecer em várias fotos. Buracos vêm de: **modo Rápido**, **água/superfícies lisas**, **sombras**, **bordas** (menos sobreposição) e **objetos em movimento**. Para encher: **modo Completo + mais sobreposição + boa luz**.
