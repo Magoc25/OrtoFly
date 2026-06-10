@@ -1,0 +1,18 @@
+# OrtoFly — fins de linha (end-of-line)
+# O repositório é LF, mas o OneDrive/editores no Windows reintroduzem CRLF e
+# poluem o diff (arquivo inteiro aparece como "modificado"). Esta regra força
+# LF — na cópia de trabalho e no repositório — para todo arquivo de texto,
+# então o CRLF deixa de aparecer como mudança no `git status`/`git diff`.
+* text=auto eol=lf
+
+# Binários — nunca normalizar fins de linha
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.pdf   binary
+*.zip   binary
+*.woff  binary
+*.woff2 binary

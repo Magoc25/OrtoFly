@@ -5,6 +5,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.11] — Junho 2026
+
+### ⚙️ Processar — nova saída "DSM + ortomosaico (sem modelo 3D)", mais leve na RAM
+
+- A escolha de saída da aba **⚙️ Processar** passou a ser de **3 níveis** (rádio), no lugar dos 2 checkboxes: **Rápido** (só ortomosaico · `fast-orthophoto`), **DSM + ortomosaico — sem modelo 3D** (`dsm` + `skip-3dmodel`) e **Completo** (DSM + modelo 3D texturizado).
+- A opção nova **DSM + ortomosaico (sem modelo 3D)** mantém a reconstrução densa — o **DSM e o ortomosaico saem normalmente** —, mas **pula o modelo 3D texturizado**, que é a etapa (`mvstex` / *local seam leveling*) que mais consome memória e que **estoura a RAM** no modo completo com muitas fotos. É o caminho recomendado para gerar DSM em máquinas com pouca memória (ex.: Mac/PC de 16 GB). Combina bem com **Economizar RAM**.
+- O modo **Completo** segue intacto (DSM + malha 3D texturizada) — para rodar numa máquina com bastante RAM.
+- Mensagens de falha e do `all.zip` ajustadas para refletir as novas opções (ex.: a dica de "falta de memória" agora sugere a saída sem modelo 3D).
+
+---
+
 ## [1.18.10] — Junho 2026
 
 ### 📝 "Estatística por pontos" — texto mais claro (ID + coordenadas)

@@ -474,8 +474,10 @@ footer{
         <input type="file" id="odmImages" accept="image/*,.tif,.tiff" multiple class="hidden" />
         <div id="odmImgCount" class="spec" style="margin-top:6px"></div>
         <div class="row" style="margin-top:8px"><div class="field"><label for="odmName">Nome</label><input id="odmName" type="text" maxlength="40" placeholder="meu-voo" /></div></div>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;cursor:pointer"><input type="checkbox" id="odmFast" checked style="width:auto" /> Rápido (fast-orthophoto)</label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;cursor:pointer"><input type="checkbox" id="odmDsm" style="width:auto" /> Gerar DSM (superfície · usa modo completo, mais lento)</label>
+        <div class="spec" style="font-size:13px;margin:8px 0 2px">Saída</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0;cursor:pointer" title="fast-orthophoto: só o ortomosaico, a partir da reconstrução esparsa. Rápido e leve. Não gera DSM nem nuvem densa."><input type="radio" name="odmOut" value="fast" checked style="width:auto" /> Rápido — só ortomosaico</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0;cursor:pointer" title="Envia dsm + skip-3dmodel ao ODM: gera DSM e ortomosaico a partir da nuvem densa, mas PULA o modelo 3D texturizado — a etapa que mais consome RAM. Ideal p/ máquinas com pouca memória que só precisam do DSM/orto."><input type="radio" name="odmOut" value="dsm" style="width:auto" /> DSM + ortomosaico — sem modelo 3D (mais leve)</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0;cursor:pointer" title="Modo completo: dsm + reconstrução densa + malha + modelo 3D texturizado. O mais pesado (a texturização pode estourar a RAM em conjuntos grandes). Use numa máquina com bastante memória."><input type="radio" name="odmOut" value="full" style="width:auto" /> Completo — DSM + modelo 3D texturizado (mais pesado)</label>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;cursor:pointer" title="Reduz o uso de memória: envia resize-to=2048 e pc-quality=low ao ODM (imagens menores + nuvem densa em baixa). Recomendado p/ conjuntos grandes no modo completo (Gerar DSM), que costuma estourar a RAM na texturização."><input type="checkbox" id="odmLite" style="width:auto" /> Economizar RAM (resize 2048 · nuvem em baixa) — conjuntos grandes</label>
         <button class="btn primary block" onclick="odmCreate()">🚀 Enviar e processar</button>
         <p class="hint">Dezenas–centenas de fotos. Datasets enormes podem pesar no upload.</p>
@@ -509,7 +511,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.18.10</span>
+  <span id="appVersion">© MGC · v1.18.11</span>
 </footer>
 
 <!-- PIX modal -->
@@ -654,8 +656,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.18.10 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.18.10';
+/* ═══════════════ OrtoFly v1.18.11 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.18.11';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -2115,9 +2117,10 @@ async function odmTest(){ const u=odmUrlVal(); if(!u){ toast('Informe a URL do N
 async function odmCreate(){ const u=odmUrlVal(); if(!u){ toast('Configure e teste a URL do NodeODM','error'); return; }
   if(!_odmFiles||!_odmFiles.length){ toast('Selecione as imagens','error'); return; }
   if(_odmFiles.length<5 && !confirm('Poucas imagens ('+_odmFiles.length+'). O ODM costuma precisar de dezenas. Continuar?')) return;
-  const opts=[]; const wantDsm=$('odmDsm')&&$('odmDsm').checked; const lite=$('odmLite')&&$('odmLite').checked;
-  if($('odmFast').checked && !wantDsm) opts.push({name:'fast-orthophoto',value:true});
-  if(wantDsm) opts.push({name:'dsm',value:true});
+  const opts=[]; const out=(document.querySelector('input[name="odmOut"]:checked')||{}).value||'fast'; const lite=$('odmLite')&&$('odmLite').checked;
+  if(out==='fast') opts.push({name:'fast-orthophoto',value:true});                                  // só ortomosaico (rápido, leve)
+  else if(out==='dsm'){ opts.push({name:'dsm',value:true}); opts.push({name:'skip-3dmodel',value:true}); }  // DSM+orto SEM modelo 3D: pula a texturização (a etapa que estoura a RAM)
+  else if(out==='full') opts.push({name:'dsm',value:true});                                          // completo: DSM + modelo 3D texturizado
   if(lite){ opts.push({name:'resize-to',value:2048}); opts.push({name:'pc-quality',value:'low'}); } // economiza RAM: imagens menores + nuvem densa em baixa (alivia a texturização, que estoura a memória em conjuntos grandes)
   const fd=new FormData(); _odmFiles.forEach(f=>fd.append('images',f,f.name)); fd.append('name',($('odmName').value||'ortofly').trim()); fd.append('options',JSON.stringify(opts));
   odmStatus('Enviando '+_odmFiles.length+' imagens… (pode demorar)');
@@ -2148,7 +2151,7 @@ function odmShowOutputs(){ const box=$('odmOutputs'); if(!box) return; box.class
 function odmShowFailure(st,err){ const box=$('odmOutputs'); if(!box) return; box.classList.remove('hidden');
   const head=st===30?'❌ A tarefa <b>falhou</b>':'⏹️ Tarefa <b>cancelada</b>';
   box.innerHTML=`<p class="hint">${head}${err?' — <b>motivo do NodeODM:</b> '+esc(err):''}</p>`+
-    (st===30?'<p class="hint">No <b>modo completo (Gerar DSM)</b> a causa costuma ser <b>falta de memória (RAM)</b> ou <b>disco cheio</b> — ele é bem mais pesado que o rápido. Veja o <b>log</b> p/ o motivo real: <i>Killed</i> ou <i>exit code 137</i> = memória; <i>No space left on device</i> = disco. Se for memória, marque <b>Economizar RAM</b> na próxima tarefa (ou aumente o <code>swap</code> no <code>.wslconfig</code>).</p>':'')+
+    (st===30?'<p class="hint">No modo <b>Completo</b> (DSM + modelo 3D) a causa costuma ser <b>falta de memória (RAM)</b> ou <b>disco cheio</b> — é o mais pesado. Veja o <b>log</b> p/ o motivo real: <i>Killed</i> ou <i>exit code 137</i> = memória; <i>No space left on device</i> = disco. Se for memória, use <b>DSM + ortomosaico (sem modelo 3D)</b> e/ou marque <b>Economizar RAM</b> na próxima tarefa — pulam/aliviam a texturização, que é a etapa que estoura.</p>':'')+
     '<div class="btn-grid" style="margin-top:6px"><button class="btn sm" onclick="odmShowLog()">📜 Ver log do NodeODM</button></div>'+
     '<pre id="odmLog" class="hidden" style="max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:11px;line-height:1.45;background:var(--bg);color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:6px"></pre>'+
     '<p class="hint" style="margin-top:6px">Os dados parciais <b>ainda ocupam disco</b> no NodeODM. Depois de ver o log, clique em <b>🗑️ Descartar</b> acima p/ liberar.</p>'; }
@@ -2167,7 +2170,7 @@ async function odmGetZip(){ if(_odmZip&&(_odmSavedMode||_odmZipFor===_odmTask)) 
   const r=await fetch(u+'/task/'+_odmTask+'/download/all.zip'); if(!r.ok) throw new Error('HTTP '+r.status);
   const buf=await r.arrayBuffer(); _odmZipRaw=new Blob([buf],{type:'application/zip'}); _odmZip=await JSZip.loadAsync(buf); _odmZipFor=_odmTask; odmStatus('Pacote baixado ✅'); return _odmZip; }
 async function odmExtract(kind){ const zip=await odmGetZip(); const re=ODM_RE[kind];
-  const n=Object.keys(zip.files).find(k=>!zip.files[k].dir&&re.test(k)); if(!n) throw new Error((kind==='dsm'||kind==='dtm')?'DSM não gerado nesta tarefa — marque "Gerar DSM" ao criar (modo completo).':'não achei "'+kind+'" no all.zip');
+  const n=Object.keys(zip.files).find(k=>!zip.files[k].dir&&re.test(k)); if(!n) throw new Error((kind==='dsm'||kind==='dtm')?'DSM não gerado nesta tarefa — escolha "DSM + ortomosaico" ou "Completo" ao criar.':'não achei "'+kind+'" no all.zip');
   return {blob:await zip.files[n].async('blob'), name:n.split('/').pop()}; }
 async function odmFetch(asset){ const u=odmUrlVal(); const r=await fetch(u+'/task/'+_odmTask+'/download/'+asset); if(!r.ok) throw new Error('HTTP '+r.status); return await r.blob(); }
 async function odmOpenZip(kind,viewer){ if(!_odmSavedMode && (!odmUrlVal()||!_odmTask)) return;
