@@ -1,4 +1,4 @@
-/* OrtoFly — Service Worker v1.18.11 */
+/* OrtoFly — Service Worker v1.18.12 */
 
 const CACHE_NAME = 'ortofly-v36';
 

@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.12] — Junho 2026
+
+### 🐛 Correção — banner de "nova versão" comparava contra uma versão fixa
+
+- O aviso de **nova versão disponível** passou a comparar a versão publicada (Supabase `app_config`) contra a **versão deste build** (`APP_VERSION`), usando o helper `cmpVersion()`. Antes a comparação era feita contra um valor **fixo** (`1.10.1`), o que podia exibir o banner indevidamente — inclusive apontando para uma versão **mais antiga** do que a instalada — ou nunca exibi-lo.
+- Manutenção: `CACHE_NAME` do Service Worker em `v36` e alinhamento dos rótulos de versão estáticos (badge do README e cabeçalho do `sw.js`).
+
+---
+
 ## [1.18.11] — Junho 2026
 
 ### ⚙️ Processar — nova saída "DSM + ortomosaico (sem modelo 3D)", mais leve na RAM
