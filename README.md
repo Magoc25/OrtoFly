@@ -167,6 +167,8 @@ Ao concluir, o ODM gera um pacote (`all.zip`) com os produtos de fotogrametria. 
 No app: **🗺️ Ortomosaico** e **⛰️ DSM** abrem direto no visualizador 2D; **🧊 Nuvem (3D)** abre a nuvem `.laz` em 3D no navegador; **⬇ Tudo (.zip)** baixa o pacote completo (abra também no **CloudCompare/QGIS**).
 
 > **Qual modo gera o quê:** o **DSM** só sai nos modos **DSM + ortomosaico** e **Completo**; o **modelo 3D texturizado** (`odm_texturing*/`), só no **Completo**. No **Rápido** a nuvem (`.laz`) é **esparsa**; nos outros dois, **densa**. Em **todos** os modos vêm ortomosaico + nuvem + relatório. Detalhes e qual escolher: **[Boas Práticas § 3](./Boas-Praticas-e-Qualidade.md)**.
+>
+> 💡 **Área plana e só quer o ortomosaico?** O modo **Rápido** já entrega com **qualidade equivalente** — mais rápido e leve. A diferença de qualidade do ortho só aparece em **relevo/estruturas altas**; os modos densos valem quando você precisa de **DSM/altimetria, nuvem densa ou 3D**.
 
 > 📘 **Dicas de qualidade, confiabilidade e "por que usar o OrtoFly":** veja o **[Guia de Boas Práticas e Qualidade](./Boas-Praticas-e-Qualidade.md)** — voo, sobreposição, modo Rápido vs Completo, e a precisão dos produtos (ODM / GCP / RTK).
 

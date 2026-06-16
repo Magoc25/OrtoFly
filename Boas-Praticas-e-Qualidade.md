@@ -47,6 +47,8 @@ Na aba **⚙️ Processar** você escolhe **um modo** (rádio) e, opcionalmente,
   - **Relevo / objetos altos** (prédios, árvores, barrancos): o Rápido mostra **distorção/arrasto** nas bordas; **DSM+orto** e **Completo** projetam sobre a superfície **densa** → ortho **mais limpo e reto**.
 - **Resumo:** a "queda" do Rápido é **geométrica e só aparece onde há altura**. Em área plana, o ortho é praticamente o mesmo.
 
+> 💡 **Regra prática:** **área plana + você só quer o ortomosaico** → use o **🟢 Rápido**. Ele entrega o ortho com **praticamente a mesma qualidade** dos modos densos, porém **mais rápido e mais leve**. Reserve **DSM+orto** ou **Completo** para quando precisar de **DSM/altimetria, nuvem densa ou modelo 3D**, ou quando o terreno tem **relevo/estruturas altas** (aí o ortho denso fica mais limpo).
+
 ### Economizar RAM (`resize-to=2048` + `pc-quality=low`) — soma a qualquer modo
 Troca **detalhe por leveza**:
 
