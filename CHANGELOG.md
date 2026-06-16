@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.14] — Junho 2026
+
+### 📝 Aba Processar — duas dicas no ponto de decisão
+
+- **Dica de modo** (abaixo do seletor de saída): **área plana + só o mapa 2D → Rápido** (mais rápido e leve); **DSM/altimetria, nuvem densa, 3D ou relevo → modos densos**.
+- **Servidor remoto generalizado:** a dica do modo Servidor deixou de citar a "VM grátis Oracle" e passou a **"um NodeODM remoto que você controle (VPS/outro PC) por HTTPS"** — acompanha o descope da VM Oracle (o app é só o cliente; aponte para qualquer NodeODM).
+
+---
+
 ## [1.18.13] — Junho 2026
 
 ### 📝 Aba Processar — rótulos dos modos refletem as entregas reais
