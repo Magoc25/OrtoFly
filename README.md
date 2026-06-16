@@ -144,7 +144,7 @@ Guias passo a passo (bem detalhados, mesmo para quem não usa terminal):
 |---|---|
 | 🖥️ **Windows** | [Configurar no Windows (WSL + Docker)](./Guia-Local-Windows-WSL-NodeODM.md) |
 | 🍎 **macOS** | [Configurar no Mac (Docker)](./Guia-Local-macOS-NodeODM.md) |
-| ☁️ **VM grátis na nuvem (Oracle Cloud)** | _em breve_ |
+| ☁️ **Servidor remoto (sua VPS / outro PC)** | Rode o NodeODM nele (os mesmos passos do Docker) e aponte a aba **Processar** para a URL `https://…` dele — o app é só o cliente. |
 
 > 💡 É **opcional** — use só se quiser gerar os produtos de fotogrametria. Tudo roda **localmente**, suas imagens não saem do seu dispositivo.
 >
