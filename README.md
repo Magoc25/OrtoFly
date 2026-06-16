@@ -12,7 +12,7 @@ Desenvolvido por **Marlon Gomes da Costa (MGC Dev)**
 >
 > 💬 **Ajude a validar!** Testou? **Conte como foi** — funcionou no seu fluxo? o ortomosaico/DSM ficou coerente com a realidade medida em campo? Relatos sobre o funcionamento e a **qualidade dos produtos** são muito bem-vindos e orientam a evolução do app. Use a **avaliação dentro do app** ou [abra uma issue no GitHub](https://github.com/Magoc25/OrtoFly/issues).
 
-[![Versão](https://img.shields.io/badge/versão-1.18.12-blue)](./CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/versão-1.18.13-blue)](./CHANGELOG.md)
 [![Status](https://img.shields.io/badge/status-beta%20%C2%B7%20em%20valida%C3%A7%C3%A3o-yellow)](./TERMS.md)
 [![Licença](https://img.shields.io/badge/licença-não%20comercial-orange)](#-licença-e-termos-de-uso)
 [![PIX](https://img.shields.io/badge/apoie-PIX-brightgreen)](#-apoiar-o-projeto)
@@ -158,13 +158,15 @@ Ao concluir, o ODM gera um pacote (`all.zip`) com os produtos de fotogrametria. 
 |---|---|
 | `odm_orthophoto/odm_orthophoto.tif` | **Ortomosaico** — mapa colorido georreferenciado (GeoTIFF), com escala real |
 | `odm_dem/dsm.tif` | **DSM** — modelo digital de **superfície** (terreno + objetos). Só existe se marcar **Gerar DSM** |
-| `odm_dem/dtm.tif` | **DTM** — modelo digital de **terreno** (sem objetos), quando solicitado |
+| `odm_dem/dtm.tif` | **DTM** — modelo de **terreno** (sem objetos). _O OrtoFly **não gera DTM** (nenhum modo envia `--dtm`); listado só como referência do ODM._ |
 | `odm_georeferencing/odm_georeferenced_model.laz` | **Nuvem de pontos** 3D georreferenciada (formato LAZ comprimido) |
 | `odm_texturing*/` | **Malha 3D** texturizada (OBJ + texturas) |
 | `odm_report/report.pdf` | **Relatório** de qualidade do processamento |
 | `cameras.json` · `images.json` · `log.json` | Metadados (parâmetros de câmera, imagens usadas, log) |
 
 No app: **🗺️ Ortomosaico** e **⛰️ DSM** abrem direto no visualizador 2D; **🧊 Nuvem (3D)** abre a nuvem `.laz` em 3D no navegador; **⬇ Tudo (.zip)** baixa o pacote completo (abra também no **CloudCompare/QGIS**).
+
+> **Qual modo gera o quê:** o **DSM** só sai nos modos **DSM + ortomosaico** e **Completo**; o **modelo 3D texturizado** (`odm_texturing*/`), só no **Completo**. No **Rápido** a nuvem (`.laz`) é **esparsa**; nos outros dois, **densa**. Em **todos** os modos vêm ortomosaico + nuvem + relatório. Detalhes e qual escolher: **[Boas Práticas § 3](./Boas-Praticas-e-Qualidade.md)**.
 
 > 📘 **Dicas de qualidade, confiabilidade e "por que usar o OrtoFly":** veja o **[Guia de Boas Práticas e Qualidade](./Boas-Praticas-e-Qualidade.md)** — voo, sobreposição, modo Rápido vs Completo, e a precisão dos produtos (ODM / GCP / RTK).
 

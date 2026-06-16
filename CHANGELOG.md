@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.13] — Junho 2026
+
+### 📝 Aba Processar — rótulos dos modos refletem as entregas reais
+
+- Os rótulos de saída deixaram de subestimar o que o ODM entrega: **Rápido — ortomosaico + nuvem esparsa (sem DSM)** (antes "só ortomosaico"); **DSM + ortomosaico + nuvem densa — sem modelo 3D**; **Completo — DSM + nuvem densa + modelo 3D**. As dicas (tooltip) foram alinhadas.
+- **Documentação:** o [Guia de Boas Práticas](./Boas-Praticas-e-Qualidade.md) §3 foi reescrito para os **3 modos** + a combinação com **Economizar RAM**, com a matriz de entregas e a explicação de **quando o ortomosaico perde qualidade** (só na geometria, em terreno com relevo — não na posição nem na resolução). README ganhou o mapa "qual modo gera o quê" e a correção do **DTM** (o app não gera DTM).
+
+---
+
 ## [1.18.12] — Junho 2026
 
 ### 🐛 Correção — banner de "nova versão" comparava contra uma versão fixa

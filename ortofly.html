@@ -475,10 +475,10 @@ footer{
         <div id="odmImgCount" class="spec" style="margin-top:6px"></div>
         <div class="row" style="margin-top:8px"><div class="field"><label for="odmName">Nome</label><input id="odmName" type="text" maxlength="40" placeholder="meu-voo" /></div></div>
         <div class="spec" style="font-size:13px;margin:8px 0 2px">Saída</div>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0;cursor:pointer" title="fast-orthophoto: só o ortomosaico, a partir da reconstrução esparsa. Rápido e leve. Não gera DSM nem nuvem densa."><input type="radio" name="odmOut" value="fast" checked style="width:auto" /> Rápido — só ortomosaico</label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0;cursor:pointer" title="Envia dsm + skip-3dmodel ao ODM: gera DSM e ortomosaico a partir da nuvem densa, mas PULA o modelo 3D texturizado — a etapa que mais consome RAM. Ideal p/ máquinas com pouca memória que só precisam do DSM/orto."><input type="radio" name="odmOut" value="dsm" style="width:auto" /> DSM + ortomosaico — sem modelo 3D (mais leve)</label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0;cursor:pointer" title="Modo completo: dsm + reconstrução densa + malha + modelo 3D texturizado. O mais pesado (a texturização pode estourar a RAM em conjuntos grandes). Use numa máquina com bastante memória."><input type="radio" name="odmOut" value="full" style="width:auto" /> Completo — DSM + modelo 3D texturizado (mais pesado)</label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;cursor:pointer" title="Reduz o uso de memória: envia resize-to=2048 e pc-quality=low ao ODM (imagens menores + nuvem densa em baixa). Recomendado p/ conjuntos grandes no modo completo (Gerar DSM), que costuma estourar a RAM na texturização."><input type="checkbox" id="odmLite" style="width:auto" /> Economizar RAM (resize 2048 · nuvem em baixa) — conjuntos grandes</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0;cursor:pointer" title="fast-orthophoto: ortomosaico a partir da reconstrução esparsa. Entrega também a NUVEM ESPARSA (abre no 🧊 Nuvem 3D) + relatório — mas NÃO gera DSM nem nuvem densa. O mais rápido e leve."><input type="radio" name="odmOut" value="fast" checked style="width:auto" /> Rápido — ortomosaico + nuvem esparsa (sem DSM)</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0;cursor:pointer" title="Envia dsm + skip-3dmodel ao ODM: gera DSM, ortomosaico E nuvem densa, mas PULA o modelo 3D texturizado — a etapa que mais consome RAM. Ideal p/ máquinas com pouca memória que não precisam do 3D."><input type="radio" name="odmOut" value="dsm" style="width:auto" /> DSM + ortomosaico + nuvem densa — sem modelo 3D (mais leve)</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0;cursor:pointer" title="Modo completo: dsm + reconstrução densa + malha + modelo 3D texturizado. Entrega DSM + nuvem densa + modelo 3D + ortomosaico. O mais pesado (a texturização pode estourar a RAM em conjuntos grandes). Use numa máquina com bastante memória."><input type="radio" name="odmOut" value="full" style="width:auto" /> Completo — DSM + nuvem densa + modelo 3D (mais pesado)</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;cursor:pointer" title="Reduz o uso de memória: envia resize-to=2048 e pc-quality=low ao ODM (imagens menores + nuvem densa em baixa). Reduz a resolução de TODOS os produtos. Recomendado só p/ conjuntos grandes que estouram a RAM (sobretudo nos modos densos: DSM+orto e Completo)."><input type="checkbox" id="odmLite" style="width:auto" /> Economizar RAM (resize 2048 · nuvem em baixa) — conjuntos grandes</label>
         <button class="btn primary block" onclick="odmCreate()">🚀 Enviar e processar</button>
         <p class="hint">Dezenas–centenas de fotos. Datasets enormes podem pesar no upload.</p>
       </div>
@@ -511,7 +511,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.18.12</span>
+  <span id="appVersion">© MGC · v1.18.13</span>
 </footer>
 
 <!-- PIX modal -->
@@ -656,8 +656,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.18.12 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.18.12';
+/* ═══════════════ OrtoFly v1.18.13 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.18.13';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
