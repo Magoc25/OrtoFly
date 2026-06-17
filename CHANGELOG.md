@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.15] — Junho 2026
+
+### 📝 Aviso de versão beta reformulado (tom mais confiante)
+
+- O aviso de "fase de testes (beta)" — no README e no modal de 1ª abertura — deixou de soar como "o app pode estar errado": saíram o *"podem conter imprecisões"* e o *"por sua conta e risco, sem garantias"*. Agora credibiliza o motor (**OpenDroneMap**, usado em pesquisa e produção) e enquadra a conferência dos produtos como **prática normal de qualquer fotogrametria** (a exatidão depende das suas fotos e do apoio de campo GCP/RTK, não do software). O texto formal de isenção permanece no `TERMS.md`.
+
+---
+
 ## [1.18.14] — Junho 2026
 
 ### 📝 Aba Processar — duas dicas no ponto de decisão

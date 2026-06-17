@@ -8,11 +8,11 @@ Desenvolvido por **Marlon Gomes da Costa (MGC Dev)**
 > Não representa, não é financiado e não tem vínculo institucional com o IFMA
 > ou qualquer outra organização.
 
-> 🧪 **Versão em testes e validação (beta).** O OrtoFly está **funcional** e você pode usá-lo à vontade — mas ainda **não passou por validação completa**. Os produtos gerados (ortomosaico, DSM, nuvem de pontos, medidas e índices de vegetação) **podem conter imprecisões**: confira e **valide os resultados antes de usá-los** em trabalhos técnicos, laudos ou tomadas de decisão — de preferência com **pontos de controle (GCP)** e/ou um software de referência (ex.: QGIS). O uso é **por sua conta e risco, sem garantias** (veja os [Termos de Uso](./TERMS.md)).
+> 🧪 **Versão em testes (beta).** O OrtoFly já está **funcional** — use à vontade. O processamento é feito pelo **OpenDroneMap**, motor de fotogrametria open source usado em pesquisa e produção no mundo todo. Como em **todo levantamento fotogramétrico**, a qualidade dos produtos (ortomosaico, DSM, nuvem de pontos, medidas e índices de vegetação) depende das **suas fotos** (sobreposição, luz) e do **apoio de campo**. Para **laudos ou decisões técnicas**, vale conferir os resultados — de preferência com **pontos de controle (GCP/RTK)** e/ou um software de referência (ex.: QGIS). _(Detalhes nos [Termos de Uso](./TERMS.md).)_
 >
 > 💬 **Ajude a validar!** Testou? **Conte como foi** — funcionou no seu fluxo? o ortomosaico/DSM ficou coerente com a realidade medida em campo? Relatos sobre o funcionamento e a **qualidade dos produtos** são muito bem-vindos e orientam a evolução do app. Use a **avaliação dentro do app** ou [abra uma issue no GitHub](https://github.com/Magoc25/OrtoFly/issues).
 
-[![Versão](https://img.shields.io/badge/versão-1.18.14-blue)](./CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/versão-1.18.15-blue)](./CHANGELOG.md)
 [![Status](https://img.shields.io/badge/status-beta%20%C2%B7%20em%20valida%C3%A7%C3%A3o-yellow)](./TERMS.md)
 [![Licença](https://img.shields.io/badge/licença-não%20comercial-orange)](#-licença-e-termos-de-uso)
 [![PIX](https://img.shields.io/badge/apoie-PIX-brightgreen)](#-apoiar-o-projeto)
