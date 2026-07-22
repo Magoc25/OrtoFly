@@ -868,7 +868,7 @@ function renderOutputs(plan){
   const g=plan.grid;
   if(!g){ ['oPhotos','oDist','oTime','oBatt'].forEach(i=>set(i,'—')); set('oLines','— linhas'); $('planNote').innerHTML='<p class="empty">Desenhe a área (✏️) para gerar a grade de voo.</p>'; return; }
   if(g.tooBig){ ['oPhotos','oDist','oTime','oBatt'].forEach(i=>set(i,'—')); set('oLines','— linhas'); $('planNote').innerHTML='<div class="note">Área muito grande para esta sobreposição/altura. Aumente a altura, reduza a sobreposição ou divida a área.</div>'; return; }
-  const nP=g.waypoints.length, transit=g.nLines*0.0; // transições já contam no pathLL
+  const nP=g.waypoints.length;   // transições entre linhas já contam no pathLL
   const distKm=g.lengthM/1000;
   const tSec=g.lengthM/plan.speed + g.nLines*9 + nP*0.7 + plan.alt*1.5; // voo + curvas + fotos + subida
   const tMin=tSec/60;
@@ -1127,7 +1127,7 @@ function wire(){
   $('rasterOpacity').addEventListener('input',()=>{ $('rasterOpacityVal').textContent=$('rasterOpacity').value+'%'; setRasterOpacity(); });
   $('rasterCmap').addEventListener('change',recolorRaster);
   $('ptSize').addEventListener('input',updatePointSize);
-  document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(drawing) cancelDraw(); document.querySelectorAll('.modal:not(.hidden)').forEach(m=>m.classList.add('hidden')); } });
+  document.addEventListener('keydown',e=>{ if(e.key!=='Escape') return; if(drawing) cancelDraw(); if(_cropDrawing) cancelCropDraw(); if(_zonalPicking) zonalPickToggle(); document.querySelectorAll('.modal:not(.hidden)').forEach(m=>m.classList.add('hidden')); });   // único listener de Esc do app
   onDroneChange(true); syncRangeLabels(); updateDirUI();
 }
 function openAbout(){ $('aboutModal').classList.remove('hidden'); }
@@ -1367,16 +1367,12 @@ function _pixRGB(v){ const {gr,bands,ycc}=_rasterMeta; if(!v) return null; const
 function rasterStatus(t){ const e=$('rasterStatus'); if(e) e.textContent=t||''; }
 function openRaster(){ $('rasterInput').click(); }
 function tiffPhotometric(ab){ try{ const dv=new DataView(ab); const le=dv.getUint16(0,false)===0x4949; const g16=o=>dv.getUint16(o,le),g32=o=>dv.getUint32(o,le); if(g16(2)!==42) return null; const ifd=g32(4),n=g16(ifd); for(let i=0;i<n;i++){ const o=ifd+2+i*12; if(g16(o)===262) return (g16(o+2)===3)?g16(o+8):g32(o+8); } return null; }catch(e){ return null; } }
-function buildRasterLayer(){ const {gr,mn,mx,bands,ycc}=_rasterMeta; const o={georaster:gr,opacity:(+$('rasterOpacity').value||100)/100,resolution:256,pane:'rasterPane'};
-  if(bands<3){ o.pixelValuesToColorFn=v=>{ const val=Array.isArray(v)?v[0]:v; if(val==null||isNaN(val)||val===gr.noDataValue) return null; return cmapCSS((val-mn)/((mx-mn)||1),$('rasterCmap').value); }; }
-  else { // RGB explícito: banda 0=R, 1=G, 2=B; alpha/nodata transparente; auto-escala 8/16-bit
-    const mxs=(gr.maxs||[]).slice(0,3).filter(x=>x!=null&&isFinite(x)); const peak=mxs.length?Math.max(...mxs):255; const sc=peak>255?255/peak:1;
-    o.pixelValuesToColorFn=v=>{ if(!v) return null; const a=(bands>=4)?v[3]:255; if(a===0) return null;
-      let r=v[0],g=v[1],b=v[2]; if(r==null&&g==null&&b==null) return null; if(gr.noDataValue!=null&&r===gr.noDataValue&&g===gr.noDataValue&&b===gr.noDataValue) return null;
-      if(ycc){ const Y=r,Cb=g-128,Cr=b-128; r=Y+1.402*Cr; g=Y-0.344136*Cb-0.714136*Cr; b=Y+1.772*Cb; }   // YCbCr -> RGB
-      const c=x=>Math.max(0,Math.min(255,Math.round((x||0)*sc))); return `rgb(${c(r)},${c(g)},${c(b)})`; };
-  }
+function buildRasterLayer(){ const o={georaster:_rasterMeta.gr,opacity:(+$('rasterOpacity').value||100)/100,resolution:256,pane:'rasterPane'};
+  const fn=_rasterColorFn();   // fonte única de cor (RGB/DSM/índice — trata YCbCr, alpha e nodata); aqui só embrulha em CSS
+  o.pixelValuesToColorFn=v=>{ const c=fn(v); return c?`rgb(${c[0]},${c[1]},${c[2]})`:null; };
   return new window.GeoRasterLayer(o); }
+function rebuildRasterLayer(fit){ if(rasterLayer) rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); if(fit){ try{ map.fitBounds(rasterLayer.getBounds()); }catch(e){} } }
+function resetIndexUI(bands){ $('indexRow').classList.toggle('hidden',(bands||0)<3); if($('indexSel'))$('indexSel').value='none'; $('indexCmapRow').classList.add('hidden'); $('indexClearBtn').classList.add('hidden'); $('indexInfo').textContent=''; }
 async function handleRasterFile(file){
   const PG=window.parseGeoraster||window.GeoRaster;
   if(!PG||!window.GeoRasterLayer){ toast('Biblioteca de raster não carregou (sem conexão?)','error'); return; }
@@ -1387,17 +1383,15 @@ async function handleRasterFile(file){
     const mn=(gr.mins&&gr.mins[0]!=null)?gr.mins[0]:gr.minValue, mx=(gr.maxs&&gr.maxs[0]!=null)?gr.maxs[0]:gr.maxValue;
     _rasterMeta={gr,bands,mn,mx,ycc,orig:{xmin:gr.xmin,xmax:gr.xmax,ymin:gr.ymin,ymax:gr.ymax}};
     _rasterShift={dx:0,dy:0}; _gcpTransform=null; _rasterIndex=null; _rasterIndexRange=null; _rasterUncropped=null; if(_rasterOverlay){ _rasterOverlay.remove(); _rasterOverlay=null; } if(_cropDrawing) cancelCropDraw();   // novo raster: zera ajuste por GCP, índice e recorte
-    if(rasterLayer) rasterLayer.remove();
-    rasterLayer=buildRasterLayer().addTo(map);
-    try{ map.fitBounds(rasterLayer.getBounds()); }catch(e){}
+    rebuildRasterLayer(true);
     $('rasterCtrls').classList.remove('hidden'); $('rasterCmapRow').classList.toggle('hidden',bands>=3);
-    $('indexRow').classList.toggle('hidden',bands<3); if($('indexSel'))$('indexSel').value='none'; $('indexCmapRow').classList.add('hidden'); $('indexClearBtn').classList.add('hidden'); $('indexInfo').textContent=''; $('cropFullBtn').classList.add('hidden');
+    resetIndexUI(bands); $('cropFullBtn').classList.add('hidden');
     rasterStatus(`${file.name} · ${gr.width}×${gr.height} · ${bands} banda(s)${bands<3&&isFinite(mn)?` · ${(+mn).toFixed(1)}–${(+mx).toFixed(1)}`:''}`);
     toast('Raster carregado ✅');
   }catch(e){ console.error('[Raster]',e); toast('Erro ao ler raster: '+e.message,'error'); rasterStatus(''); }
 }
 function setRasterOpacity(){ const op=(+$('rasterOpacity').value||100)/100; if(_rasterOverlay){ _rasterOverlay.setOpacity(op); if(rasterLayer) rasterLayer.setOpacity(0); } else if(rasterLayer) rasterLayer.setOpacity(op); }
-function recolorRaster(){ if(!rasterLayer||!_rasterMeta||_rasterMeta.bands>=3) return; rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); }
+function recolorRaster(){ if(!rasterLayer||!_rasterMeta||_rasterMeta.bands>=3) return; rebuildRasterLayer(false); }
 function clearRaster(){ if(_cropDrawing) cancelCropDraw(); if(_rasterOverlay){ _rasterOverlay.remove(); _rasterOverlay=null; } if(rasterLayer){ rasterLayer.remove(); rasterLayer=null; } _rasterMeta=null; _rasterUncropped=null; _rasterShift={dx:0,dy:0}; _gcpTransform=null; _rasterIndex=null; _rasterIndexRange=null; if($('gcpStatus'))$('gcpStatus').textContent=''; if($('cropFullBtn'))$('cropFullBtn').classList.add('hidden'); $('rasterCtrls').classList.add('hidden'); rasterStatus(''); }
 
 /* ───── Índices de vegetação por RGB (Fase 2-B) ───── */
@@ -1497,8 +1491,8 @@ async function performCrop(polyLL,mask){
     const sh={..._rasterShift};   // o recorte herda o georref já deslocado por GCP; orig SEM o shift p/ o "↺ Remover ajuste" continuar desfazendo
     _rasterMeta={gr:newGr,bands:bandsNew,mn,mx,ycc:_rasterMeta.ycc,masked:!!mask,orig:{xmin:newGr.xmin-sh.dx,xmax:newGr.xmax-sh.dx,ymin:newGr.ymin-sh.dy,ymax:newGr.ymax-sh.dy}};
     _rasterShift=sh;
-    if(rasterLayer) rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); try{ map.fitBounds(rasterLayer.getBounds()); }catch(e){} refreshRasterDisplay();
-    $('indexRow').classList.toggle('hidden',bandsNew<3); if($('indexSel'))$('indexSel').value='none'; $('indexCmapRow').classList.add('hidden'); $('indexClearBtn').classList.add('hidden'); $('indexInfo').textContent='';
+    rebuildRasterLayer(true); refreshRasterDisplay();
+    resetIndexUI(bandsNew);
     $('cropFullBtn').classList.remove('hidden');
     rasterStatus(`Recorte · ${newGr.width}×${newGr.height} · ${bandsNew} banda(s)`);
     if($('zonalPts').value.trim()) zonalCompute();
@@ -1508,10 +1502,9 @@ async function performCrop(polyLL,mask){
 function cropRestore(){ if(!_rasterUncropped) return; if(_rasterOverlay){ _rasterOverlay.remove(); _rasterOverlay=null; } _rasterIndex=null; _rasterIndexRange=null;
   _rasterMeta=_rasterUncropped; _rasterUncropped=null;
   const o=_rasterMeta.orig, g0=_rasterMeta.gr; _rasterShift=o?{dx:g0.xmin-o.xmin,dy:g0.ymin-o.ymin}:{dx:0,dy:0};   // o gr original (mutado in-place) pode ainda carregar o deslocamento por GCP
-  if(rasterLayer) rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); try{ map.fitBounds(rasterLayer.getBounds()); }catch(e){} refreshRasterDisplay();
-  $('indexRow').classList.toggle('hidden',(_rasterMeta.bands||0)<3); if($('indexSel'))$('indexSel').value='none'; $('indexCmapRow').classList.add('hidden'); $('indexClearBtn').classList.add('hidden'); $('indexInfo').textContent='';
+  rebuildRasterLayer(true); refreshRasterDisplay();
+  resetIndexUI(_rasterMeta.bands);
   $('cropFullBtn').classList.add('hidden'); rasterStatus('Imagem inteira'); if($('zonalPts').value.trim()) zonalCompute(); toast('Imagem inteira restaurada'); }
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&_cropDrawing) cancelCropDraw(); });
 
 /* ═══════════════ ESTATÍSTICA ZONAL (pontos + buffer circular) ═══════════════ */
 let _zonalLayer=null, _zonalResults=null, _zonalPicking=false, _zonalPickLayer=null;
@@ -1557,6 +1550,12 @@ function _splitEN(a,b){ if(a>834000&&b<=834000) return [b,a]; if(b>834000&&a<=83
 function _median(arr){ if(!arr.length) return null; const s=arr.slice().sort((a,b)=>a-b), m=s.length>>1; return s.length%2?s[m]:(s[m-1]+s[m])/2; }
 function _labelBands(n){ if(n===1) return ['Valor']; if(n===3) return ['R','G','B']; const a=[]; for(let i=1;i<=n;i++) a.push('B'+i); return a; }
 function _zfmt(v){ if(v==null||isNaN(v)) return '—'; const x=Math.abs(v); return x>=1000?v.toFixed(0):x>=1?v.toFixed(2):v.toFixed(4); }
+// bandas a reportar + máscara alfa + índice ativo (comum a zonalCompute e zonalAreaStats)
+function _zonalBandSetup(gr,vals){ const nb=gr.numberOfRasters||vals.length;
+  const alphaIdx=(nb===4||nb===2)?nb-1:-1;          // RGBA / Cinza+Alfa: última banda é máscara
+  const reportIdx=[]; for(let b=0;b<nb;b++) if(b!==alphaIdx) reportIdx.push(b);
+  const idxFn=(_rasterIndex&&nb>=3)?VEG_INDICES[_rasterIndex]:null;   // índice de vegetação ativo → amostra o índice, não as bandas
+  return {nb,alphaIdx,reportIdx,idxFn,labels:idxFn?[_rasterIndex]:_labelBands(reportIdx.length),nd:gr.noDataValue}; }
 
 function parseZonalPoints(txt){
   const pts=[];
@@ -1585,9 +1584,7 @@ function zonalCompute(){
   if(!_rasterMeta||!_rasterMeta.gr){ toast('Carregue um raster (GeoTIFF/COG) acima primeiro','error'); return; }
   const gr=_rasterMeta.gr, vals=gr.values;
   if(!vals||!vals.length||!vals[0]){ toast('Raster sem pixels em memória. Carregue o GeoTIFF completo (não COG remoto).','error'); return; }
-  const epsg=+gr.projection||0;
-  const geoRaster=(epsg===4326)||(!epsg && Math.abs(gr.xmin)<=180 && Math.abs(gr.ymax)<=90); // raster em graus?
-  const zinfo=utmZoneOf(epsg);   // p/ converter E,N -> lat/lon (desenho/GeoJSON)
+  const {epsg,geoRaster,zinfo}=_rasterCRS();   // detecção de CRS centralizada (a mesma do ajuste por GCP)
   const pts=parseZonalPoints($('zonalPts').value);
   if(!pts.length){ toast('Informe ao menos um ponto: lat, lon (graus) ou E, N (metros)','error'); return; }
   const radius=+$('zonalRadius').value;
@@ -1599,11 +1596,7 @@ function zonalCompute(){
     toast('Entrada em lat/lon, mas o CRS do raster (EPSG:'+(epsg||'?')+') não é suportado p/ reprojetar. Informe os pontos em E, N (metros, mesmo CRS do raster).','error'); return;
   }
 
-  const nb=gr.numberOfRasters||vals.length;
-  const alphaIdx=(nb===4||nb===2)?nb-1:-1;          // RGBA / Cinza+Alfa: última banda é máscara
-  const reportIdx=[]; for(let b=0;b<nb;b++) if(b!==alphaIdx) reportIdx.push(b);
-  const idxFn=(_rasterIndex&&nb>=3)?VEG_INDICES[_rasterIndex]:null;   // se um índice de vegetação está ativo, amostra o índice
-  const labels=idxFn?[_rasterIndex]:_labelBands(reportIdx.length), nd=gr.noDataValue;
+  const {nb,alphaIdx,reportIdx,idxFn,labels,nd}=_zonalBandSetup(gr,vals);
   const W=gr.width, H=gr.height, px=gr.pixelWidth, py=gr.pixelHeight;
 
   // gera as coordenadas no CRS do raster (X,Y) + lat/lon a partir de (a,b) interpretados como lat/lon ou E/N
@@ -1762,7 +1755,6 @@ function zonalPickAdd(latlng){
   if(_zonalPickLayer) L.circleMarker(latlng,{radius:4,color:'#1a9e4b',weight:2,fillColor:'#fff',fillOpacity:1}).bindTooltip(name,{permanent:true,direction:'right',className:'zonal-pick-tip'}).addTo(_zonalPickLayer);
   const btn=$('zonalPickBtn'); if(btn) btn.textContent=`✓ Concluir coleta (${n})`;
 }
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&_zonalPicking) zonalPickToggle(); });
 
 /* importar pontos de CSV / GeoJSON → adiciona na caixa (herda UTM, correção de ordem, etc.) */
 function zonalImportFile(){ $('zonalFileInput').click(); }
@@ -1811,10 +1803,8 @@ function _parseCSVPoints(text){
 function zonalAreaStats(){
   if(!_rasterMeta||!_rasterMeta.gr){ toast('Carregue um raster (GeoTIFF/COG) primeiro','error'); return; }
   const gr=_rasterMeta.gr, vals=gr.values; if(!vals||!vals.length||!vals[0]){ toast('Raster sem pixels em memória','error'); return; }
-  const nb=gr.numberOfRasters||vals.length, W=gr.width, H=gr.height;
-  const alphaIdx=(nb===4||nb===2)?nb-1:-1, reportIdx=[]; for(let b=0;b<nb;b++) if(b!==alphaIdx) reportIdx.push(b);
-  const idxFn=(_rasterIndex&&nb>=3)?VEG_INDICES[_rasterIndex]:null;
-  const labels=idxFn?[_rasterIndex]:_labelBands(reportIdx.length), nd=gr.noDataValue, N=labels.length;
+  const W=gr.width, H=gr.height;
+  const {nb,alphaIdx,reportIdx,idxFn,labels,nd}=_zonalBandSetup(gr,vals); const N=labels.length;
   const sum=new Array(N).fill(0), sq=new Array(N).fill(0), cnt=new Array(N).fill(0), mns=new Array(N).fill(Infinity), mxs=new Array(N).fill(-Infinity), med=labels.map(()=>[]);
   const step=Math.max(1,Math.floor(W*H/1.5e6)); let pix=0;   // subamostra só p/ a mediana
   const acc=(k,v)=>{ cnt[k]++; sum[k]+=v; sq[k]+=v*v; if(v<mns[k])mns[k]=v; if(v>mxs[k])mxs[k]=v; if(pix%step===0) med[k].push(v); };
@@ -1853,7 +1843,7 @@ function fitHelmert(P){ const n=P.length;
 function gcpTransform(x,y){ const t=_gcpTransform; if(!t) return [x,y]; return [t.a*x-t.b*y+t.c, t.b*x+t.a*y+t.d]; }
 function setRasterShift(dx,dy){ if(!_rasterMeta||!_rasterMeta.gr||!_rasterMeta.orig) return; const gr=_rasterMeta.gr, o=_rasterMeta.orig;
   gr.xmin=o.xmin+dx; gr.xmax=o.xmax+dx; gr.ymin=o.ymin+dy; gr.ymax=o.ymax+dy; _rasterShift={dx,dy};
-  if(rasterLayer){ rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); } refreshRasterDisplay(); }
+  if(rasterLayer) rebuildRasterLayer(false); refreshRasterDisplay(); }
 function gcpPickFrom(){ if(!map){ toast('Mapa indisponível','error'); return; }
   _pickCb=(ll)=>{ const ta=$('gcpPairs'); const pre=(ta.value&&!ta.value.endsWith('\n'))?'\n':''; ta.value+=pre+`${ll.lat.toFixed(7)}, ${ll.lng.toFixed(7)} => `; ta.focus(); toast('Capturado "de" — agora digite a coordenada real (RTK) após "=>"'); };
   map.getContainer().style.cursor='crosshair'; toast('Clique no mapa a feição de referência (visível na imagem)'); }
@@ -1890,7 +1880,8 @@ function _rasterColorFn(){
     return v=>{ const rgb=_pixRGB(v); if(!rgb) return null; const val=fn(rgb[0],rgb[1],rgb[2]); if(val==null||isNaN(val)||!isFinite(val)) return null; const c=cmapRGB((val-rng.mn)/span,icmap); return [c[0]*255|0,c[1]*255|0,c[2]*255|0]; }; }
   if(bands<3){ const span=(mx-mn)||1; return v=>{ const val=Array.isArray(v)?v[0]:v; if(val==null||isNaN(val)||val===gr.noDataValue) return null; const c=cmapRGB((val-mn)/span,cmap); return [c[0]*255|0,c[1]*255|0,c[2]*255|0]; }; }
   const mxs=(gr.maxs||[]).slice(0,3).filter(x=>x!=null&&isFinite(x)); const peak=mxs.length?Math.max(...mxs):255; const sc=peak>255?255/peak:1;
-  return v=>{ if(!v) return null; const a=(bands>=4)?v[3]:255; if(a===0) return null; let r=v[0],g=v[1],b=v[2]; if(r==null&&g==null&&b==null) return null; if(gr.noDataValue!=null&&r===gr.noDataValue&&g===gr.noDataValue&&b===gr.noDataValue) return null; if(ycc){ const Y=r,Cb=g-128,Cr=b-128; r=Y+1.402*Cr; g=Y-0.344136*Cb-0.714136*Cr; b=Y+1.772*Cb; } const cl=x=>Math.max(0,Math.min(255,Math.round((x||0)*sc))); return [cl(r),cl(g),cl(b)]; };
+  const cl=x=>Math.max(0,Math.min(255,Math.round((x||0)*sc)));
+  return v=>{ const rgb=_pixRGB(v); return rgb?[cl(rgb[0]),cl(rgb[1]),cl(rgb[2])]:null; };   // _pixRGB centraliza alpha/nodata/YCbCr
 }
 // renderiza o raster (com a coloração atual: RGB, DSM ou índice) num canvas reduzido; nearest-neighbor
 function _renderRasterCanvas(maxPx){
@@ -1947,8 +1938,8 @@ function mmGcp(){
   if(g.target==='ortho') return `O ortomosaico foi corrigido geometricamente no OrtoFly (versão ${APP_VERSION}) por translação, a partir de ${g.n} ponto(s) de controle de referência (ex.: levantados com GNSS-RTK), deslocando-o em dx=${g.dx.toFixed(2)} m e dy=${g.dy.toFixed(2)} m${g.n>1?` (resíduo médio de ${g.rms.toFixed(2)} m)`:''} para o alinhamento às coordenadas verdadeiras.`;
   return `As coordenadas dos pontos foram ajustadas no OrtoFly (versão ${APP_VERSION}) por transformação ${g.type==='Helmert'?'de similaridade (Helmert — translação, rotação e escala), estimada por mínimos quadrados':'de translação'}, a partir de ${g.n} ponto(s) de controle de referência (ex.: GNSS-RTK)${g.n>1?`, com erro residual (RMSE) de ${g.rms.toFixed(2)} m`:''}.`;
 }
-function showMM(title,text){ if(!$('mmModal')) return; $('mmTitle').textContent='📝 '+title; const e=s=>String(s).replace(/[&<>]/g,m=>m==='&'?'&amp;':m==='<'?'&lt;':'&gt;');
-  $('mmBody').innerHTML='<div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="btn sm" onclick="citeCopy(this)">Copiar</button></div><pre style="white-space:pre-wrap;word-break:break-word;font-size:12.5px;border:1px solid var(--border);border-radius:8px;padding:8px;margin:0">'+e(text)+'</pre>';
+function showMM(title,text){ if(!$('mmModal')) return; $('mmTitle').textContent='📝 '+title;
+  $('mmBody').innerHTML='<div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="btn sm" onclick="citeCopy(this)">Copiar</button></div><pre style="white-space:pre-wrap;word-break:break-word;font-size:12.5px;border:1px solid var(--border);border-radius:8px;padding:8px;margin:0">'+esc(text)+'</pre>';
   $('mmModal').classList.remove('hidden'); }
 function closeMM(){ $('mmModal').classList.add('hidden'); }
 function showBeta(){ const m=$('betaModal'); if(m) m.classList.remove('hidden'); }
@@ -2294,8 +2285,8 @@ OpenDroneMap Authors. (${y}). ODM (Versão ${odmv}) [Software]. https://github.c
   };
 }
 function openCiteModal(){
-  const c=citeText(), e=s=>s.replace(/[&<>]/g,m=>m==='&'?'&amp;':m==='<'?'&lt;':'&gt;');
-  const block=(t,x)=>'<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px"><b style="font-size:13px">'+t+'</b><button class="btn sm" onclick="citeCopy(this)">Copiar</button></div><pre style="white-space:pre-wrap;word-break:break-word;font-size:12px;border:1px solid var(--border);border-radius:8px;padding:8px;margin:0">'+e(x)+'</pre></div>';
+  const c=citeText();
+  const block=(t,x)=>'<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px"><b style="font-size:13px">'+t+'</b><button class="btn sm" onclick="citeCopy(this)">Copiar</button></div><pre style="white-space:pre-wrap;word-break:break-word;font-size:12px;border:1px solid var(--border);border-radius:8px;padding:8px;margin:0">'+esc(x)+'</pre></div>';
   $('citeBody').innerHTML=block('📚 ABNT',c.abnt)+block('📗 APA',c.apa)+block('💻 BibTeX',c.bib);
   $('citeModal').classList.remove('hidden');
 }
