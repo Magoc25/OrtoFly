@@ -512,7 +512,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.18.15</span>
+  <span id="appVersion">© MGC · v1.18.17</span>
 </footer>
 
 <!-- PIX modal -->
@@ -657,8 +657,8 @@ footer{
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.18.16 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.18.16';
+/* ═══════════════ OrtoFly v1.18.17 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.18.17';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1294,7 +1294,8 @@ async function generateMosaic(){
     let done=0;
     for(const it of items){
       try{
-        const bm=await createImageBitmap(it.p.file,{resizeWidth:Math.min(1280,it.p.w||1280),resizeQuality:'medium'});
+        let bm=await createImageBitmap(it.p.file,(it.p.w&&it.p.w>1280)?{resizeWidth:1280,resizeQuality:'medium'}:{});
+        if(bm.width>1280){ const s=await createImageBitmap(bm,{resizeWidth:1280,resizeQuality:'medium'}); if(bm.close) bm.close(); bm=s; }   // largura ausente no EXIF: reduz após decodificar (nunca faz upscale)
         const iw=bm.width, ih=bm.height;
         const tl=[X(it.corners.tl[0]),Y(it.corners.tl[1])], tr=[X(it.corners.tr[0]),Y(it.corners.tr[1])], bl=[X(it.corners.bl[0]),Y(it.corners.bl[1])];
         const a=(tr[0]-tl[0])/iw, b=(tr[1]-tl[1])/iw, cc=(bl[0]-tl[0])/ih, d=(bl[1]-tl[1])/ih;
@@ -1951,7 +1952,7 @@ function ackBeta(){ try{ localStorage.setItem(LS+'_beta_ack','1'); }catch(e){} c
 let _3d=null, _3dObj=null, _ptBase=0.1;
 function status3d(t){ const e=$('viewer3dStatus'); if(e) e.textContent=t||''; }
 function open3D(){ $('viewer3dInput').click(); }
-function open3DModal(){ $('viewer3dModal').classList.remove('hidden'); if(!_3d) init3D(); else onResize3D(); requestAnimationFrame(()=>{ if(_3d) onResize3D(); }); }
+function open3DModal(){ $('viewer3dModal').classList.remove('hidden'); if(!_3d) init3D(); else { onResize3D(); if(!_3d._raf) _loop3D(); } requestAnimationFrame(()=>{ if(_3d) onResize3D(); }); }
 function close3DModal(){ $('viewer3dModal').classList.add('hidden'); }
 function init3D(){
   if(typeof THREE==='undefined'){ toast('three.js não carregou','error'); return; }
@@ -1964,8 +1965,10 @@ function init3D(){
   scene.add(new THREE.AmbientLight(0xffffff,0.9)); const dl=new THREE.DirectionalLight(0xffffff,0.6); dl.position.set(1,2,1); scene.add(dl);
   _3d={renderer,scene,camera,controls};
   window.addEventListener('resize',onResize3D);
-  (function loop(){ if(!_3d) return; _3d._raf=requestAnimationFrame(loop); if($('viewer3dModal').classList.contains('hidden')) return; controls.update(); renderer.render(scene,camera); })();
+  _loop3D();
 }
+function _loop3D(){ if(!_3d) return; if($('viewer3dModal').classList.contains('hidden')){ _3d._raf=null; return; }   // modal fechado: para o rAF (open3DModal religa)
+  _3d._raf=requestAnimationFrame(_loop3D); _3d.controls.update(); _3d.renderer.render(_3d.scene,_3d.camera); }
 function onResize3D(){ if(!_3d) return; const host=$('viewer3dCanvas'); const w=host.clientWidth||640,h=host.clientHeight||420; _3d.camera.aspect=w/h; _3d.camera.updateProjectionMatrix(); _3d.renderer.setSize(w,h); }
 function hasMesh(o){ let m=!!o.isMesh; o.traverse&&o.traverse(c=>{ if(c.isMesh)m=true; }); return m; }
 function disposeObj(o){ const dm=m=>m&&m.dispose&&m.dispose(); const f=c=>{ if(c.geometry&&c.geometry.dispose)c.geometry.dispose(); if(c.material)(Array.isArray(c.material)?c.material:[c.material]).forEach(dm); }; f(o); o.traverse&&o.traverse(f); }
@@ -2298,7 +2301,7 @@ function openPixModal(){
   const enc=encodeURIComponent(_pixCode);
   const qr1='https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=4&data='+enc;
   $('pixQrContainer').innerHTML=`<img id="pixQrImg" src="${qr1}" width="200" height="200" style="border-radius:8px;background:#fff;padding:6px;display:block;margin:0 auto" alt="QR Code PIX" /><p id="pixQrFallback" style="display:none;color:var(--muted);font-size:.8rem;text-align:center;margin-top:.5rem">Copie o código abaixo para pagar.</p>`;
-  $('pixQrImg').onerror=function(){ this.style.display='none'; $('pixQrFallback').style.display='block'; };   // (o 2º fallback via chart.googleapis.com foi removido — a API de QR do Google foi descontinuada)
+  $('pixQrImg').onerror=function(){ this.style.display='none'; $('pixQrFallback').style.display='block'; };
 }
 function closePixModal(){ $('pixModal').classList.add('hidden'); }
 function copyPixCode(){ const btn=$('pixCopyBtn');
@@ -2350,10 +2353,9 @@ async function submitReview(){
   $('reviewThankYou').classList.remove('hidden');
 }
 
-/* ═══════════════ Versão automática + banner + ping ═══════════════ */
-(async()=>{ const el=$('appVersion'); if(!el) return; const CK=LS+'_app_version', TTL=6*60*60*1000;
-  const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&c.app===APP_VERSION&&Date.now()-c.ts<TTL){ el.textContent='© MGC · '+c.v; return; }
-  try{ const res=await fetch('./CHANGELOG.md?_='+Date.now(),{cache:'no-cache'}); if(!res.ok) return; const t=await res.text(); const m=t.match(/##\s+\[(\d+\.\d+\.\d+)\]/); if(!m) return; const v='v'+m[1]; el.textContent='© MGC · '+v; localStorage.setItem(CK,JSON.stringify({v,ts:Date.now(),app:APP_VERSION})); }catch(e){}
+/* ═══════════════ Versão no rodapé + banner + ping ═══════════════ */
+(()=>{ const el=$('appVersion'); if(el) el.textContent='© MGC · v'+APP_VERSION;   // versão exibida = a do código que está rodando, nunca de um fetch cacheado (guia r38)
+  try{ localStorage.removeItem(LS+'_app_version'); }catch(e){}   // limpa o cache do esquema antigo (fetch do CHANGELOG)
 })();
 const cmpVersion=(a,b)=>{ const pa=String(a).replace(/^v/,'').split('.').map(n=>parseInt(n,10)||0),pb=String(b).replace(/^v/,'').split('.').map(n=>parseInt(n,10)||0); for(let i=0;i<Math.max(pa.length,pb.length);i++){ const x=pa[i]||0,y=pb[i]||0; if(x>y)return 1; if(x<y)return -1; } return 0; };
 (async()=>{ if(!revClient) return; const CK=LS+'_update_check', TTL=24*60*60*1000;

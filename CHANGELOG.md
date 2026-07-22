@@ -5,6 +5,30 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.17] — Julho 2026
+
+### 🐛 Correções (auditoria completa do código)
+
+- **Tarefa nova depois de um resultado salvo mostrava o resultado ANTIGO** e escondia os botões 💾 Salvar/🗑️ Descartar (o estado "salvo" e o zip em cache não eram zerados no `odmCreate`) — o disco do NodeODM ficava ocupado sem aviso. Corrigido.
+- **Recorte + ajuste por GCP:** recortar um ortomosaico já deslocado por pontos de controle "assava" o deslocamento — **↺ Remover ajuste** deixava de desfazer e o LEIA-ME do export PNG dizia "sem correção" com a correção embutida. O recorte agora preserva o deslocamento (e o ↺ Imagem inteira o recalcula).
+- **Visualizador 3D:** falha ao criar o WebGL (GPU/driver) era engolida em silêncio — agora mostra o erro no toast/status.
+- **⭐ Avaliações:** se as avaliações compartilhadas não carregarem (sem rede/Supabase fora), a lista avisa que está mostrando só as deste dispositivo.
+- **Lista de fotos:** clicar numa foto com a exibição oculta religa os marcadores antes de abrir o popup (antes não acontecia nada).
+- **⬛ Área p/ envoltória** com fotos em linha reta avisa o erro (antes dizia "área criada" sem criar nada).
+- **Importar GeoJSON:** anel de polígono não fechado não perde mais o último vértice.
+- **NodeODM:** status ausente não exibe mais "código undefined"; o **Testar** ganhou timeout de 8 s; e uma tarefa que já não existe no servidor passa a contar como removida no 🧹 Limpar tudo (a lista interna não fica presa).
+- **PIX:** removido o 2º fallback do QR (a API de QR do Google Charts foi descontinuada — nunca funcionaria).
+
+### 🔧 Melhorado
+
+- **Versão no rodapé** agora vem da constante embutida no código (`APP_VERSION`) — saiu o fetch do `CHANGELOG.md` com cache de 6 h, que podia exibir versão defasada (padrão r38 do guia MGC Dev).
+- **Visualizador 3D** para o loop de renderização (rAF) quando o modal fecha — antes seguia acordando a CPU a ~60 fps para sempre após a 1ª abertura.
+- **Mosaico rápido** não faz mais upscale de fotos pequenas ou sem largura no EXIF (redimensiona só para reduzir).
+- **Manutenção interna (deduplicação):** cor do raster unificada (`_rasterColorFn` + `_pixRGB` viram a fonte única de RGB/DSM/índice, alpha/nodata/YCbCr), helpers `rebuildRasterLayer`/`resetIndexUI`/`_zonalBandSetup`, detecção de CRS única, um só listener de Esc e uso do `esc()` global nos modais — ~50 linhas duplicadas a menos, sem mudança de comportamento.
+- Manutenção: `CACHE_NAME` do Service Worker em `v41`.
+
+---
+
 ## [1.18.16] — Julho 2026
 
 ### 🪟 Título da janela reduzido para "OrtoFly"
