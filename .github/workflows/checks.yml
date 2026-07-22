@@ -1,0 +1,34 @@
+# Verificação automática a cada push que toque no app:
+#   degrau 1 = check.js (sintaxe + handlers/ids órfãos, sem dependências)
+#   degrau 2 = tests/smoke.js (boot + plano + exports num DOM simulado)
+# O jsdom é instalado SÓ aqui no CI — o repositório não tem package.json de
+# propósito (protocolo OneDrive: nada de node_modules na pasta local).
+# paths filtrados p/ não disparar nos commits automáticos do stats.json (r31).
+name: checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ortofly.html'
+      - 'sw.js'
+      - 'manifest.json'
+      - 'check.js'
+      - 'tests/**'
+      - '.github/workflows/checks.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Degrau 1 — estático (sintaxe + órfãos)
+        run: node check.js
+      - name: Degrau 2 — smoke jsdom (boot + plano + exports)
+        run: |
+          npm install --no-save --no-package-lock --no-audit --no-fund jsdom@24
+          node tests/smoke.js
