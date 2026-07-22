@@ -45,6 +45,26 @@ natureza, expressas ou implícitas. O autor não se responsabiliza por danos dir
 indiretos decorrentes do uso. O OrtoFly é uma ferramenta de planejamento e **não substitui**
 o julgamento do piloto nem as autorizações regulatórias exigidas para a operação de drones.
 
+## Componentes de terceiros (redistribuídos em `vendor/`)
+
+A licença acima cobre o **código do OrtoFly**. As bibliotecas de terceiros redistribuídas
+junto com o app (pasta `vendor/`, desde a v1.19.0) permanecem sob as licenças dos seus
+próprios autores, que devem ser preservadas em qualquer redistribuição:
+
+| Biblioteca | Licença |
+|---|---|
+| Leaflet 1.9.4 | BSD-2-Clause |
+| JSZip 3.10.1 | MIT (dual MIT / GPL-3.0-or-later) |
+| @supabase/supabase-js 2.110.8 | MIT |
+| exifr 7.1.3 | MIT |
+| georaster 1.6.0 · georaster-layer-for-leaflet 4.1.2 | Apache-2.0 |
+| three.js 0.128.0 (+ controls/loaders) | MIT |
+| laz-perf 0.0.6 | Apache-2.0 |
+
+Origem, versões e instruções de atualização: [vendor/README.md](./vendor/README.md).
+Avisos de licença que acompanham os bundles (ex.: `vendor/georaster-layer.min.js.LICENSE.txt`)
+são mantidos no repositório.
+
 ## Documentos complementares
 
 - [README.md](./README.md) — visão geral e instruções de uso

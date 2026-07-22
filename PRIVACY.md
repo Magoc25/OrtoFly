@@ -1,6 +1,6 @@
 # Aviso de Privacidade — OrtoFly
 
-**Versão:** 1.0 · **Última atualização:** Maio de 2026
+**Versão:** 1.1 · **Última atualização:** Julho de 2026
 
 Este Aviso explica como o **OrtoFly** trata dados pessoais, em conformidade com a
 **Lei nº 13.709/2018 (LGPD)**. O OrtoFly é um aplicativo web (PWA) de planejamento de
@@ -46,10 +46,10 @@ terceiros, **sem que o controlador os armazene**:
 - **Provedores de mapa** (Esri / ArcGIS World Imagery e OpenStreetMap): ao visualizar uma
   região do mapa, o provedor recebe seu **endereço IP** e as coordenadas dos blocos
   (tiles) solicitados — o que pode indicar a área de interesse exibida.
-- **Redes de distribuição de conteúdo (CDN)** (cdnjs, jsDelivr): ao carregar as bibliotecas
-  do app, recebem seu endereço IP e o agente de usuário do navegador.
-- **GitHub Pages** (hospedagem do app) e **api.qrserver.com / chart.googleapis.com**
-  (geração do QR Code de PIX, somente se você abrir o modal de apoio).
+- **GitHub Pages** (hospedagem do app). Desde a **v1.19.0**, as bibliotecas do app são
+  servidas pelo **próprio site** — **nenhuma CDN de terceiros** (cdnjs/jsDelivr) recebe
+  mais seus dados ao carregar o app.
+- **api.qrserver.com** (geração do QR Code de PIX, somente se você abrir o modal de apoio).
 
 ## 5. Finalidades e bases legais (Art. 7º da LGPD)
 
@@ -65,11 +65,11 @@ terceiros, **sem que o controlador os armazene**:
 Não vendemos nem comercializamos dados. Há compartilhamento técnico com:
 
 - **Supabase** — hospedagem do banco de dados de avaliações e da contagem anônima de dispositivos;
-- **Provedores de mapa, CDN e hospedagem** listados na Seção 4.
+- **Provedores de mapa e hospedagem** listados na Seção 4.
 
 ## 7. Transferência internacional (Art. 33 da LGPD)
 
-Os provedores acima (Supabase, GitHub, Esri, CDNs) podem processar dados em **servidores
+Os provedores acima (Supabase, GitHub, Esri) podem processar dados em **servidores
 fora do Brasil**. Esse tratamento se baseia no **legítimo interesse** e na execução do
 serviço, limitando-se ao mínimo necessário (dados técnicos e, no caso de avaliações,
 dados que você optou por tornar públicos). Não há transferência internacional de

@@ -1,6 +1,6 @@
 # Política de Segurança — OrtoFly
 
-**Versão:** 1.0 · **Última atualização:** Maio de 2026
+**Versão:** 1.1 · **Última atualização:** Julho de 2026
 
 Este documento descreve as medidas de segurança do **OrtoFly**, o canal de reporte de
 vulnerabilidades e o plano de resposta a incidentes, em linha com a
@@ -16,14 +16,17 @@ O OrtoFly opera em camadas com responsabilidades distintas:
 - **Camada 1 (controlador):** banco de dados compartilhado de avaliações e contagem de
   dispositivos (Supabase), código distribuído e versão hospedada no GitHub Pages.
 - **Camada 2 (usuário):** dados do app no `localStorage` e no dispositivo do usuário.
-- **Camada 3 (terceiros):** provedores de mapa, CDN e serviços de QR Code, acionados em
-  razão do funcionamento técnico.
+- **Camada 3 (terceiros):** provedores de mapa e o serviço de QR Code, acionados em razão
+  do funcionamento técnico. *(Desde a v1.19.0 as bibliotecas do app são servidas pelo
+  próprio site — não há mais CDNs de terceiros.)*
 
 ## 2. Medidas técnicas implementadas
 
 - **HTTPS** obrigatório em produção (GitHub Pages).
 - **Content Security Policy (CSP)** declarada no `<head>`, restringindo origens de
   scripts, estilos, conexões e quadros, como defesa em profundidade contra XSS.
+  Desde a **v1.19.0**, `script-src`/`style-src` não permitem **nenhuma origem externa**:
+  todas as bibliotecas são servidas pelo próprio site (`vendor/`, versões pinadas).
 - **Sanitização de saída (`esc()`)** aplicada a todos os campos de texto fornecidos por
   usuários (incluindo avaliações vindas de fonte compartilhada) antes de serem inseridos
   no HTML, prevenindo *Cross-Site Scripting* (XSS).

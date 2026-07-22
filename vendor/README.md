@@ -6,16 +6,19 @@ quando o cache HTTP expirava (crítico em campo, sem sinal). Self-hosted, o SW
 pré-cacheia tudo (`PRECACHE` no `sw.js`) e o app funciona offline de verdade
 após a primeira visita. Também elimina o risco de uma lib "latest" mudar sozinha.
 
-| Arquivo(s) | Lib | Versão | Origem |
-|---|---|---|---|
-| `leaflet/leaflet.{css,js}` + `leaflet/images/` | Leaflet | 1.9.4 | cdnjs |
-| `jszip.min.js` | JSZip | 3.10.1 | cdnjs |
-| `supabase.js` | @supabase/supabase-js (UMD) | 2.110.8 | jsdelivr |
-| `exifr.umd.js` | exifr (full UMD) | 7.1.3 | jsdelivr |
-| `georaster.min.js` | georaster (browser bundle) | 1.6.0 | jsdelivr |
-| `georaster-layer.min.js` | georaster-layer-for-leaflet | 4.1.2 | jsdelivr |
-| `three/three.min.js` + `three/*.js` | three.js (+ OrbitControls, PLY/MTL/OBJ/GLTF loaders) | 0.128.0 | jsdelivr |
-| `laz-perf/index.mjs` + `laz-perf/laz-perf.wasm` | laz-perf (build ESM do jsdelivr; autocontido) | 0.0.6 | jsdelivr `+esm` |
+| Arquivo(s) | Lib | Versão | Licença | Origem |
+|---|---|---|---|---|
+| `leaflet/leaflet.{css,js}` + `leaflet/images/` | Leaflet | 1.9.4 | BSD-2-Clause | cdnjs |
+| `jszip.min.js` | JSZip | 3.10.1 | MIT (dual MIT/GPL-3.0-or-later) | cdnjs |
+| `supabase.js` | @supabase/supabase-js (UMD) | 2.110.8 | MIT | jsdelivr |
+| `exifr.umd.js` | exifr (full UMD) | 7.1.3 | MIT | jsdelivr |
+| `georaster.min.js` | georaster (browser bundle) | 1.6.0 | Apache-2.0 | jsdelivr |
+| `georaster-layer.min.js` (+ `….LICENSE.txt`) | georaster-layer-for-leaflet | 4.1.2 | Apache-2.0 | jsdelivr |
+| `three/three.min.js` + `three/*.js` | three.js (+ OrbitControls, PLY/MTL/OBJ/GLTF loaders) | 0.128.0 | MIT | jsdelivr |
+| `laz-perf/index.mjs` + `laz-perf/laz-perf.wasm` | laz-perf (build ESM do jsdelivr; autocontido) | 0.0.6 | Apache-2.0 | jsdelivr `+esm` |
+
+> As licenças acima também estão declaradas no [LICENSE.md](../LICENSE.md) do projeto
+> (seção "Componentes de terceiros").
 
 ## Como atualizar uma lib
 

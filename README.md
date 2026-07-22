@@ -47,7 +47,7 @@ Se você está avaliando este app, provavelmente já viu opções como Pix4Dcapt
 - **Seus dados são seus** — nenhuma empresa, servidor externo ou desenvolvedor acessa seus projetos. As áreas de voo (que muitas vezes revelam a localização de propriedades e obras) ficam no seu dispositivo, sob seu controle total.
 - **Sem propagandas** — apps "gratuitos" nas lojas se sustentam exibindo anúncios. Este não.
 - **Sem prazo de expiração** — muitos apps de drone liberam um período de teste e depois bloqueiam recursos ou cobram assinatura (Pix4D/DroneDeploy passam de US$ 300/mês). Este é gratuito, sem limitações.
-- **Funciona sem internet** — planeje o voo no campo, sem sinal. O mapa que você já visitou fica em cache.
+- **Funciona sem internet** — depois da primeira visita online, **o app inteiro** (planejamento, EXIF, mosaico, visualizadores 2D/3D) abre e funciona offline: desde a v1.19.0 as bibliotecas ficam guardadas no seu dispositivo. Só o mapa de satélite precisa de rede em áreas ainda não visitadas.
 - **Exporta missão pronta para a DJI** — calcula GSD, altura de voo e sobreposição, gera a grade automática e exporta **KMZ no padrão WPML** (DJI Pilot 2) além de KML, GeoJSON e CSV (Litchi) — algo que nenhum planejador gratuito do tipo "abre e usa" oferece em português.
 - **Pensado para o Brasil** — unidades métricas, coordenadas geográficas, contexto de regras ANAC/DECEA e foco em topografia, agricultura e cadastro rural.
 
@@ -121,13 +121,13 @@ Seus projetos ficam salvos **no próprio navegador**, apenas no seu dispositivo.
 
 ### Opção 2 — Cópia local _(opcional)_
 
-Se quiser uma cópia totalmente independente — útil para usar sem conexão garantida ou para arquivamento:
+Se quiser uma cópia totalmente independente — útil para arquivamento ou para não depender do site:
 
 1. No repositório, clique no botão verde **Code** → **Download ZIP**
 2. Extraia o ZIP em uma pasta no seu computador
 3. Dê duplo clique em `ortofly.html`
 
-Funciona igual à versão online (o mapa de satélite exige internet na primeira visualização de cada região).
+Desde a v1.19.0 o ZIP traz **todas as bibliotecas junto** (pasta `vendor/`), então a cópia local funciona de verdade sem internet. Duas exceções: o **mapa de satélite** continua exigindo conexão, e abrir nuvens **`.laz`** não funciona em cópia aberta por duplo clique (limitação do navegador com módulos em `file://` — use a versão online, ou converta para `.las`).
 
 ---
 
