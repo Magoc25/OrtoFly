@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.18.16] — Julho 2026
+
+### 🪟 Título da janela reduzido para "OrtoFly"
+
+- O `<title>` da página e o `name` do manifest passaram de *"OrtoFly — Planejamento de Voo e Ortomosaico para Drones DJI"* para apenas **"OrtoFly"** — a barra de título do app instalado (janela com minimizar/fechar) e o tooltip ao passar o mouse no ícone da barra de tarefas do Windows agora mostram só o nome. O `short_name` e a descrição longa (SEO/instalação) permanecem.
+- Manutenção: `CACHE_NAME` do Service Worker em `v40` (renova o `manifest.json` em cache, que é cache-first).
+
+---
+
 ## [1.18.15] — Junho 2026
 
 ### 📝 Aviso de versão beta reformulado (tom mais confiante)

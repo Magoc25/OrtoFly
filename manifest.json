@@ -1,5 +1,5 @@
 {
-  "name": "OrtoFly — Planejamento de Voo e Ortomosaico para Drones DJI",
+  "name": "OrtoFly",
   "short_name": "OrtoFly",
   "description": "Planeje voos fotogramétricos, calcule GSD e sobreposição e exporte missões (KMZ/WPML, KML, CSV) para drones DJI — 100% no navegador, offline.",
   "start_url": "./ortofly.html",
