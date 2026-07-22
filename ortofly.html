@@ -1077,7 +1077,9 @@ function importProjectFile(file){
     else if(j.type==='FeatureCollection'){ // importa só a área de um GeoJSON
       const poly=(j.features||[]).find(f=>f.geometry&&f.geometry.type==='Polygon');
       if(!poly){ toast('GeoJSON sem polígono de área','error'); return; }
-      state.polygon=poly.geometry.coordinates[0].slice(0,-1).map(c=>[c[1],c[0]]);
+      const ring=poly.geometry.coordinates[0]||[];
+      const closed=ring.length>=4 && ring[0][0]===ring[ring.length-1][0] && ring[0][1]===ring[ring.length-1][1];
+      state.polygon=(closed?ring.slice(0,-1):ring.slice()).map(c=>[c[1],c[0]]);   // só descarta o último vértice se o anel vier fechado (spec); anel aberto entra inteiro
       renderAOI(); fitAOI(); recompute(); toast('Área importada do GeoJSON ✅');
     } else toast('Arquivo não reconhecido','error');
   }catch(e){ console.error(e); toast('Erro ao importar: '+e.message,'error'); } };
@@ -1218,7 +1220,8 @@ function renderPhotoList(){
     const t=p.time?new Date(p.time).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
     return `<div class="photo-row${g?'':' nogps'}" onclick="flyToPhoto(${i})"><span class="pn">${g?'📍':'⚠️'} ${esc(p.name)}</span><span class="pm">${(alt!=null&&isFinite(alt))?alt.toFixed(0)+'m ':''}${esc(t)}</span></div>`; }).join('');
 }
-function flyToPhoto(i){ const p=photos[i]; if(!p||!isFinite(p.lat)||!isFinite(p.lon)){ toast('Sem GPS nesta imagem'); return; } if(map){ map.setView([p.lat,p.lon],Math.max(map.getZoom(),17)); if(p._m) showPhotoPopup(p._m,p); } }
+function flyToPhoto(i){ const p=photos[i]; if(!p||!isFinite(p.lat)||!isFinite(p.lon)){ toast('Sem GPS nesta imagem'); return; } if(!photosVisible) togglePhotos();   // popup exige o marker no mapa (re-render refaz p._m)
+  if(map){ map.setView([p.lat,p.lon],Math.max(map.getZoom(),17)); if(p._m) showPhotoPopup(p._m,p); } }
 function fitPhotos(){ const gps=gpsPhotos(); if(!map||!gps.length){ toast('Sem fotos com GPS'); return; } map.fitBounds(L.latLngBounds(gps.map(p=>[p.lat,p.lon])),{padding:[40,40]}); }
 function togglePhotos(){ photosVisible=!photosVisible; $('photoToggleBtn').textContent=photosVisible?'👁️ Ocultar':'👁️ Mostrar'; renderPhotos(); }
 function clearPhotos(){ if(photos.length&&!confirm('Remover as imagens importadas desta sessão?')) return; photos=[]; _photoUrls.forEach(u=>URL.revokeObjectURL(u)); _photoUrls.clear(); renderPhotos(); }
@@ -1234,7 +1237,9 @@ function convexHull(pts){ if(pts.length<3) return pts.slice();
   lo.pop(); up.pop(); return lo.concat(up).map(p=>p.ll);
 }
 function aoiFromPhotos(){ const gps=gpsPhotos(); if(gps.length<3){ toast('Precisa de ≥ 3 fotos com GPS','error'); return; }
-  state.polygon=convexHull(gps.map(p=>[p.lat,p.lon])); renderAOI(); fitAOI(); recompute(); setTab('voo'); toast('Área criada a partir de '+gps.length+' fotos — veja na aba ✈️ Voo'); }
+  const hull=convexHull(gps.map(p=>[p.lat,p.lon]));
+  if(hull.length<3){ toast('As fotos estão em linha reta — não formam uma área','error'); return; }
+  state.polygon=hull; renderAOI(); fitAOI(); recompute(); setTab('voo'); toast('Área criada a partir de '+gps.length+' fotos — veja na aba ✈️ Voo'); }
 
 /* ═══════════════ MOSAICO RÁPIDO (GPS/EXIF) — Fase 3 ═══════════════ */
 let mosaicOverlay=null, _mosaicUrl=null, _mosaicMeta=null, _mosaicBusy=false;
@@ -1489,8 +1494,9 @@ async function performCrop(polyLL,mask){
     const bandsNew=newGr.numberOfRasters||out.length;
     const mn=(newGr.mins&&newGr.mins[0]!=null)?newGr.mins[0]:newGr.minValue, mx=(newGr.maxs&&newGr.maxs[0]!=null)?newGr.maxs[0]:newGr.maxValue;
     if(_rasterOverlay){ _rasterOverlay.remove(); _rasterOverlay=null; } _rasterIndex=null; _rasterIndexRange=null;
-    _rasterMeta={gr:newGr,bands:bandsNew,mn,mx,ycc:_rasterMeta.ycc,masked:!!mask,orig:{xmin:newGr.xmin,xmax:newGr.xmax,ymin:newGr.ymin,ymax:newGr.ymax}};
-    _rasterShift={dx:0,dy:0};
+    const sh={..._rasterShift};   // o recorte herda o georref já deslocado por GCP; orig SEM o shift p/ o "↺ Remover ajuste" continuar desfazendo
+    _rasterMeta={gr:newGr,bands:bandsNew,mn,mx,ycc:_rasterMeta.ycc,masked:!!mask,orig:{xmin:newGr.xmin-sh.dx,xmax:newGr.xmax-sh.dx,ymin:newGr.ymin-sh.dy,ymax:newGr.ymax-sh.dy}};
+    _rasterShift=sh;
     if(rasterLayer) rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); try{ map.fitBounds(rasterLayer.getBounds()); }catch(e){} refreshRasterDisplay();
     $('indexRow').classList.toggle('hidden',bandsNew<3); if($('indexSel'))$('indexSel').value='none'; $('indexCmapRow').classList.add('hidden'); $('indexClearBtn').classList.add('hidden'); $('indexInfo').textContent='';
     $('cropFullBtn').classList.remove('hidden');
@@ -1500,7 +1506,8 @@ async function performCrop(polyLL,mask){
   }catch(e){ console.error('[crop]',e); rasterStatus(''); toast('Erro ao recortar: '+e.message,'error'); }
 }
 function cropRestore(){ if(!_rasterUncropped) return; if(_rasterOverlay){ _rasterOverlay.remove(); _rasterOverlay=null; } _rasterIndex=null; _rasterIndexRange=null;
-  _rasterMeta=_rasterUncropped; _rasterUncropped=null; _rasterShift={dx:0,dy:0};
+  _rasterMeta=_rasterUncropped; _rasterUncropped=null;
+  const o=_rasterMeta.orig, g0=_rasterMeta.gr; _rasterShift=o?{dx:g0.xmin-o.xmin,dy:g0.ymin-o.ymin}:{dx:0,dy:0};   // o gr original (mutado in-place) pode ainda carregar o deslocamento por GCP
   if(rasterLayer) rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); try{ map.fitBounds(rasterLayer.getBounds()); }catch(e){} refreshRasterDisplay();
   $('indexRow').classList.toggle('hidden',(_rasterMeta.bands||0)<3); if($('indexSel'))$('indexSel').value='none'; $('indexCmapRow').classList.add('hidden'); $('indexClearBtn').classList.add('hidden'); $('indexInfo').textContent='';
   $('cropFullBtn').classList.add('hidden'); rasterStatus('Imagem inteira'); if($('zonalPts').value.trim()) zonalCompute(); toast('Imagem inteira restaurada'); }
@@ -1746,7 +1753,7 @@ function zonalPickToggle(){
     toast('Clique no mapa para adicionar pontos · Esc para concluir');
   } else {
     map.getContainer().style.cursor=''; try{ map.doubleClickZoom.enable(); }catch(e){}
-    if(btn){ btn.textContent='📍 Coletar pontos no mapa'; btn.classList.remove('primary'); }
+    if(btn){ btn.textContent='📍 Coletar no mapa'; btn.classList.remove('primary'); }   // mesmo rótulo do HTML inicial
   }
 }
 function zonalPickAdd(latlng){
@@ -1993,8 +2000,8 @@ function resetPtColor(){ _eachPtMat(m=>{ m.vertexColors=true; m.color.set(0xffff
 async function handle3DFile(file){
   const ext=(file.name.split('.').pop()||'').toLowerCase();
   if(typeof THREE==='undefined'){ toast('three.js não carregou (sem conexão?)','error'); return; }
-  open3DModal(); const _cb=$('viewer3dCtrls'); if(_cb) _cb.classList.remove('hidden'); ['ptSizeRow','ptColorRow','wireRow'].forEach(id=>{ const e=$(id); if(e) e.style.display='none'; }); status3d('Carregando '+file.name+'…');   // barra visível já na abertura (controles por tipo aparecem ao carregar o objeto)
   try{
+    open3DModal(); const _cb=$('viewer3dCtrls'); if(_cb) _cb.classList.remove('hidden'); ['ptSizeRow','ptColorRow','wireRow'].forEach(id=>{ const e=$(id); if(e) e.style.display='none'; }); status3d('Carregando '+file.name+'…');   // barra visível já na abertura (controles por tipo aparecem ao carregar o objeto); dentro do try p/ falha de WebGL não virar erro silencioso
     if(ext==='las') await loadLAS(file);
     else if(ext==='laz') await loadLAZ(file);
     else if(ext==='ply') await loadPLY(file);
@@ -2110,11 +2117,12 @@ function odmPickImages(){ $('odmImages').click(); }
 function odmOnImages(fs){ _odmFiles=[...fs].filter(f=>/^image\//.test(f.type)||/\.(jpe?g|tiff?|png)$/i.test(f.name)); $('odmImgCount').textContent=_odmFiles.length?`${_odmFiles.length} imagem(ns) selecionada(s)`:''; }
 async function odmTest(){ const u=odmUrlVal(); if(!u){ toast('Informe a URL do NodeODM','error'); return; }
   localStorage.setItem(odmModeKey(_odmMode),u); odmStatus('Conectando…');
-  try{ const r=await fetch(u+'/info'); if(!r.ok) throw new Error('HTTP '+r.status); const j=await r.json(); _odmInfo=j;
+  try{ const c=new AbortController(), t=setTimeout(()=>c.abort(),8000);
+    const r=await fetch(u+'/info',{signal:c.signal}); clearTimeout(t); if(!r.ok) throw new Error('HTTP '+r.status); const j=await r.json(); _odmInfo=j;
     if(odmIsLoopback(u)){ _odmAuto=true; localStorage.setItem(odmAuthKey(u),'1'); } // autorizado: libera o status ao vivo (agora e em recargas futuras)
     odmStatus(`✅ ${j.name||'NodeODM'} v${j.version||'?'} · fila: ${j.taskQueueCount!=null?j.taskQueueCount:'?'} · engine: ${j.engine||'ODM'}`);
     odmPing();
-  }catch(e){ console.error('[ODM] test',e); odmStatus('❌ Não conectou ('+e.message+'). NodeODM rodando? URL certa? (https→http só funciona com localhost)',true); } }
+  }catch(e){ console.error('[ODM] test',e); const msg=(e&&e.name==='AbortError')?'não respondeu em 8 s':e.message; odmStatus('❌ Não conectou ('+msg+'). NodeODM rodando? URL certa? (https→http só funciona com localhost)',true); } }
 async function odmCreate(){ const u=odmUrlVal(); if(!u){ toast('Configure e teste a URL do NodeODM','error'); return; }
   if(!_odmFiles||!_odmFiles.length){ toast('Selecione as imagens','error'); return; }
   if(_odmFiles.length<5 && !confirm('Poucas imagens ('+_odmFiles.length+'). O ODM costuma precisar de dezenas. Continuar?')) return;
@@ -2135,7 +2143,7 @@ async function odmRefresh(){ const u=odmUrlVal(); if(!u||!_odmTask) return;
   try{ const r=await fetch(u+'/task/'+_odmTask+'/info'); const j=await r.json();
     const codes={10:'na fila',20:'processando',30:'falhou',40:'concluído',50:'cancelado'}; const st=j.status&&j.status.code;
     const pct=(st===20&&j.progress!=null)?Math.round(j.progress):null;
-    $('odmTaskStatus').textContent=`${j.name||_odmTask} · ${codes[st]||('código '+st)}${pct!=null?' · '+pct+'%':''}${j.imagesCount?' · '+j.imagesCount+' img':''}`;
+    $('odmTaskStatus').textContent=`${j.name||_odmTask} · ${codes[st]||(st!=null?'código '+st:'status desconhecido')}${pct!=null?' · '+pct+'%':''}${j.imagesCount?' · '+j.imagesCount+' img':''}`;
     const ob=$('odmBar'),ofl=$('odmBarFill'); if(ob){ if(st===20){ ob.style.display='block'; if(ofl) ofl.style.width=(pct||0)+'%'; } else ob.style.display='none'; }
     if(st===40){ if(_odmPoll) clearInterval(_odmPoll); odmShowOutputs(); }
     else if(st===30||st===50){ if(_odmPoll) clearInterval(_odmPoll); odmShowFailure(st, j.status&&j.status.errorMessage); }
@@ -2190,7 +2198,10 @@ function _idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open(IDB_NAME
 async function idbPut(k,v){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).put(v,k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
 async function idbGet(k){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readonly'); const q=tx.objectStore(IDB_STORE).get(k); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); }); }
 async function idbDel(k){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).delete(k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
-async function odmRemoveServer(uuid){ const u=odmUrlVal(); if(!u||!uuid) return false; try{ const fd=new FormData(); fd.append('uuid',uuid); const r=await fetch(u+'/task/remove',{method:'POST',body:fd}); return r.ok; }catch(e){ console.warn('[ODM] remove',e); return false; } }
+async function odmRemoveServer(uuid){ const u=odmUrlVal(); if(!u||!uuid) return false; try{ const fd=new FormData(); fd.append('uuid',uuid); const r=await fetch(u+'/task/remove',{method:'POST',body:fd}); if(!r.ok) return false; const j=await r.json().catch(()=>({}));
+  if(j&&j.success) return true;
+  return !!(j&&j.error&&/not found|invalid uuid|no such/i.test(j.error));   // tarefa que já não existe no servidor conta como removida (senão o uuid fica preso em _odm_tasks p/ sempre)
+}catch(e){ console.warn('[ODM] remove',e); return false; } }
 // rastreia TODAS as tarefas criadas (NodeODM não lista tarefas; sem isso, ao criar uma nova a anterior vira órfã no disco)
 function odmTracked(){ try{ return JSON.parse(localStorage.getItem(LS+'_odm_tasks')||'[]'); }catch(e){ return []; } }
 function odmTrack(uuid){ if(!uuid) return; const a=odmTracked(); if(!a.includes(uuid)){ a.push(uuid); localStorage.setItem(LS+'_odm_tasks',JSON.stringify(a)); } }
@@ -2295,9 +2306,8 @@ function openPixModal(){
   _pixCode=pixEmv(PIX_KEY,PIX_NAME,PIX_CITY,'');
   const enc=encodeURIComponent(_pixCode);
   const qr1='https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=4&data='+enc;
-  const qr2='https://chart.googleapis.com/chart?chs=200x200&cht=qr&choe=UTF-8&chl='+enc;
   $('pixQrContainer').innerHTML=`<img id="pixQrImg" src="${qr1}" width="200" height="200" style="border-radius:8px;background:#fff;padding:6px;display:block;margin:0 auto" alt="QR Code PIX" /><p id="pixQrFallback" style="display:none;color:var(--muted);font-size:.8rem;text-align:center;margin-top:.5rem">Copie o código abaixo para pagar.</p>`;
-  $('pixQrImg').onerror=function(){ this.src=qr2; this.onerror=function(){ this.style.display='none'; $('pixQrFallback').style.display='block'; }; };
+  $('pixQrImg').onerror=function(){ this.style.display='none'; $('pixQrFallback').style.display='block'; };   // (o 2º fallback via chart.googleapis.com foi removido — a API de QR do Google foi descontinuada)
 }
 function closePixModal(){ $('pixModal').classList.add('hidden'); }
 function copyPixCode(){ const btn=$('pixCopyBtn');
@@ -2313,13 +2323,14 @@ let revClient=null;
 function initRevClient(){ try{ if(window.supabase&&typeof window.supabase.createClient==='function'){ revClient=window.supabase.createClient(REV_SB_URL,REV_SB_KEY); } }catch(e){ console.error('[Reviews] init:',e); } }
 initRevClient();
 let localReviews=(()=>{ try{ return JSON.parse(localStorage.getItem(LS+'_reviews')||'[]'); }catch(e){ return []; } })();
-let sharedReviews=[];
+let sharedReviews=[], _revLoadOk=true;
 function mergeReviews(local,shared){ const map=new Map(); [...shared,...local].forEach(r=>map.set(r.id,r)); return [...map.values()].sort((a,b)=>new Date(b.ts||0).getTime()-new Date(a.ts||0).getTime()); }
-async function loadSharedReviews(){ if(!revClient) return; try{ const {data,error}=await revClient.from('app_reviews').select('*').eq('project_id',PROJECT_ID).order('ts',{ascending:false}).limit(200); if(!error&&data) sharedReviews=data; }catch(e){ console.error('[Reviews] load',e); } }
+async function loadSharedReviews(){ if(!revClient){ _revLoadOk=false; return; } try{ const {data,error}=await revClient.from('app_reviews').select('*').eq('project_id',PROJECT_ID).order('ts',{ascending:false}).limit(200); if(!error&&data){ sharedReviews=data; _revLoadOk=true; } else { _revLoadOk=false; if(error) console.error('[Reviews] load',error); } }catch(e){ _revLoadOk=false; console.error('[Reviews] load',e); } }
 async function pushReviewToCloud(review){ if(!revClient) return {ok:false,reason:'Supabase não carregou'}; try{ const {error}=await revClient.from('app_reviews').insert({id:review.id,project_id:PROJECT_ID,name:review.name,comment:review.comment,stars:review.stars,donated:review.donated,date:review.date,ts:review.ts}); if(error) return {ok:false,reason:error.message}; return {ok:true}; }catch(e){ console.error('[Reviews] push',e); return {ok:false,reason:e.message}; } }
 function renderReviewsList(){ const all=mergeReviews(localReviews,sharedReviews); const box=$('reviewsList');
-  if(!all.length){ box.innerHTML='<p class="empty">Ainda não há avaliações. Seja o primeiro!</p>'; return; }
-  box.innerHTML=all.map(r=>{ const s=Math.max(0,Math.min(5,r.stars||0)); const stars='★'.repeat(s)+'☆'.repeat(5-s);
+  const warn=_revLoadOk?'':'<p class="hint" style="margin:0 0 8px">⚠️ Sem conexão com as avaliações compartilhadas — mostrando só as deste dispositivo.</p>';
+  if(!all.length){ box.innerHTML=warn+'<p class="empty">Ainda não há avaliações. Seja o primeiro!</p>'; return; }
+  box.innerHTML=warn+all.map(r=>{ const s=Math.max(0,Math.min(5,r.stars||0)); const stars='★'.repeat(s)+'☆'.repeat(5-s);
     return `<div class="review"><div class="review-h"><span class="review-stars">${stars}</span><strong>${esc(r.name||'Anônimo')}</strong><span class="muted" style="margin-left:auto;font-size:11px">${esc(r.date||'')}</span></div>${r.comment?`<div class="review-c">${esc(r.comment)}</div>`:''}</div>`; }).join('');
 }
 async function openReviewsModal(mode='list'){
