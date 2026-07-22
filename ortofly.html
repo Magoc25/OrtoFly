@@ -2126,6 +2126,7 @@ async function odmCreate(){ const u=odmUrlVal(); if(!u){ toast('Configure e test
   const fd=new FormData(); _odmFiles.forEach(f=>fd.append('images',f,f.name)); fd.append('name',($('odmName').value||'ortofly').trim()); fd.append('options',JSON.stringify(opts));
   odmStatus('Enviando '+_odmFiles.length+' imagens… (pode demorar)');
   try{ const r=await fetch(u+'/task/new',{method:'POST',body:fd}); const j=await r.json().catch(()=>({})); if(!r.ok||!j.uuid) throw new Error(j.error||('HTTP '+r.status));
+    _odmSaved=false; _odmSavedMode=false; _odmZip=null; _odmZipFor=null; _odmZipRaw=null; _odmResultProj=null;   // sem isso, vindo de um resultado salvo, o card da tarefa nova mostraria o zip ANTIGO e esconderia o 💾 Salvar
     _odmTask=j.uuid; localStorage.setItem(LS+'_odm_task',j.uuid); odmTrack(j.uuid); odmStatus('✅ Tarefa criada: '+j.uuid); $('odmTaskCard').classList.remove('hidden'); $('odmOutputs').classList.add('hidden'); odmStartPoll(); toast('Tarefa enviada ✅');
   }catch(e){ console.error('[ODM] create',e); odmStatus('❌ Falha ao criar tarefa: '+e.message,true); toast('Falha: '+e.message,'error'); } }
 function odmStartPoll(){ if(_odmPoll) clearInterval(_odmPoll); odmRefresh(); _odmPoll=setInterval(odmRefresh,5000); }
