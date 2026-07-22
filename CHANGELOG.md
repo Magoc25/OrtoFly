@@ -5,6 +5,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.19.0] — Julho 2026
+
+### 📴 Offline de verdade — bibliotecas self-hosted (uso em campo)
+
+- **Todas as libs saíram dos CDNs** (cdnjs/jsdelivr) e agora moram no próprio site, em `vendor/`, com versões **pinadas** (Leaflet 1.9.4, JSZip 3.10.1, supabase-js 2.110.8, exifr 7.1.3, georaster 1.6.0, georaster-layer 4.1.2, three.js 0.128.0, laz-perf 0.0.6 — ver `vendor/README.md`). Antes, o Service Worker só cacheava o próprio domínio: bastava o cache HTTP das libs expirar para o app "offline" abrir **sem mapa, sem EXIF e sem 3D** — exatamente no campo, sem sinal.
+- O **Service Worker pré-cacheia tudo** (`PRECACHE`, cache `v42`) na instalação: depois da primeira visita online, o app inteiro funciona offline (planejamento, EXIF, mosaico, visualizadores; NodeODM/tiles de satélite continuam precisando de rede, e o mapa-base some sem conexão — a grade e os cálculos não).
+- **Correção junto:** se o Leaflet não carregar, o app agora **avisa** ("Mapa indisponível — controles e cálculos seguem funcionando") **e segue** — antes, um `L.divIcon` avaliado no topo do script derrubava o app inteiro, contradizendo o próprio aviso.
+- **CSP endurecido:** `script-src`/`style-src` não permitem mais nenhum CDN externo — só o próprio site.
+- Verificação: `check.js` agora confere que **todo arquivo local referenciado** (HTML + lista `PRECACHE` do SW) existe no disco; o smoke do CI ganhou o cenário **"sem Leaflet"** (boot completa + aviso + nenhuma exceção).
+
+---
+
 ## [1.18.17] — Julho 2026
 
 ### 🐛 Correções (auditoria completa do código)

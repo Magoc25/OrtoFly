@@ -10,7 +10,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>OrtoFly</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; connect-src 'self' https: blob: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; font-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none';" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https: blob: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; font-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none';" />
 <meta name="description" content="Planeje voos fotogramétricos, calcule GSD e sobreposição e exporte missões (KMZ/WPML, KML, CSV) para drones DJI — no navegador, offline." />
 <meta name="theme-color" content="#0e7c63" />
 <link rel="manifest" href="./manifest.json" />
@@ -20,7 +20,7 @@
 <meta name="apple-mobile-web-app-title" content="OrtoFly" />
 <link rel="apple-touch-icon" href="./icon-192.png" />
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="stylesheet" href="./vendor/leaflet/leaflet.css" />
 <style>
 :root{
   --bg:#0a141d; --surface:#10212e; --surface2:#16293a; --border:rgba(148,163,184,.18);
@@ -512,7 +512,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.18.17</span>
+  <span id="appVersion">© MGC · v1.19.0</span>
 </footer>
 
 <!-- PIX modal -->
@@ -644,21 +644,22 @@ footer{
 
 <div id="toast"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/georaster/dist/georaster.browser.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/georaster-layer-for-leaflet/dist/georaster-layer-for-leaflet.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/PLYLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/MTLLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<!-- libs self-hosted em ./vendor/ (versões pinadas — ver vendor/README.md); o SW pré-cacheia tudo p/ uso offline em campo -->
+<script src="./vendor/leaflet/leaflet.js"></script>
+<script src="./vendor/jszip.min.js"></script>
+<script src="./vendor/supabase.js"></script>
+<script src="./vendor/exifr.umd.js"></script>
+<script src="./vendor/georaster.min.js"></script>
+<script src="./vendor/georaster-layer.min.js"></script>
+<script src="./vendor/three/three.min.js"></script>
+<script src="./vendor/three/OrbitControls.js"></script>
+<script src="./vendor/three/PLYLoader.js"></script>
+<script src="./vendor/three/MTLLoader.js"></script>
+<script src="./vendor/three/OBJLoader.js"></script>
+<script src="./vendor/three/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.18.17 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.18.17';
+/* ═══════════════ OrtoFly v1.19.0 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.19.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -699,9 +700,10 @@ const state = { polygon:[], droneId:'mavic3', name:'', lastPlan:null };
 
 /* ═══════════════ MAPA ═══════════════ */
 let map, aoiLayer=null, vtxLayers=[], gridLayer=null, photoLayer=null;
-const vtxIcon = L.divIcon({className:'', html:'<div class="vtx"></div>', iconSize:[14,14], iconAnchor:[7,7]});
+let vtxIcon=null;   // criado no initMap — nenhum uso de L no topo do script: se o Leaflet faltar, o app avisa "Mapa indisponível" e segue, em vez de morrer inteiro
 
 function initMap(){
+  vtxIcon = L.divIcon({className:'', html:'<div class="vtx"></div>', iconSize:[14,14], iconAnchor:[7,7]});
   map = L.map('map',{zoomControl:true, doubleClickZoom:true, attributionControl:true}).setView([-7.019,-45.480], 16);
   const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     {maxZoom:21, maxNativeZoom:17, attribution:'Tiles © Esri'}); // muitas áreas rurais do BR só têm imagem nativa até ~z17; acima disso o Leaflet faz overzoom (estica o tile) em vez de mostrar branco
@@ -2015,8 +2017,8 @@ async function loadGLTF(file){ const url=URL.createObjectURL(file);
 let _lazPerf=null;
 async function getLazPerf(){
   if(_lazPerf) return _lazPerf;
-  const base='https://cdn.jsdelivr.net/npm/laz-perf@0.0.6/lib/web/';
-  const mod=await import(base+'index.js/+esm');
+  const base='./vendor/laz-perf/';
+  const mod=await import(base+'index.mjs');
   const create=mod.createLazPerf||mod.create||(mod.default&&(mod.default.createLazPerf||mod.default.create))||mod.default;
   _lazPerf=await create({locateFile:()=>base+'laz-perf.wasm'});
   return _lazPerf;

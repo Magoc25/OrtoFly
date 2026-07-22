@@ -110,6 +110,29 @@ async function main() {
   check('sem erros de console/jsdom durante o smoke', consoleErrs.length === 0);
   consoleErrs.forEach(e => console.error('       ' + e));
 
+  /* ── cenário 2: SEM Leaflet (arquivo/rede falhou) — o app deve avisar e seguir, não morrer ── */
+  const errs2 = [];
+  const vc2 = new VirtualConsole();
+  vc2.on('jsdomError', e => errs2.push('jsdomError: ' + ((e && e.message) || e)));   // só exceções não tratadas (o console.error do "[Map] init falhou" é esperado aqui)
+  const dom2 = new JSDOM(html, {
+    url: 'https://magoc25.github.io/OrtoFly/ortofly.html', runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc2,
+    beforeParse(window) {
+      window.fetch = () => Promise.reject(new Error('offline (stub)'));
+      window.URL.createObjectURL = () => 'blob:stub'; window.URL.revokeObjectURL = () => {};
+      window.scrollTo = () => {}; window.structuredClone = window.structuredClone || structuredClone;
+    }
+  });
+  const w2 = dom2.window;
+  await new Promise((res, rej) => {
+    const t = setTimeout(() => rej(new Error('cenário sem Leaflet: load não disparou em 5 s')), 5000);
+    if (w2.document.readyState === 'complete') { clearTimeout(t); res(); }
+    else w2.addEventListener('load', () => { clearTimeout(t); res(); });
+  });
+  check('sem Leaflet: boot completa mesmo assim (AOI de exemplo)', w2.eval('state.polygon.length') === 4);
+  check('sem Leaflet: usuário é avisado ("Mapa indisponível")', w2.document.getElementById('toast').textContent.includes('Mapa indisponível'));
+  check('sem Leaflet: nenhuma exceção não tratada', errs2.length === 0);
+  errs2.forEach(e => console.error('       ' + e));
+
   console.log(problems.length ? `\n${problems.length} falha(s).` : '\nSmoke OK ✅');
   process.exit(problems.length ? 1 : 0);   // (os timers do app — ping etc. — seguram o processo; saída explícita)
 }

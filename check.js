@@ -9,6 +9,9 @@
     3. IDS ÓRFÃOS: todo $('id') / getElementById('id') / querySelector('#id')
        com id literal deve apontar para um id que exista no HTML (ou que o
        próprio JS crie).
+    4. ARQUIVOS LOCAIS: todo src/href relativo (./vendor/…, ícones, docs) e
+       toda entrada da lista PRECACHE do sw.js devem existir no disco (um
+       arquivo faltando quebra o app publicado ou a instalação do SW).
 
   COMO USAR (no terminal — PowerShell ou Git Bash —, dentro da pasta do projeto):
       node check.js
@@ -79,6 +82,17 @@ for (const m of js.matchAll(/querySelector(?:All)?\(\s*'#([\w-]+)/g)) refs.push(
 let orfIds = 0;
 for (const r of new Set(refs)) if (!ids.has(r)) { fail(`id órfão: $('${r}') / getElementById('${r}') — nenhum id="${r}" no HTML`); orfIds++; }
 if (!orfIds) ok(`ids: ${new Set(refs).size} referências literais — todas existem no HTML`);
+
+/* ── 4) arquivos locais referenciados existem ── */
+const baseDir = path.dirname(file);
+const localRefs = new Set();
+for (const m of html.matchAll(/(?:src|href)\s*=\s*"\.\/([^"]+)"/g)) localRefs.add(m[1]);
+for (const m of js.matchAll(/'\.\/(vendor\/[^']+)'/g)) localRefs.add(m[1]);
+const swPath = path.join(baseDir, 'sw.js');
+if (fs.existsSync(swPath)) for (const m of fs.readFileSync(swPath, 'utf8').matchAll(/'\.\/([^']+)'/g)) localRefs.add(m[1]);
+let missing = 0;
+for (const r of localRefs) if (!fs.existsSync(path.join(baseDir, r))) { fail(`arquivo local ausente: ./${r}`); missing++; }
+if (!missing) ok(`arquivos locais: ${localRefs.size} referências (HTML + PRECACHE do SW) — todas existem`);
 
 console.log(fails ? `\n${fails} problema(s).` : '\nTudo certo ✅');
 process.exit(fails ? 1 : 0);

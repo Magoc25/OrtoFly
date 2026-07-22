@@ -1,9 +1,27 @@
-/* OrtoFly — Service Worker v1.18.17 */
+/* OrtoFly — Service Worker v1.19.0 */
 
-const CACHE_NAME = 'ortofly-v41';
+const CACHE_NAME = 'ortofly-v42';
+
+// Tudo que o app precisa para funcionar OFFLINE (uso em campo, sem sinal):
+// libs self-hosted (vendor/) + manifest + ícones. O HTML fica de fora da
+// lista porque é network-first e entra no cache a cada visita online.
+const PRECACHE = [
+  './manifest.json', './icon-192.png', './icon-512.png',
+  './vendor/leaflet/leaflet.css', './vendor/leaflet/leaflet.js',
+  './vendor/leaflet/images/layers.png', './vendor/leaflet/images/layers-2x.png',
+  './vendor/leaflet/images/marker-icon.png', './vendor/leaflet/images/marker-icon-2x.png',
+  './vendor/leaflet/images/marker-shadow.png',
+  './vendor/jszip.min.js', './vendor/supabase.js', './vendor/exifr.umd.js',
+  './vendor/georaster.min.js', './vendor/georaster-layer.min.js',
+  './vendor/three/three.min.js', './vendor/three/OrbitControls.js', './vendor/three/PLYLoader.js',
+  './vendor/three/MTLLoader.js', './vendor/three/OBJLoader.js', './vendor/three/GLTFLoader.js',
+  './vendor/laz-perf/index.mjs', './vendor/laz-perf/laz-perf.wasm'
+];
 
 self.addEventListener('install', event => {
-  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(c => c.addAll(PRECACHE)).then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', event => {
@@ -18,8 +36,7 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   if (!event.request.url.startsWith(self.location.origin)) return;
 
-  const url = event.request.url;
-  const isHTML = event.request.mode === 'navigate' || url.includes('ortofly.html');
+  const isHTML = event.request.mode === 'navigate' || event.request.url.includes('ortofly.html');
 
   // App (HTML/navegação): network-first — sempre pega a versão nova quando online
   // e cai no cache só se estiver offline. Evita ter de dar Ctrl+F5 a cada atualização.
@@ -34,16 +51,17 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Demais recursos do mesmo origin (manifest, ícones): cache-first.
+  // Demais recursos do mesmo origin (vendor/, manifest, ícones, docs): cache-first,
+  // com fallback na rede — e o que vier da rede entra no cache p/ a próxima vez.
   event.respondWith(
     caches.match(event.request).then(cached => {
       return cached || fetch(event.request).then(response => {
-        if (url.includes('manifest.json') || url.includes('icon-')) {
+        if (response.ok) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
         }
         return response;
-      }).catch(() => cached || new Response('Offline', { status: 503 }));
+      }).catch(() => new Response('Offline', { status: 503 }));
     })
   );
 });
