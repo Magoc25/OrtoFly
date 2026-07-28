@@ -6,6 +6,11 @@
     - inicializa sem exceção (boot + AOI de exemplo);
     - gera o plano de voo (GSD, grade, waypoints) e preenche os Resultados;
     - exporta KML/GeoJSON com conteúdo coerente e monta o template WPML;
+    - gera o CSV/TXT da estatística zonal com TODAS as linhas do tamanho do
+      cabeçalho (inclusive a de um ponto com erro) e o LEIA-ME com as mesmas
+      colunas — esquema derivado, nunca remontado (guia r71b);
+    - mantém os índices de vegetação nos três lugares em sincronia
+      (VEG_INDICES × VEG_DESC × opções do seletor);
     - mostra a versão embutida no rodapé e o modal beta da 1ª abertura.
 
   ONDE RODA: no GitHub Actions (workflow checks.yml), que instala o jsdom só lá —
@@ -99,6 +104,31 @@ async function main() {
     check('GeoJSON: área + rota + 1 ponto por waypoint', gj.features.length === 2 + wpCount && gj.features[0].properties.tipo === 'area');
   }
   check('WPML: template com missionConfig e waypoint 0', ev("buildTemplateKml(state.lastPlan).includes('wpml:missionConfig') && buildTemplateKml(state.lastPlan).includes('<wpml:index>0<')") === true);
+
+  /* export da estatística zonal — o esquema tem de ser DERIVADO, não remontado (guia r71b):
+     exige IGUALDADE (nenhuma coluna sobrando, nenhuma faltando), com um ponto com erro na mistura,
+     que é justamente a linha que já saiu curta em relação ao cabeçalho. */
+  ev(`_zonalResults={epsg:31983,radius:10,labels:['R','G','B'],geoInput:true,results:[
+    {name:'P1',lat:-7.01,lon:-45.48,X:600000,Y:9224000,radius:10,n:12,error:null,bands:[
+      {label:'R',n:12,mean:1,std:0.5,min:0,max:2,median:1},
+      {label:'G',n:12,mean:1,std:0.5,min:0,max:2,median:1},
+      {label:'B',n:12,mean:1,std:0.5,min:0,max:2,median:1}]},
+    {name:'P2',lat:-7.99,lon:-45.99,X:1,Y:2,error:'ponto fora do raster'}]};`);
+  const nCols = ev('ZONAL_COLS.length');
+  const csvL = String(ev("_zonalRows(',')")).split('\n'), txtL = String(ev("_zonalRows('\\t')")).split('\n');
+  check('zonal CSV/TXT: 1 cabeçalho + 3 bandas + 1 linha de erro', csvL.length === 5 && txtL.length === 5);
+  check('zonal CSV: toda linha com o mesmo nº de colunas do cabeçalho', csvL.every(l => l.split(',').length === nCols));
+  check('zonal TXT: toda linha com o mesmo nº de colunas do cabeçalho', txtL.every(l => l.split('\t').length === nCols));
+  check('zonal LEIA-ME: lista de colunas idêntica ao cabeçalho', (String(ev("_zonalReadme('csv')")).match(/COLUNAS: (.+)/) || [])[1] === ev("ZONAL_COLS.join(' | ')"));
+
+  /* índices de vegetação — varre TODAS as variantes, não só a que se está olhando (guia r71b) */
+  const sorted = a => a.slice().sort().join(',');
+  const idxKeys = ev('Object.keys(VEG_INDICES)'), descKeys = ev('Object.keys(VEG_DESC)');
+  const optKeys = [...doc.querySelectorAll('#indexSel option')].map(o => o.value).filter(v => v !== 'none');
+  check('índices: VEG_INDICES × VEG_DESC × opções do seletor — mesmos conjuntos',
+    idxKeys && sorted([...idxKeys]) === sorted([...descKeys]) && sorted([...idxKeys]) === sorted(optKeys));
+  check('índices: todas as fórmulas devolvem número finito', ev('Object.values(VEG_INDICES).every(f=>isFinite(f(90,140,70)))') === true);
+  ev('_zonalResults=null');
 
   /* modal beta da 1ª abertura (timer de 700 ms) + ack persistido */
   await new Promise(r => setTimeout(r, 1100));

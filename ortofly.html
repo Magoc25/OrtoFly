@@ -512,7 +512,7 @@ footer{
   </button>
   <button class="footer-btn" onclick="openPixModal()">☕ Apoiar</button>
   <button class="footer-btn" onclick="openReviewsModal('list')">⭐ Avaliações</button>
-  <span id="appVersion">© MGC · v1.19.0</span>
+  <span id="appVersion">© MGC</span>   <!-- sem versão aqui: quem escreve é o APP_VERSION do script (guia r38) — versão fixa no HTML é 2ª cópia, envelhece e ainda deixa o teste do rodapé passar de graça (r70b) -->
 </footer>
 
 <!-- PIX modal -->
@@ -659,7 +659,7 @@ footer{
 <script src="./vendor/three/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.19.0 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.19.0';
+const APP_VERSION = '1.19.1';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1691,6 +1691,10 @@ function _wktForEPSG(epsg){ epsg=+epsg||0;
   const nm=sirgas?`SIRGAS 2000 / UTM zone ${z.zone}S`:`WGS 84 / UTM zone ${z.zone}${z.south?'S':'N'}`;
   return `PROJCS["${nm}",${geog},PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",${cm}],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",${fn}],UNIT["metre",1]]`;
 }
+// esquema do CSV/TXT da estatística zonal — FONTE ÚNICA: cabeçalho, preenchimento da linha de erro e o LEIA-ME derivam daqui (guia r71b)
+const ZONAL_COLS_PT=['ponto','lat','lon','x','y','epsg','raio_m'];        // colunas do ponto (repetidas em cada banda)
+const ZONAL_COLS_BD=['banda','n','media','desvio','min','max','mediana']; // colunas da banda
+const ZONAL_COLS=ZONAL_COLS_PT.concat(ZONAL_COLS_BD);
 function _zonalReadme(fmt){
   const epsg=_zonalResults.epsg||0, crs=epsg?('EPSG:'+epsg):'não definido', hasPrj=!!_wktForEPSG(epsg);
   let t=`Estatística por buffer (zonal) — OrtoFly v${APP_VERSION}.\n\n`;
@@ -1699,16 +1703,16 @@ function _zonalReadme(fmt){
     t+=`ARQUIVO: ortofly_zonal.geojson\n- A GEOMETRIA (pontos) está em WGS84 / EPSG:4326 (lon, lat), conforme o padrão GeoJSON (RFC 7946) — abre direto no QGIS, sem configurar CRS.\n- Cada ponto traz também x, y (no CRS da imagem) e as estatísticas por banda nas propriedades.\n- A propriedade "epsg_xy" (no topo do arquivo) informa o EPSG das colunas x, y.\n`;
     return t;
   }
-  t+=`ARQUIVO: ortofly_zonal.${fmt}  (separador: ${fmt==='txt'?'TABULAÇÃO':'vírgula'})\nCOLUNAS: ponto | lat | lon | x | y | epsg | raio_m | banda | n | media | desvio | min | max | mediana\n  (banda = R/G/B, "Valor", ou o índice de vegetação quando ativo)\n\n`;
+  t+=`ARQUIVO: ortofly_zonal.${fmt}  (separador: ${fmt==='txt'?'TABULAÇÃO':'vírgula'})\nCOLUNAS: ${ZONAL_COLS.join(' | ')}\n  (banda = R/G/B, "Valor", ou o índice de vegetação quando ativo)\n\n`;
   t+=`COMO ABRIR NO QGIS (usando x, y no CRS da imagem):\n 1) Camada > Adicionar Camada > Camada de Texto Delimitado.\n 2) Geometria de ponto: X = x, Y = y.\n 3) CRS da geometria: ${crs}.${hasPrj?` O arquivo .prj deste pacote descreve esse CRS; muitas versões do QGIS o aplicam automaticamente (se não, selecione ${crs} na mão).`:''}\n Alternativa: X = lon, Y = lat, com CRS = EPSG:4326.\n\nObs.: um CSV/TXT puro não guarda o CRS; por isso este pacote traz a coluna "epsg", ${hasPrj?'o .prj ':''}e este LEIA-ME.\n`;
   return t;
 }
 function _zonalRows(sep){
   const {results,radius,epsg}=_zonalResults;
   const q=sep==='\t'?(s=>String(s==null?'':s).replace(/[\t\r\n]/g,' ')):_zcsv;
-  const rows=[['ponto','lat','lon','x','y','epsg','raio_m','banda','n','media','desvio','min','max','mediana'].join(sep)];
+  const rows=[ZONAL_COLS.join(sep)];
   results.forEach(r=>{ const c=[q(r.name),_znum(r.lat),_znum(r.lon),_znum(r.X),_znum(r.Y),(epsg||''),_znum(r.radius!=null?r.radius:radius)];
-    if(r.error||!r.bands){ rows.push(c.concat(['','','','','','']).join(sep)); return; }
+    if(r.error||!r.bands){ rows.push(c.concat(ZONAL_COLS_BD.map(()=>'')).join(sep)); return; }   // vazios DERIVADOS das colunas de banda — contar à mão já deixou a linha de erro 1 coluna mais curta que o cabeçalho (guia r71b)
     r.bands.forEach(b=>rows.push(c.concat([q(b.label),b.n||0,_znum(b.mean),_znum(b.std),_znum(b.min),_znum(b.max),_znum(b.median)]).join(sep))); });
   return rows.join('\n');
 }

@@ -12,7 +12,7 @@ Desenvolvido por **Marlon Gomes da Costa (MGC Dev)**
 >
 > 💬 **Ajude a validar!** Testou? **Conte como foi** — funcionou no seu fluxo? o ortomosaico/DSM ficou coerente com a realidade medida em campo? Relatos sobre o funcionamento e a **qualidade dos produtos** são muito bem-vindos e orientam a evolução do app. Use a **avaliação dentro do app** ou [abra uma issue no GitHub](https://github.com/Magoc25/OrtoFly/issues).
 
-[![Versão](https://img.shields.io/badge/versão-1.19.0-blue)](./CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/versão-1.19.1-blue)](./CHANGELOG.md)
 [![Status](https://img.shields.io/badge/status-beta%20%C2%B7%20em%20valida%C3%A7%C3%A3o-yellow)](./TERMS.md)
 [![Licença](https://img.shields.io/badge/licença-não%20comercial-orange)](#-licença-e-termos-de-uso)
 [![PIX](https://img.shields.io/badge/apoie-PIX-brightgreen)](#-apoiar-o-projeto)
@@ -203,17 +203,8 @@ Clique em **☕ Apoiar** no rodapé do app para contribuir via PIX.
 
 ### ⭐ Avaliações compartilhadas
 
-Após apoiar, deixe uma avaliação com estrelas e comentário. As avaliações são
-**compartilhadas entre todos os usuários** do app.
-
-### 👑 Badges de apoiador
-
-| Badge | Meses de apoio |
-|---|---|
-| ☕ Apoiador | 1 mês |
-| ⭐ Fã | 2–3 meses |
-| 🔥 Dedicado | 4–6 meses |
-| 👑 Patrono | 7+ meses |
+Apoiando ou não, deixe uma avaliação com **estrelas e comentário** (botão ⭐ Avaliações,
+no rodapé do app). As avaliações são **compartilhadas entre todos os usuários** do app.
 
 ---
 

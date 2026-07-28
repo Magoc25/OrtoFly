@@ -5,6 +5,21 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.19.1] — Julho 2026
+
+### 🐛 Correções
+
+- **Export CSV/TXT da estatística por pontos:** um ponto que não caía no raster (ou sem pixels válidos no buffer) gerava uma linha **com uma coluna a menos** que o cabeçalho — no QGIS/Excel as colunas seguintes saíam deslocadas. A lista de colunas era remontada à mão em **três** lugares (cabeçalho, preenchimento da linha de erro e o texto do LEIA-ME); agora as três derivam de uma **fonte única** (`ZONAL_COLS`), então não têm como se desencontrar de novo.
+- **Rodapé:** o HTML trazia a versão fixa (`v1.19.0`) como texto inicial, uma segunda cópia que envelhecia sozinha e ainda fazia o teste do rodapé passar mesmo com o mecanismo da versão desligado. Agora só o `APP_VERSION` do código escreve ali.
+
+### 🔧 Melhorado
+
+- **Verificação (CI):** o smoke ganhou 6 asserções — o CSV/TXT da estatística zonal tem de ter **todas** as linhas do tamanho do cabeçalho (com um ponto com erro na mistura), o LEIA-ME tem de listar exatamente as mesmas colunas, e os **índices de vegetação** têm de estar sincronizados nos três lugares onde aparecem (fórmulas, descrições e opções do seletor), com todas as fórmulas devolvendo número finito. As 23 asserções foram validadas **por mutação** (cada uma fica vermelha quando o defeito que ela vigia é injetado).
+- **Documentação:** o README anunciava "badges de apoiador" por meses de apoio — recurso que o app nunca teve (não há conta nem confirmação de pagamento). Seção removida; o que existe (avaliação com estrelas e comentário) ficou descrito como é.
+- Manutenção: `CACHE_NAME` do Service Worker em `v43`.
+
+---
+
 ## [1.19.0] — Julho 2026
 
 ### 📴 Offline de verdade — bibliotecas self-hosted (uso em campo)

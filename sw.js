@@ -1,6 +1,6 @@
 /* OrtoFly — Service Worker v1.19.0 */
 
-const CACHE_NAME = 'ortofly-v42';
+const CACHE_NAME = 'ortofly-v43';
 
 // Tudo que o app precisa para funcionar OFFLINE (uso em campo, sem sinal):
 // libs self-hosted (vendor/) + manifest + ícones. O HTML fica de fora da
