@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';" />
+<title>OrtoFly — como funciona</title>
+<meta name="description" content="Como o OrtoFly planeja voos fotogramétricos, onde seus dados moram e o que sai (ou não) do seu aparelho." />
+<meta name="theme-color" content="#f7f9f8" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#0a141d" media="(prefers-color-scheme: dark)" />
+<link rel="icon" href="./icon-192.png" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="OrtoFly — como funciona" />
+<meta property="og:description" content="Planejamento de voo fotogramétrico e ortomosaicos para drones DJI, no navegador. Seus projetos ficam no seu aparelho." />
+<meta property="og:url" content="https://Magoc25.github.io/OrtoFly/apresentacao.html" />
+<meta property="og:image" content="https://Magoc25.github.io/OrtoFly/icon-512.png" />
+<meta name="twitter:card" content="summary" />
+<style>
+/* ── Tokens ───────────────────────────────────────────────────────────────
+   A paleta CLARA completa vive no :root puro. Os dois blocos escuros
+   redefinem SÓ tokens, e existem os dois porque no estado "sistema" o
+   navegador não carimba nada no <html>: cor cuja única definição estivesse
+   dentro de @media ou [data-theme] simplesmente nunca se aplicaria.
+   Neutros com viés leve na direção do acento — é o sistema que dá parentesco
+   entre as páginas dos apps, não o matiz.                                   */
+:root{
+  --paper:#f7f9f8; --band:#eef3f1; --surface:#ffffff;
+  --ink:#132420; --muted:#4c625c; --faint:#7d918b;
+  --rule:#d2ded9; --rule-soft:#e6edea;
+  --accent:#0a7d5c; --accent-dim:#5fa38f; --warn:#9a5b12;
+  --shadow:0 1px 2px rgba(19,36,32,.06), 0 8px 24px rgba(19,36,32,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0a141d; --band:#10212e; --surface:#132634;
+    --ink:#e8eff5; --muted:#a3b7c4; --faint:#728a99;
+    --rule:#24404f; --rule-soft:#1a3040;
+    --accent:#2fd3a1; --accent-dim:#1c8f6d; --warn:#fbbf24;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0a141d; --band:#10212e; --surface:#132634;
+  --ink:#e8eff5; --muted:#a3b7c4; --faint:#728a99;
+  --rule:#24404f; --rule-soft:#1a3040;
+  --accent:#2fd3a1; --accent-dim:#1c8f6d; --warn:#fbbf24;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font:400 17px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+
+/* ── Grade: coluna de texto + margem que carrega a numeração ── */
+#page{max-width:1120px;margin:0 auto;padding:0 20px 72px}
+.sec{display:grid;grid-template-columns:1fr;gap:0;margin:0 0 4px}
+@media (min-width:1000px){
+  .sec{grid-template-columns:9.5rem minmax(0,66ch);gap:2.5rem;justify-content:center}
+  .aside{text-align:right;padding-top:.55rem}
+}
+.aside{color:var(--faint);font-size:.78rem;letter-spacing:.09em;text-transform:uppercase}
+.aside .note{display:block;text-transform:none;letter-spacing:0;font-size:.82rem;line-height:1.45;margin-top:.5rem;color:var(--faint)}
+.body{min-width:0}
+@media (max-width:999px){ .aside{margin:2.2rem 0 .3rem} .aside .note{display:none} }
+
+/* ── Tipografia: 3 papéis ── */
+h1,h2,.display{
+  font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+  font-variant-numeric:oldstyle-num; font-weight:600; letter-spacing:-.01em;
+}
+h1{font-size:clamp(2.1rem,5.2vw,3.1rem);line-height:1.1;margin:.2em 0 .35em}
+h2{font-size:clamp(1.45rem,3vw,1.85rem);line-height:1.2;margin:2.6rem 0 .9rem}
+h3{font-size:1.02rem;margin:1.7rem 0 .5rem;letter-spacing:.01em}
+p{margin:0 0 1.05em}
+.lede{font-size:1.16rem;color:var(--muted);line-height:1.55}
+.dado{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;font-variant-numeric:tabular-nums;font-size:.92em}
+a{color:var(--accent);text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:1px}
+a:hover{text-decoration-thickness:2px}
+strong{font-weight:650}
+
+/* ── Cabeçalho ── */
+header.top{padding:3.4rem 0 .6rem}
+.eyebrow{font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:600;margin:0 0 .2rem}
+.invariantes{display:flex;flex-wrap:wrap;gap:.45rem;margin:1.5rem 0 0;padding:0;list-style:none}
+.invariantes li{
+  font-size:.79rem;letter-spacing:.02em;color:var(--muted);
+  border:1px solid var(--rule);border-radius:999px;padding:.24rem .68rem;background:var(--surface);
+}
+
+/* ── Interruptor simples ⇄ técnico ── */
+.switch{
+  position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:.65rem;flex-wrap:wrap;
+  margin:2.2rem 0 .5rem;padding:.7rem 0;background:var(--paper);border-bottom:1px solid var(--rule-soft);
+}
+.switch .rot{font-size:.79rem;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+.switch .grupo{display:inline-flex;border:1px solid var(--rule);border-radius:999px;overflow:hidden;background:var(--surface)}
+.switch button{
+  font:inherit;font-size:.86rem;padding:.34rem .95rem;border:0;background:transparent;color:var(--muted);cursor:pointer;
+}
+.switch button[aria-pressed="true"]{background:var(--accent);color:var(--paper);font-weight:600}
+.switch button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.tema{margin-left:auto}
+
+/* ── Fichas técnicas ── */
+#page[data-mode="simples"] .tech{display:none}
+.tech{
+  border-left:2px solid var(--accent-dim);background:var(--band);
+  border-radius:0 10px 10px 0;padding:.95rem 1.15rem;margin:1.15rem 0 1.4rem;
+}
+.tech > h3{margin:0 0 .45rem;font-size:.8rem;letter-spacing:.11em;text-transform:uppercase;color:var(--accent)}
+.tech p:last-child,.tech ul:last-child{margin-bottom:0}
+.tech ul{margin:0 0 .8em;padding-left:1.15rem}
+.tech li{margin:.28em 0}
+
+/* ── Blocos auxiliares ── */
+.destaque{border:1px solid var(--rule);background:var(--surface);border-radius:12px;padding:1rem 1.2rem;margin:1.3rem 0;box-shadow:var(--shadow)}
+.destaque p:last-child{margin-bottom:0}
+.aviso{border-left:3px solid var(--warn);background:var(--band);border-radius:0 10px 10px 0;padding:.85rem 1.1rem;margin:1.2rem 0}
+.aviso p:last-child{margin-bottom:0}
+ul.lista{padding-left:1.25rem;margin:0 0 1.1em}
+ul.lista li{margin:.42em 0}
+.rolagem{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:1.3rem 0}
+table{border-collapse:collapse;width:100%;font-size:.93rem;min-width:34rem}
+th,td{text-align:left;padding:.55rem .7rem;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+th{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:600;border-bottom:1px solid var(--rule)}
+figure{margin:1.6rem 0}
+figure svg{display:block;width:100%;height:auto;color:var(--ink)}
+figcaption{font-size:.85rem;color:var(--faint);margin-top:.55rem;line-height:1.5}
+.fim{border-top:1px solid var(--rule);margin-top:3.5rem;padding-top:1.4rem;color:var(--muted);font-size:.92rem}
+.cta{display:inline-block;margin:.4rem .5rem .4rem 0;padding:.6rem 1.15rem;border-radius:10px;background:var(--accent);color:var(--paper);text-decoration:none;font-weight:600;font-size:.95rem}
+.cta.sec{background:transparent;color:var(--accent);border:1px solid var(--accent-dim)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<div id="page" data-mode="simples">
+
+<header class="top sec">
+  <div class="aside" aria-hidden="true"></div>
+  <div class="body">
+    <p class="eyebrow">MGC Dev · projeto pessoal</p>
+    <h1>OrtoFly, por dentro</h1>
+    <p class="lede">Um app de navegador que planeja o voo do drone, calcula a resolução no
+    chão e monta o mapa a partir das suas fotos. Esta página explica como ele faz isso,
+    onde os seus dados ficam guardados e — com a mesma honestidade — o que ele
+    <em>não</em> faz.</p>
+    <ul class="invariantes">
+      <li>1 arquivo</li><li>0 cadastros</li><li>0 anúncios</li><li>0 rastreadores</li>
+      <li>projetos só no seu aparelho</li><li>gratuito e não comercial</li>
+    </ul>
+  </div>
+</header>
+
+<div class="sec">
+  <div class="aside" aria-hidden="true"></div>
+  <div class="switch">
+    <span class="rot" id="rotLeitura">Leitura</span>
+    <span class="grupo" role="group" aria-labelledby="rotLeitura">
+      <button type="button" id="btnSimples" aria-pressed="true">Simples</button>
+      <button type="button" id="btnTecnico" aria-pressed="false">Técnica</button>
+    </span>
+    <span class="tema">
+      <button type="button" id="btnTema" class="dado" style="border:1px solid var(--rule);border-radius:999px;background:var(--surface);padding:.34rem .8rem;font-size:.8rem;color:var(--muted);cursor:pointer" aria-label="Alternar tema claro e escuro">tema</button>
+    </span>
+  </div>
+</div>
+
+<!-- 1 ─────────────────────────────────────────────────────────────────── -->
+<section class="sec">
+  <div class="aside">Um<span class="note">Para quem levanta área com drone e precisa do mapa, não do software.</span></div>
+  <div class="body">
+    <h2>O que é</h2>
+    <p>Fotogrametria aérea tem duas metades. A primeira é <strong>planejar o voo</strong>:
+    decidir a que altura voar para que cada pixel da foto valha os centímetros que você
+    precisa no chão, e desenhar a grade de linhas que cobre a área com sobreposição
+    suficiente para as fotos "casarem" depois. A segunda é <strong>processar</strong>:
+    transformar centenas de fotos num mapa único, medível e georreferenciado.</p>
+    <p>O OrtoFly cobre a primeira metade inteira dentro do navegador, e serve de painel
+    de controle para a segunda — que roda num programa de fotogrametria no
+    <strong>seu próprio computador</strong>.</p>
+
+    <div class="tech">
+      <h3>Ficha técnica</h3>
+      <ul>
+        <li><strong>Forma:</strong> aplicativo web progressivo de arquivo único — todo o
+        programa é uma página, sem instalador e sem servidor de aplicação.</li>
+        <li><strong>Instalação:</strong> o navegador o registra como app com ícone
+        próprio; nada é baixado de uma loja.</li>
+        <li><strong>Bibliotecas:</strong> mapa, leitura de metadados de foto, leitura de
+        imagem georreferenciada, visualização tridimensional e descompactação são
+        bibliotecas de código aberto, com versões fixadas e <strong>servidas pelo próprio
+        site</strong> — nenhuma rede de distribuição de terceiros participa do
+        carregamento.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 2 ─────────────────────────────────────────────────────────────────── -->
+<section class="sec">
+  <div class="aside">Dois<span class="note">Do polígono desenhado até o mapa medível.</span></div>
+  <div class="body">
+    <h2>O caminho de um levantamento</h2>
+    <p>Vale seguir o percurso completo uma vez, porque é ele que explica por que os seus
+    arquivos nunca precisam sair do lugar.</p>
+
+    <figure>
+      <svg viewBox="0 0 760 250" role="img" aria-label="Fluxo: área desenhada no mapa gera o plano de voo, que vira arquivo de missão para o drone; as fotos voltam para o computador do usuário, são processadas ali e o resultado é aberto de volta no app.">
+        <defs>
+          <marker id="ponta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g fill="none" stroke="currentColor" stroke-width="1.4" opacity=".85">
+          <rect x="8"   y="40" width="150" height="58" rx="9"/>
+          <rect x="222" y="40" width="150" height="58" rx="9"/>
+          <rect x="436" y="40" width="150" height="58" rx="9"/>
+          <rect x="436" y="152" width="150" height="58" rx="9"/>
+          <rect x="222" y="152" width="150" height="58" rx="9"/>
+          <rect x="8"   y="152" width="150" height="58" rx="9"/>
+        </g>
+        <g font-size="13" font-family="-apple-system,Segoe UI,Roboto,sans-serif" fill="currentColor" text-anchor="middle">
+          <text x="83"  y="64">Área no mapa</text><text x="83"  y="82" opacity=".62">você desenha</text>
+          <text x="297" y="64">Plano de voo</text><text x="297" y="82" opacity=".62">altura · grade · fotos</text>
+          <text x="511" y="64">Arquivo de missão</text><text x="511" y="82" opacity=".62">o drone lê e voa</text>
+          <text x="511" y="176">Fotos no cartão</text><text x="511" y="194" opacity=".62">ficam com você</text>
+          <text x="297" y="176">Processamento</text><text x="297" y="194" opacity=".62">no seu computador</text>
+          <text x="83"  y="176">Mapa medível</text><text x="83"  y="194" opacity=".62">aberto de volta no app</text>
+        </g>
+        <g stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#ponta)" opacity=".85">
+          <path d="M158,69 L216,69"/>
+          <path d="M372,69 L430,69"/>
+          <path d="M511,98 L511,146"/>
+          <path d="M436,181 L378,181"/>
+          <path d="M222,181 L164,181"/>
+        </g>
+        <g font-size="11" font-family="ui-monospace,Menlo,Consolas,monospace" fill="currentColor" opacity=".62" text-anchor="middle">
+          <text x="187" y="60">calcula</text>
+          <text x="401" y="60">exporta</text>
+          <text x="545" y="126">voa</text>
+          <text x="407" y="171">você copia</text>
+          <text x="193" y="171">devolve</text>
+        </g>
+        <g font-size="12" font-family="-apple-system,Segoe UI,Roboto,sans-serif" fill="currentColor" opacity=".55" text-anchor="middle">
+          <text x="380" y="238">tudo isto acontece entre o seu navegador, o seu drone e o seu computador</text>
+        </g>
+      </svg>
+      <figcaption>O percurso não tem nenhuma etapa hospedada por terceiros: cada seta liga
+      dois pontos que estão fisicamente com você.</figcaption>
+    </figure>
+
+    <div class="tech">
+      <h3>Ficha técnica</h3>
+      <ul>
+        <li><strong>Resolução no chão</strong> sai do tamanho do sensor, da distância focal
+        e da altura de voo; o app inverte a conta nos dois sentidos, então você pode partir
+        da resolução desejada e receber a altura, ou o contrário.</li>
+        <li><strong>Grade de linhas</strong> gerada sobre o polígono com espaçamento
+        derivado da sobreposição lateral, orientação automática pelo eixo mais longo da
+        área (ou fixada por você) e opção de passada cruzada. Áreas cuja combinação de
+        altura e sobreposição geraria um número irreal de linhas são recusadas com a
+        explicação, em vez de travar o navegador.</li>
+        <li><strong>Exportação</strong> em formato de missão para os aplicativos de voo da
+        fabricante, além de formatos abertos para levar a área e a rota a outros programas
+        de geoprocessamento.</li>
+        <li><strong>Leitura das fotos</strong> feita no próprio navegador: as coordenadas,
+        a altura e a orientação gravadas pela câmera são lidas do arquivo e desenhadas no
+        mapa, o que permite conferir a cobertura antes de processar qualquer coisa.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 3 ─────────────────────────────────────────────────────────────────── -->
+<section class="sec">
+  <div class="aside">Três<span class="note">A pergunta que motiva a página.</span></div>
+  <div class="body">
+    <h2>Onde os seus dados moram</h2>
+    <p>Áreas de voo são informação sensível: uma poligonal revela a localização exata de
+    uma propriedade, de uma obra ou de um talhão. Por isso o desenho do app parte de uma
+    regra simples — <strong>o que é seu não trafega</strong>.</p>
+
+    <figure>
+      <svg viewBox="0 0 760 300" role="img" aria-label="Três camadas: no seu aparelho ficam projetos, fotos e resultados; no servidor de avaliações ficam apenas a avaliação que você escrever e uma contagem anônima; terceiros recebem apenas pedidos técnicos. O caminho entre os seus projetos e o desenvolvedor não existe.">
+        <defs>
+          <marker id="ponta2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g fill="none" stroke="currentColor" stroke-width="1.4">
+          <rect x="8" y="30" width="232" height="228" rx="11"/>
+          <rect x="290" y="30" width="212" height="120" rx="11" opacity=".85"/>
+          <rect x="552" y="30" width="200" height="120" rx="11" opacity=".85"/>
+        </g>
+        <g font-size="13.5" font-family="-apple-system,Segoe UI,Roboto,sans-serif" fill="currentColor">
+          <text x="24" y="54" font-weight="600">No seu aparelho</text>
+          <text x="306" y="54" font-weight="600">Servidor de avaliações</text>
+          <text x="568" y="54" font-weight="600">Terceiros técnicos</text>
+        </g>
+        <g font-size="12.5" font-family="-apple-system,Segoe UI,Roboto,sans-serif" fill="currentColor" opacity=".78">
+          <text x="24" y="82">Projetos e áreas desenhadas</text>
+          <text x="24" y="104">Fotos e metadados</text>
+          <text x="24" y="126">Ortomosaico, modelo e nuvem</text>
+          <text x="24" y="148">Estatísticas e índices</text>
+          <text x="24" y="170">Preferências do app</text>
+          <text x="306" y="82">A avaliação que você escrever</text>
+          <text x="306" y="104">Uma contagem anônima por dia</text>
+          <text x="306" y="126">O número da versão publicada</text>
+          <text x="568" y="82">Blocos do mapa de satélite</text>
+          <text x="568" y="104">Hospedagem da página</text>
+          <text x="568" y="126">Imagem do código de doação</text>
+        </g>
+        <g stroke="currentColor" stroke-width="1.3" fill="none" marker-end="url(#ponta2)" opacity=".8">
+          <path d="M240,96 L284,96"/>
+          <path d="M502,96 L546,96"/>
+        </g>
+        <g font-size="11" font-family="ui-monospace,Menlo,Consolas,monospace" fill="currentColor" opacity=".6" text-anchor="middle">
+          <text x="262" y="88">se você quiser</text>
+          <text x="524" y="88">pedido técnico</text>
+        </g>
+        <g stroke="currentColor" stroke-width="1.4" stroke-dasharray="6 5" fill="none" opacity=".45">
+          <path d="M124,258 L124,286 L640,286 L640,158"/>
+        </g>
+        <g stroke="currentColor" stroke-width="2" opacity=".75">
+          <path d="M372,276 L392,296"/><path d="M392,276 L372,296"/>
+        </g>
+        <g font-size="12" font-family="-apple-system,Segoe UI,Roboto,sans-serif" fill="currentColor" opacity=".7">
+          <text x="404" y="291">este caminho não existe: seus projetos e fotos nunca são enviados</text>
+        </g>
+      </svg>
+      <figcaption>As duas setas cheias são tudo o que sai. A tracejada, riscada, é o
+      caminho que a maior parte dos apps do gênero percorre — e que aqui não foi
+      construído.</figcaption>
+    </figure>
+
+    <div class="tech">
+      <h3>Ficha técnica</h3>
+      <ul>
+        <li><strong>Persistência</strong> no armazenamento local do navegador
+        (<span class="dado">localStorage</span>), em texto estruturado, sob uma chave por
+        assunto: projetos nomeados, preferências do processamento e marcações de aviso já
+        vistas. Não há banco de dados no servidor para os seus projetos, porque não há
+        servidor de aplicação.</li>
+        <li><strong>Portabilidade</strong> por exportação e importação de arquivo: o
+        projeto sai inteiro num arquivo de texto que você guarda onde quiser e reimporta em
+        outro aparelho. É esse arquivo — e não uma conta — que faz o papel de "levar para
+        outro computador".</li>
+        <li><strong>Consequência assumida:</strong> limpar os dados do site apaga os
+        projetos, e o app não tem como recuperá-los. É o preço direto de não haver cópia
+        no servidor. O botão de exportar existe exatamente para isso.</li>
+        <li><strong>Identificador de aparelho</strong> gerado aleatoriamente no próprio
+        navegador para a contagem diária. Ele não deriva de nada seu, não acompanha os
+        projetos e some junto com os dados do site.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 4 ─────────────────────────────────────────────────────────────────── -->
+<section class="sec">
+  <div class="aside">Quatro<span class="note">A lista completa, sem simplificação favorável.</span></div>
+  <div class="body">
+    <h2>O que realmente sai do aparelho</h2>
+    <p>Dizer "seus dados não saem" e parar aí seria cômodo e incompleto. Um app de
+    navegador faz pedidos de rede para funcionar, e todo pedido revela ao menos o seu
+    endereço de internet. A lista abaixo é exaustiva.</p>
+
+    <div class="rolagem">
+      <table>
+        <thead><tr><th>O que sai</th><th>Quando</th><th>Para quem</th><th>Escolha sua?</th></tr></thead>
+        <tbody>
+          <tr><td>Coordenadas dos blocos do mapa de satélite</td><td>Ao mover o mapa numa
+          região ainda não visitada</td><td>Provedor de imagens de satélite</td><td>Indireta —
+          é o mapa de fundo</td></tr>
+          <tr><td>O arquivo do app</td><td>Na primeira visita e nas atualizações</td>
+          <td>Hospedagem da página</td><td>Não — é o carregamento</td></tr>
+          <tr><td>Nome (ou apelido), comentário e nota</td><td>Só se você enviar uma
+          avaliação</td><td>Servidor de avaliações</td><td><strong>Sim</strong> — você
+          escreve e envia</td></tr>
+          <tr><td>Identificador aleatório, nome do app e data</td><td>Uma vez por dia,
+          automaticamente</td><td>Servidor de avaliações</td><td>Não — mas é anônimo</td></tr>
+          <tr><td>Consulta "qual a versão publicada?"</td><td>No máximo uma vez por dia</td>
+          <td>Servidor de avaliações</td><td>Não — alimenta o aviso de atualização</td></tr>
+          <tr><td>Chave de doação do autor, dentro do endereço de uma imagem</td><td>Só se
+          você abrir a tela de apoio</td><td>Gerador externo de código de barras</td>
+          <td><strong>Sim</strong> — e há alternativa</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Repare no que <em>não</em> está na tabela: área desenhada, fotos, coordenadas de
+    projeto, resultados de processamento, estatísticas. Nenhum desses trafega.</p>
+
+    <div class="destaque">
+      <p><strong>A alternativa que não sai.</strong> Na tela de apoio, o código de pagamento
+      aparece também em texto, com botão de copiar. Copiá-lo e colar no aplicativo do banco
+      faz exatamente a mesma coisa que ler a imagem do código — e não dispara pedido nenhum
+      à internet. Se você preferir que nada saia, use o texto.</p>
+    </div>
+
+    <div class="tech">
+      <h3>Ficha técnica</h3>
+      <ul>
+        <li><strong>Por que a imagem do código conta como saída:</strong> o dado viaja
+        dentro do próprio endereço da imagem, montado pelo app. Nenhuma função de envio
+        aparece no código — é o navegador que busca o endereço —, e por isso a pergunta
+        certa ao auditar um app não é "que requisições ele faz?", e sim "que endereços ele
+        monta com dado de alguém?". A informação que viaja ali é a chave de doação do
+        autor, pública por natureza; ainda assim entra na lista.</li>
+        <li><strong>A verificação de versão</strong> é limitada a uma consulta por dia e
+        compara número a número, sem nunca comparar textos: o aviso só aparece quando a
+        versão publicada é de fato maior que a que está rodando no seu aparelho.</li>
+        <li><strong>Avaliações</strong> são somente inserção e leitura pública. O app não
+        possui caminho para alterar ou apagar avaliação alheia, e o servidor tampouco
+        concede essa permissão.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 5 ─────────────────────────────────────────────────────────────────── -->
+<section class="sec">
+  <div class="aside">Cinco<span class="note">A parte pesada — e por que ela é sua.</span></div>
+  <div class="body">
+    <h2>O processamento roda no seu computador</h2>
+    <p>Transformar fotos em ortomosaico é caro: consome processador, memória e tempo. Os
+    serviços comerciais resolvem isso pedindo que você <strong>envie as fotos para a nuvem
+    deles</strong>, o que é justamente o que este app evita.</p>
+    <p>A saída adotada foi separar os papéis: o OrtoFly é o painel, e o motor de
+    fotogrametria — um projeto de código aberto consolidado, usado em pesquisa e produção —
+    roda numa máquina sua. Pode ser o próprio computador de trabalho ou um servidor que
+    você controle. O app conversa com ele, acompanha o progresso e abre o resultado.</p>
+
+    <div class="aviso">
+      <p><strong>O custo honesto:</strong> essa configuração é a parte menos confortável do
+      app. Exige instalar o motor de processamento uma vez, seguindo um guia passo a passo.
+      Quem só quer planejar o voo e conferir a cobertura das fotos não precisa dela.</p>
+    </div>
+
+    <div class="tech">
+      <h3>Ficha técnica</h3>
+      <ul>
+        <li><strong>Comunicação</strong> direta do navegador com o motor de processamento,
+        por endereço que você informa. O app guarda endereços distintos para o modo local e
+        para o modo servidor, e uma credencial opcional por endereço.</li>
+        <li><strong>Retomada:</strong> a tarefa em andamento é registrada localmente, então
+        fechar a aba não perde o trabalho — ao reabrir, o app volta a acompanhar a mesma
+        tarefa.</li>
+        <li><strong>Resultados</strong> chegam num pacote compactado, aberto dentro do
+        navegador. A imagem georreferenciada e o modelo de superfície abrem no visualizador
+        de mapa; a nuvem de pontos abre em três dimensões, descompactada por um módulo que
+        roda no próprio navegador.</li>
+        <li><strong>Ferramentas sobre o resultado</strong>, todas locais: recorte por
+        polígono ou retângulo, índices de vegetação calculados a partir das bandas visíveis,
+        estatística por pontos com raio, estatística da área inteira e ajuste geométrico por
+        pontos de controle.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 6 ─────────────────────────────────────────────────────────────────── -->
+<section class="sec">
+  <div class="aside">Seis<span class="note">Defesas reais, descritas pelo que fazem.</span></div>
+  <div class="body">
+    <h2>Como o app se protege</h2>
+    <p>Um app que guarda tudo no navegador tem uma superfície de ataque pequena, mas não
+    nula: o ponto delicado é o texto que vem de outras pessoas — as avaliações — sendo
+    exibido dentro da mesma página que roda o seu projeto.</p>
+    <ul class="lista">
+      <li><strong>O navegador recebe uma lista de origens permitidas</strong> junto com a
+      página, e recusa carregar ou contatar qualquer coisa fora dela. É uma defesa aplicada
+      pelo navegador, não pelo código do app — vale mesmo que o código tenha um erro.</li>
+      <li><strong>Todo texto vindo de fora é neutralizado antes de virar página.</strong>
+      Caracteres que teriam significado para o navegador são convertidos em sua forma
+      inofensiva, de modo que um comentário mal-intencionado apareça como texto e não como
+      instrução.</li>
+      <li><strong>O servidor de avaliações também recusa</strong> conteúdo perigoso e textos
+      longos demais, por regra dele — quem tenta enviar não depende da boa vontade do app.</li>
+      <li><strong>Não há login, senha nem token de acesso</strong> em lugar nenhum, porque
+      não há área restrita a proteger. O que não existe não pode vazar.</li>
+    </ul>
+
+    <div class="tech">
+      <h3>Ficha técnica</h3>
+      <ul>
+        <li><strong>Política de conteúdo</strong> declarada no cabeçalho da própria página,
+        proibindo origens externas para código e estilo — possível justamente porque as
+        bibliotecas passaram a ser servidas pelo próprio site. Conexões de rede seguem
+        liberadas para os endereços de mapa e para o motor de processamento local, que é o
+        que o app precisa alcançar.</li>
+        <li><strong>Escapamento de saída</strong> aplicado a todo campo de texto de origem
+        externa antes da inserção na página, incluindo o que volta do servidor de
+        avaliações — a leitura é tratada com a mesma desconfiança da escrita.</li>
+        <li><strong>Restrições do lado do servidor:</strong> limites de tamanho por campo,
+        faixa válida para a nota e bloqueio de marcações executáveis, aplicados como regra
+        do banco. As permissões concedidas ao público são apenas leitura e inserção; não há
+        permissão de alteração nem de exclusão.</li>
+        <li><strong>Limitação assumida:</strong> a marcação de "apoiador" numa avaliação é
+        declarada por quem escreve, e portanto cosmética. Não existe recurso pago, papel
+        nem área restrita no app — e enquanto não houver servidor que revalide direitos,
+        não deve existir, porque qualquer controle desse tipo feito só no navegador é
+        contornável por quem usa.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 7 ─────────────────────────────────────────────────────────────────── -->
+<section class="sec">
+  <div class="aside">Sete<span class="note">Campo de verdade costuma ser sem sinal.</span></div>
+  <div class="body">
+    <h2>Funcionar sem internet</h2>
+    <p>Levantamento acontece onde não há rede. O app é registrado no navegador junto com
+    todas as suas bibliotecas, de modo que, depois da primeira visita, ele abre e opera
+    sem conexão: planejar, ler as fotos, exportar a missão, visualizar resultados.</p>
+    <p>A única coisa que a rede ainda entrega é a <strong>imagem de satélite de fundo</strong>
+    em áreas que você ainda não visitou — os blocos já vistos ficam guardados pelo
+    navegador. Sem eles o app continua funcionando: você perde a referência visual, não a
+    ferramenta.</p>
+
+    <div class="tech">
+      <h3>Ficha técnica</h3>
+      <ul>
+        <li><strong>Estratégias distintas por tipo de arquivo:</strong> as bibliotecas e os
+        ícones são guardados na instalação e servidos direto do aparelho; a página principal
+        é buscada na rede primeiro e cai para a cópia guardada quando não há conexão. É o
+        que faz uma correção chegar rápido sem sacrificar o uso offline.</li>
+        <li><strong>Degradação explícita:</strong> se a biblioteca de mapa não carregar por
+        qualquer motivo, o app avisa e segue funcionando sem mapa, em vez de abrir uma tela
+        vazia. Esse comportamento é verificado automaticamente a cada alteração do código.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 8 ─────────────────────────────────────────────────────────────────── -->
+<section class="sec">
+  <div class="aside">Oito<span class="note">O que o app não faz, dito antes de você descobrir.</span></div>
+  <div class="body">
+    <h2>Limitações conhecidas</h2>
+    <p>O app está em fase de testes e validação. Nada aqui é defeito escondido — é o
+    contorno real da ferramenta:</p>
+    <ul class="lista">
+      <li><strong>Os produtos dependem das suas fotos.</strong> Sobreposição insuficiente,
+      luz ruim ou ausência de apoio de campo produzem resultado ruim em qualquer software
+      de fotogrametria, este incluído. Para laudo ou decisão técnica, confira os resultados
+      contra medidas de campo e, de preferência, contra um programa de referência.</li>
+      <li><strong>Os índices de vegetação não são o índice mais conhecido.</strong> Câmeras
+      comuns de drone não enxergam infravermelho próximo; o que o app calcula são índices
+      derivados apenas das bandas visíveis. São úteis para contraste e triagem, não
+      equivalentes ao índice que exige sensor apropriado.</li>
+      <li><strong>O ajuste por pontos de controle corrige erro sistemático</strong> —
+      deslocamento constante, rotação, escala. Ele não remove o ruído aleatório de um
+      receptor de mão, e o app diz isso na própria tela.</li>
+      <li><strong>A imagem exportada com georreferência</strong> não substitui o arquivo de
+      imagem georreferenciada completo; para gerar esse formato a partir do resultado
+      corrigido, use um programa de geoprocessamento.</li>
+      <li><strong>Desenhar a área exige ponteiro ou toque</strong> e não é totalmente
+      operável por teclado ou leitor de tela. Quem precisar de alternativa pode importar a
+      área já definida em outra ferramenta. Os resultados numéricos do planejamento são
+      apresentados em texto e tabela, acessíveis.</li>
+      <li><strong>Abrir a cópia local por duplo clique</strong> limita a visualização de
+      nuvem de pontos comprimida — restrição do navegador para arquivos abertos fora de um
+      site, não do app.</li>
+      <li><strong>Limpar os dados do navegador apaga os projetos.</strong> Não há cópia no
+      servidor para restaurar. Exporte o que importa.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 9 ─────────────────────────────────────────────────────────────────── -->
+<section class="sec">
+  <div class="aside">Nove</div>
+  <div class="body">
+    <h2>Quem faz, e sob que termos</h2>
+    <p>O OrtoFly é desenvolvido de forma independente por <strong>Marlon Gomes da Costa
+    (MGC Dev)</strong>. É um projeto pessoal: não representa, não é financiado e não tem
+    vínculo institucional com nenhuma organização.</p>
+    <p>O uso é <strong>gratuito e não comercial</strong>. O app é oferecido como está, e a
+    responsabilidade pela conformidade do voo com as regras aeronáuticas aplicáveis é de
+    quem opera o drone.</p>
+    <p style="margin-top:1.6rem">
+      <a class="cta" href="./ortofly.html">Abrir o OrtoFly</a>
+      <a class="cta sec" href="./PRIVACY.md">Aviso de privacidade</a>
+      <a class="cta sec" href="./SECURITY.md">Política de segurança</a>
+      <a class="cta sec" href="./TERMS.md">Termos de uso</a>
+    </p>
+    <p class="fim">Dúvida, problema de acessibilidade ou falha de segurança:
+    <a href="mailto:marlongc25@protonmail.com">marlongc25@protonmail.com</a>.<br />
+    © MGC Dev — Marlon Gomes da Costa.</p>
+  </div>
+</section>
+
+</div>
+
+<script>
+(function(){
+  var page = document.getElementById('page');
+  var bs = document.getElementById('btnSimples');
+  var bt = document.getElementById('btnTecnico');
+  function modo(m){
+    page.setAttribute('data-mode', m);
+    bs.setAttribute('aria-pressed', String(m === 'simples'));
+    bt.setAttribute('aria-pressed', String(m === 'tecnico'));
+  }
+  bs.addEventListener('click', function(){ modo('simples'); });
+  bt.addEventListener('click', function(){ modo('tecnico'); });
+
+  var raiz = document.documentElement;
+  var bTema = document.getElementById('btnTema');
+  try {
+    var salvo = localStorage.getItem('apresentacao-tema');
+    if (salvo === 'dark' || salvo === 'light') raiz.setAttribute('data-theme', salvo);
+  } catch (e) {}
+  bTema.addEventListener('click', function(){
+    var escuroAgora = raiz.getAttribute('data-theme') === 'dark' ||
+      (!raiz.getAttribute('data-theme') && window.matchMedia &&
+       window.matchMedia('(prefers-color-scheme: dark)').matches);
+    var novo = escuroAgora ? 'light' : 'dark';
+    raiz.setAttribute('data-theme', novo);
+    try { localStorage.setItem('apresentacao-tema', novo); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

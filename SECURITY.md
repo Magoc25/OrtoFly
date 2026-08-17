@@ -40,6 +40,38 @@ O OrtoFly opera em camadas com responsabilidades distintas:
 > Camadas não aplicáveis a esta versão: sanitização de HTML rico (o app não possui editor
 > de texto rico) e armazenamento de tokens OAuth (o app não usa autenticação de terceiros).
 
+### 2.1 Autorização — o que o app deliberadamente NÃO tem
+
+O OrtoFly é uma página estática, sem servidor de aplicação. Nessa arquitetura **não existe
+forma de proteger recurso pago, plano, papel ou área restrita**: `localStorage`, cookie,
+variável de JavaScript e botão escondido são todos editáveis pelo usuário em segundos, pelo
+navegador. Esconder um botão é interface, não controle de acesso.
+
+Por isso o app **não possui** login, papel, área restrita nem recurso pago — e não deve
+passar a ter enquanto não houver um backend que revalide o direito a cada operação.
+A única marcação desse gênero é o campo **"sou apoiador"** da avaliação, declarado por quem
+escreve: é **cosmético e de severidade baixa**, e está registrado aqui justamente para que o
+padrão não seja reaproveitado num contexto em que passaria a valer algo.
+
+### 2.2 Varredura de segredos no histórico do repositório
+
+O repositório é **público**: uma chave commitada uma vez fica acessível para sempre, mesmo
+que apagada no commit seguinte. Olhar apenas os arquivos atuais não responde a pergunta — a
+varredura percorre **todos os objetos do histórico**, não a árvore de trabalho.
+
+| Item | Estado |
+|---|---|
+| **Última varredura completa** | **2026-08-17** — 164 commits, todos os blobs |
+| **Resultado** | **Limpa.** Nenhuma ocorrência de chave secreta de banco, JWT de função administrativa, token de GitHub ou credencial de nuvem |
+| **Baseline esperado** | A **publishable key** do Supabase compartilhado e a URL dele, presentes no HTML. **Não é vazamento:** é exposição projetada — o app precisa alcançar avaliações e contagem sem que o usuário configure nada, e a proteção real é a política de acesso do banco (somente leitura e inserção, com restrições de conteúdo) |
+| **Achado que exigiria ação** | Qualquer coisa fora desse par — em especial chave secreta de serviço, JWT de função administrativa, token pessoal de GitHub ou credencial de nuvem |
+
+Em caso de exposição real, o procedimento é **revogar antes de investigar** (apagar do
+código não resolve: o histórico é imutável), gerar a nova chave, atualizar onde ela vive e
+publicar versão com o cache do Service Worker renovado — sem isso o navegador continua
+servindo a página antiga com a chave velha. Não adotamos rotação por calendário: para chave
+publicável de projeto pessoal, seria cerimônia sem retorno.
+
 ## 3. Dados tratados e exposição
 
 O app **não processa imagens nem dados pessoais sensíveis** nesta versão. Os projetos de

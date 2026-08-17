@@ -28,6 +28,8 @@ O app já está publicado online. Clique e use:
 
 Funciona em qualquer navegador moderno (Chrome, Edge, Firefox, Safari) — no celular, tablet ou computador. **Não precisa de cadastro, login, conta GitHub ou download de arquivos.** Após o primeiro acesso, o app funciona **offline**. Seus dados ficam **somente no seu dispositivo** (no armazenamento do próprio navegador).
 
+> 🔎 **Quer entender antes de usar?** A página **[OrtoFly, por dentro](https://Magoc25.github.io/OrtoFly/apresentacao.html)** explica como o app planeja o voo, **onde os seus dados moram** e exatamente o que sai (ou não) do seu aparelho — com um interruptor para ler em linguagem simples ou técnica.
+
 ### 📱 Instalar como app no seu dispositivo
 
 Depois de abrir a URL acima, você pode instalar como aplicativo nativo, com ícone na tela inicial / área de trabalho:
@@ -61,9 +63,10 @@ Se você veio aqui só para **usar o app**, pode ignorar a grande maioria dos ar
 
 Para você, basta clicar na URL pública da seção [▶ Abrir agora](#-abrir-agora--sem-baixar-nada). Tudo o que importa é:
 
-| Arquivo principal | URL para usar |
-|---|---|
-| `ortofly.html` | [Magoc25.github.io/OrtoFly/ortofly.html](https://Magoc25.github.io/OrtoFly/ortofly.html) |
+| Arquivo | O que é | URL |
+|---|---|---|
+| `ortofly.html` | **O app inteiro** — é o único arquivo que importa para usar | [Magoc25.github.io/OrtoFly/ortofly.html](https://Magoc25.github.io/OrtoFly/ortofly.html) |
+| `apresentacao.html` | Página que explica **como o app funciona** e onde seus dados ficam (leitura simples ou técnica) | [Magoc25.github.io/OrtoFly/apresentacao.html](https://Magoc25.github.io/OrtoFly/apresentacao.html) |
 
 ---
 

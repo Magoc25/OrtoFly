@@ -1,5 +1,13 @@
 name: Supabase Keep-Alive
 
+# Mantém vivo o Supabase COMPARTILHADO (reviews / app_pings / app_config).
+# O OrtoFly não tem "Camada 3" (Supabase pessoal com dados do usuário) — os projetos
+# ficam só no navegador —, então existe um passo só: o guia (§16) manda REMOVER o 2º
+# passo em app sem Camada 3, em vez de deixá-lo falhando para sempre.
+#
+# URL e chave vão SÓ por `env` (r86a): interpoladas na linha do `curl` elas vazam em
+# mensagem de erro de shell e em rastro de comando. O log imprime apenas o código HTTP.
+
 on:
   schedule:
     - cron: '0 8 * * *'    # 05:00 Brasília
@@ -10,15 +18,23 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase reviews
+      - name: Ping Supabase compartilhado (reviews/pings/versão)
+        env:
+          SB_URL: ${{ secrets.REV_SB_URL }}
+          SB_KEY: ${{ secrets.REV_SB_KEY }}
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            "${{ secrets.REV_SB_URL }}/rest/v1/app_reviews?select=id&limit=1" \
-            -H "apikey: ${{ secrets.REV_SB_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.REV_SB_KEY }}")
-          echo "Status HTTP: $STATUS"
-          if [ "$STATUS" != "200" ]; then
-            echo "Aviso: resposta inesperada ($STATUS)"
+          # secret ausente é FALHA, não "pulei": keep-alive que silenciosamente não roda
+          # é exatamente como o projeto pausa de novo (mesmo princípio do jsdom no CI, §35).
+          if [ -z "$SB_URL" ] || [ -z "$SB_KEY" ]; then
+            echo "::error::Secrets REV_SB_URL / REV_SB_KEY ausentes — o Supabase compartilhado segue sem keep-alive e pausa em ~7 dias sem uso."
             exit 1
           fi
-          echo "Supabase reviews ativo."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "$SB_URL/rest/v1/app_reviews?select=id&limit=1" \
+            -H "apikey: $SB_KEY" -H "Authorization: Bearer $SB_KEY")
+          echo "Status HTTP: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Compartilhado respondeu $STATUS (esperado 200) — projeto pausado, chave trocada ou RLS alterada."
+            exit 1
+          fi
+          echo "Supabase compartilhado ativo."

@@ -10,8 +10,17 @@
       cabeçalho (inclusive a de um ponto com erro) e o LEIA-ME com as mesmas
       colunas — esquema derivado, nunca remontado (guia r71b);
     - mantém os índices de vegetação nos três lugares em sincronia
-      (VEG_INDICES × VEG_DESC × opções do seletor);
-    - mostra a versão embutida no rodapé e o modal beta da 1ª abertura.
+      (VEG_INDICES × VEG_DESC × opções do seletor), com cada fonte provando que
+      não secou — conjunto vazio satisfaz "mesmos conjuntos" de graça (guia r90c);
+    - mostra a versão embutida no rodapé e o modal beta da 1ª abertura;
+    - e, por regex sobre o HTML FONTE, que nenhum espelho de estado nasce com o
+      valor dentro (guia r72a/r74b — a asserção dinâmica não enxerga isso).
+
+  REGRA DE LEITURA (guia r74a/r91d): toda leitura de estado ou de DOM passa por
+  ev()/txt()/val()/has(), que devolvem `undefined` em vez de estourar. Motivo: uma
+  mutação que renomeia um id fazia `getElementById(...).textContent` lançar e MATAR
+  o processo — sem nenhum "FALHA" no stdout, indistinguível de "passou". Por isso
+  também: exceção que escapa é veredito PRÓPRIO (INCONCLUSIVO), nunca verde.
 
   ONDE RODA: no GitHub Actions (workflow checks.yml), que instala o jsdom só lá —
   este repositório NÃO tem package.json/node_modules de propósito (OneDrive).
@@ -52,6 +61,21 @@ function chainProxy() {
 }
 
 async function main() {
+  /* ── estáticas sobre o HTML FONTE (guia r72a/r74b) ───────────────────────────
+     Aqui a dinâmica é cega por construção: com o placeholder trazendo o valor
+     CORRENTE e o script que o escreve desligado, "o rodapé exibe a APP_VERSION"
+     fica VERDE — o placeholder sozinho satisfaz a asserção, e o teste que existe
+     para provar o r38 não prova nada. Quem defende a regra é a regex sobre o
+     fonte, porque a regra vive no texto-fonte e o runtime já apagou a evidência
+     quando a asserção dinâmica roda (r78c).
+     A captura é impressa uma vez (r98): asserção baseada em extração que lê
+     menos do que se imagina fica verde para sempre, e só o que ela CAPTUROU
+     denuncia o truncamento. */
+  const espelho = (html.match(/<span\s+id="appVersion"[^>]*>([^<]*)</) || [])[1];
+  console.log('       [captura] espelho do rodapé = ' + JSON.stringify(String(espelho).slice(0, 120)));
+  check('estática: o espelho do rodapé NÃO nasce com número de versão (r72a/r74b)',
+    espelho !== undefined && !/\d+\.\d+/.test(espelho));
+
   const dom = new JSDOM(html, {
     url: 'https://magoc25.github.io/OrtoFly/ortofly.html',   // origem real → localStorage funciona
     runScripts: 'dangerously',
@@ -68,7 +92,20 @@ async function main() {
     }
   });
   const w = dom.window, doc = w.document;
-  const ev = expr => { try { return w.eval(expr); } catch (e) { problems.push('eval falhou: ' + expr + ' → ' + e.message); console.error('FALHA  eval: ' + expr + ' → ' + e.message); return undefined; } };
+
+  /* ── caminho tolerante (guia r74a/r91d) ──────────────────────────────────────
+     Leitura que ESTOURA mata o processo e some com tudo que vinha depois — sem
+     um "FALHA" sequer no stdout, o resultado é idêntico a um teste que passou.
+     Aqui toda leitura devolve `undefined` no lugar da exceção, e quem depende
+     dela vira um ✗ localizado. Vale para o `eval` E para o DOM: um id renomeado
+     em `getElementById(id).textContent` lança antes de a asserção ser avaliada. */
+  const evOf = win => expr => { try { return win.eval(expr); } catch (e) { problems.push('eval falhou: ' + expr + ' → ' + e.message); console.error('FALHA  eval: ' + expr + ' → ' + e.message); return undefined; } };
+  const ev = evOf(w);
+  const el = (d, id) => { try { return d.getElementById(id) || undefined; } catch (e) { return undefined; } };
+  const txt = (d, id) => { const n = el(d, id); return n ? String(n.textContent) : undefined; };
+  const val = (d, id) => { const n = el(d, id); return n ? String(n.value) : undefined; };
+  const has = (d, id, cls) => { const n = el(d, id); return n ? n.classList.contains(cls) : undefined; };
+  const qsa = (d, sel) => { try { return [...d.querySelectorAll(sel)]; } catch (e) { return []; } };
 
   // no jsdom o DOMContentLoaded/load dispara DEPOIS do construtor (assíncrono) — espera o boot completar
   await new Promise((res, rej) => {
@@ -80,16 +117,20 @@ async function main() {
   /* boot */
   check('boot: script avaliado (state/APP_VERSION existem)', ev("typeof state==='object' && typeof APP_VERSION==='string'") === true);
   check('boot: AOI de exemplo carregada (4 vértices)', ev('state.polygon.length') === 4);
-  check('boot: nome do projeto de exemplo', String(doc.getElementById('projName').value).includes('Exemplo'));
+  check('boot: nome do projeto de exemplo', String(val(doc, 'projName')).includes('Exemplo'));
 
   /* plano de voo */
   check('plano: GSD calculado (> 0)', ev('!!state.lastPlan && isFinite(state.lastPlan.gsd) && state.lastPlan.gsd>0') === true);
   const wpCount = ev('state.lastPlan && state.lastPlan.grid ? state.lastPlan.grid.waypoints.length : 0');
   check('plano: grade com waypoints (> 10)', wpCount > 10);
-  check('plano: Resultados preenchidos na UI', doc.getElementById('oGsd').textContent !== '—' && doc.getElementById('oPhotos').textContent !== '—');
+  const oGsd = txt(doc, 'oGsd'), oPhotos = txt(doc, 'oPhotos');
+  check('plano: Resultados preenchidos na UI', oGsd !== undefined && oGsd !== '—' && oPhotos !== undefined && oPhotos !== '—');
 
-  /* rodapé (r38): versão exibida = APP_VERSION embutida */
-  check('rodapé: versão embutida', doc.getElementById('appVersion').textContent === '© MGC · v' + ev('APP_VERSION'));
+  /* rodapé (r38): versão exibida = APP_VERSION embutida.
+     O valor lido fica numa variável ANTES de virar operando (r91d): `undefined`
+     usado direto em concatenação/método decapita a fase inteira. */
+  const appVer = ev('APP_VERSION'), rodape = txt(doc, 'appVersion');
+  check('rodapé: versão embutida', typeof appVer === 'string' && rodape === '© MGC · v' + appVer);
 
   /* exports (captura o downloadBlob) */
   ev('window.__dl=[]; downloadBlob=(b,n)=>window.__dl.push({name:n,blob:b});');
@@ -123,16 +164,23 @@ async function main() {
 
   /* índices de vegetação — varre TODAS as variantes, não só a que se está olhando (guia r71b) */
   const sorted = a => a.slice().sort().join(',');
-  const idxKeys = ev('Object.keys(VEG_INDICES)'), descKeys = ev('Object.keys(VEG_DESC)');
-  const optKeys = [...doc.querySelectorAll('#indexSel option')].map(o => o.value).filter(v => v !== 'none');
+  const idxKeys = [...(ev('Object.keys(VEG_INDICES)') || [])], descKeys = [...(ev('Object.keys(VEG_DESC)') || [])];
+  const optKeys = qsa(doc, '#indexSel option').map(o => o.value).filter(v => v !== 'none');
+  // Guarda de FONTE SECA (guia r90c): a comparação de conjuntos abaixo é satisfeita
+  // DE GRAÇA quando as três fontes estão vazias ('' === '' === ''), e `[].every(…)`
+  // é sempre true — esvaziar VEG_INDICES deixaria as duas asserções seguintes verdes.
+  // A contagem é impressa porque asserção baseada em extração tem de mostrar o que
+  // capturou (r98): fonte que secou salta aos olhos aqui antes de virar debate.
+  console.log(`       [captura] índices — VEG_INDICES: ${idxKeys.length} · VEG_DESC: ${descKeys.length} · <option>: ${optKeys.length}`);
+  check('índices: nenhuma das três fontes secou (r90c)', idxKeys.length > 0 && descKeys.length > 0 && optKeys.length > 0);
   check('índices: VEG_INDICES × VEG_DESC × opções do seletor — mesmos conjuntos',
-    idxKeys && sorted([...idxKeys]) === sorted([...descKeys]) && sorted([...idxKeys]) === sorted(optKeys));
+    sorted(idxKeys) === sorted(descKeys) && sorted(idxKeys) === sorted(optKeys));
   check('índices: todas as fórmulas devolvem número finito', ev('Object.values(VEG_INDICES).every(f=>isFinite(f(90,140,70)))') === true);
   ev('_zonalResults=null');
 
   /* modal beta da 1ª abertura (timer de 700 ms) + ack persistido */
   await new Promise(r => setTimeout(r, 1100));
-  check('beta: modal aparece na 1ª abertura', !doc.getElementById('betaModal').classList.contains('hidden'));
+  check('beta: modal aparece na 1ª abertura', has(doc, 'betaModal', 'hidden') === false);
   ev('ackBeta()');
   check('beta: ack gravado no localStorage', w.localStorage.getItem('ortofly_beta_ack') === '1');
 
@@ -158,12 +206,25 @@ async function main() {
     if (w2.document.readyState === 'complete') { clearTimeout(t); res(); }
     else w2.addEventListener('load', () => { clearTimeout(t); res(); });
   });
-  check('sem Leaflet: boot completa mesmo assim (AOI de exemplo)', w2.eval('state.polygon.length') === 4);
-  check('sem Leaflet: usuário é avisado ("Mapa indisponível")', w2.document.getElementById('toast').textContent.includes('Mapa indisponível'));
+  const ev2 = evOf(w2), doc2 = w2.document;   // o cenário 2 também lê por caminho tolerante (r91d)
+  check('sem Leaflet: boot completa mesmo assim (AOI de exemplo)', ev2('state.polygon.length') === 4);
+  check('sem Leaflet: usuário é avisado ("Mapa indisponível")', String(txt(doc2, 'toast')).includes('Mapa indisponível'));
   check('sem Leaflet: nenhuma exceção não tratada', errs2.length === 0);
   errs2.forEach(e => console.error('       ' + e));
 
   console.log(problems.length ? `\n${problems.length} falha(s).` : '\nSmoke OK ✅');
   process.exit(problems.length ? 1 : 0);   // (os timers do app — ping etc. — seguram o processo; saída explícita)
 }
-main().catch(e => { console.error('FALHA  smoke não rodou: ' + (e.stack || e)); process.exit(1); });
+
+/* Exceção que escapa = FALHA DO HARNESS, e ela é um veredito PRÓPRIO (guia r74a):
+   "INCONCLUSIVO", nunca verde e nunca confundido com "N asserções falharam". A
+   diferença importa ao validar o smoke por mutação: harness que morre antes da
+   asserção-alvo não imprime nenhum ✗ e imita perfeitamente um teste que passou —
+   e a leitura natural ("a mutação não pegou") faz apagar um teste que estava bom. */
+main().catch(e => {
+  console.error('\n══ INCONCLUSIVO — FALHA DO HARNESS ══');
+  console.error('O smoke não chegou ao fim: o resultado NÃO é "passou" nem "falhou".');
+  console.error(String(e && e.stack || e));
+  console.error(problems.length ? `(${problems.length} falha(s) já registrada(s) antes da parada.)` : '(nenhuma falha registrada antes da parada.)');
+  process.exit(2);
+});

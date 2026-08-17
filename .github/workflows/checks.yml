@@ -11,6 +11,7 @@ on:
     branches: [main]
     paths:
       - 'ortofly.html'
+      - 'apresentacao.html'   # a página do §37 não entra em release nenhum: se o CI não olhar p/ ela aqui, nada olha
       - 'sw.js'
       - 'manifest.json'
       - 'check.js'
