@@ -1,4 +1,4 @@
-# 🚁 OrtoFly
+# <img src="./icon-192.png" alt="" width="34" align="top" /> OrtoFly
 
 > **Planejamento de voo fotogramétrico e ortomosaicos para drones DJI — direto no navegador, offline e gratuito.**
 
