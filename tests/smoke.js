@@ -185,6 +185,27 @@ async function main() {
   check('beta: ack gravado no localStorage', w.localStorage.getItem('ortofly_beta_ack') === '1');
 
   /* nenhum erro de runtime no boot */
+  /* raster (v1.20.0): guarda de biblioteca ausente.
+     No jsdom não existe window.GeoTIFF — a mesma situação de um 1º acesso offline
+     em que o vendor/ não chegou. Sem a guarda, `GeoTIFF.fromBlob` estoura dentro do
+     try e o usuário vê "Erro ao ler raster: Cannot read properties of undefined",
+     que não diz nada e não sugere nada. A asserção fixa a mensagem ÚTIL, e o
+     `ev` tolerante (r91d) garante que uma exceção aqui vire ✗ localizado. */
+  // só o GeoTIFF fica faltando: as outras duas libs são stubadas, senão a guarda
+  // dispararia pelo motivo errado e a asserção passaria sem provar nada.
+  ev("window.parseGeoraster=function(){};window.GeoRasterLayer=function(){};");
+  check('raster: cenário montado — só a lib de GeoTIFF ausente',
+    ev("typeof window.GeoTIFF==='undefined' && !!window.parseGeoraster && typeof handleRasterFile==='function'") === true);
+  ev("handleRasterFile(new Blob([1]))");
+  await new Promise(r => setTimeout(r, 30));
+  check('raster: mensagem é sobre a biblioteca, não um TypeError vazado',
+    /Biblioteca de raster/.test(String(txt(doc, 'toast'))));
+  // o aviso de resolução reduzida é derivado do raster carregado, nunca escrito à mão
+  check('raster: o aviso de resolução reduzida cita o fator e a origem do limite',
+    ev("(function(){_rasterMeta={gr:{pixelWidth:0.0535,projection:31983,xmin:1,ymax:1}};"
+     + "var t=rasterReducedNote(2,16011,12772);_rasterMeta=null;"
+     + "return /1\\/2 da resolução original/.test(t) && /16011×12772/.test(t) && /GSD 5\\.35 cm/.test(t);})()") === true);
+
   check('sem erros de console/jsdom durante o smoke', consoleErrs.length === 0);
   consoleErrs.forEach(e => console.error('       ' + e));
 

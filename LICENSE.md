@@ -57,6 +57,7 @@ próprios autores, que devem ser preservadas em qualquer redistribuição:
 | JSZip 3.10.1 | MIT (dual MIT / GPL-3.0-or-later) |
 | @supabase/supabase-js 2.110.8 | MIT |
 | exifr 7.1.3 | MIT |
+| geotiff.js 2.1.3 | MIT |
 | georaster 1.6.0 · georaster-layer-for-leaflet 4.1.2 | Apache-2.0 |
 | three.js 0.128.0 (+ controls/loaders) | MIT |
 | laz-perf 0.0.6 | Apache-2.0 |

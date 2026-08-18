@@ -5,6 +5,22 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.20.0] — Agosto 2026
+
+### 🐛 Correções
+
+- **Ortomosaico grande fazia o app reiniciar sozinho.** Abrir um GeoTIFF/COG em **Imagens → Visualizar resultados** lia o arquivo inteiro e mandava decodificar a **resolução cheia**: num ortomosaico de 16011×12772 px com 4 bandas (959 MB em disco), isso pede **3,8 GB de memória** e leva **157 s** — e o navegador reinicia a página antes de terminar. No Safari a mensagem é _"este app web foi recarregado devido ao uso significativo de memória"_; no Chrome a aba trava ou morre. **Não era limitação do computador:** nenhum navegador entrega 4 GB para abrir uma imagem.
+  Agora o app usa a **pirâmide que o próprio arquivo já traz** (o ODM grava o ortomosaico como COG com níveis de resolução prontos): ele escolhe o maior nível que cabe na memória e lê **só os blocos daquele nível** — nunca o arquivo inteiro. O mesmo ortomosaico abre em **13 s com 724 MB**. Arquivo sem pirâmide é reduzido em faixas, o que também limita o consumo.
+  Quando a imagem entra em resolução reduzida, **o app diz isso na tela** — o fator (ex.: `1/2`), o GSD resultante (ex.: 5,35 cm) e o tamanho original —, porque é sobre esse raster que a estatística zonal, os índices e o ajuste por GCP são calculados. **Posição e extensão continuam exatas:** o georreferenciamento é sempre derivado do nível original, não do nível reduzido.
+
+### 🔧 Melhorado
+
+- **Verificação (CI):** 4 asserções novas no `check.js` e 3 no smoke — que o carregador **não** materializa o arquivo inteiro, que lê pela pirâmide sob demanda, que a georreferência sai do nível original, que o carregador testado é o que de fato roda, que o app avisa (em vez de estourar) quando a biblioteca não carregou, e que o aviso de resolução reduzida cita fator, GSD e tamanho original. Uma asserção nova: **toda biblioteca do `vendor/` carregada pelo HTML tem de estar no pré-cache do Service Worker** — sem isso, uma lib nova quebra o uso offline em campo e nada avisa. Todas validadas **por mutação** (13/13), com rodada limpa antes da campanha.
+- Nova biblioteca em `vendor/`: **geotiff.js 2.1.3** (MIT), pré-cacheada como as demais — o app continua funcionando offline.
+- Manutenção: `CACHE_NAME` do Service Worker em `v44`.
+
+---
+
 ## [1.19.1] — Julho 2026
 
 ### 🐛 Correções

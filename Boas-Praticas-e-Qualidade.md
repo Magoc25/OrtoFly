@@ -80,7 +80,8 @@ A **texturização** roda em **todos os modos** (carrega muitas imagens ao mesmo
 A reconstrução depende de a **mesma textura** aparecer em várias fotos. Buracos vêm de: **modo Rápido**, **água/superfícies lisas**, **sombras**, **bordas** (menos sobreposição) e **objetos em movimento**. Para encher: **modo Completo + mais sobreposição + boa luz**.
 
 ## 5. Visualização
-- **Ortomosaicos grandes** podem pesar no navegador (decodifica tudo em memória). Nesses casos, **⬇ Tudo (.zip)** e abra no **QGIS**.
+- **Ortomosaicos grandes abrem normalmente** (desde a v1.20.0). O ODM grava o ortomosaico com **níveis de resolução prontos** dentro do arquivo, e o app carrega o maior nível que cabe na memória do navegador — só os blocos daquele nível, nunca o arquivo inteiro. Quando entra reduzido, ele **avisa na tela** o fator e o GSD resultante.
+  ⚠️ **Isso importa na hora de medir:** a estatística por pontos, os índices de vegetação e o ajuste por GCP são calculados sobre o raster **como foi carregado**. Posição e área continuam corretas (o georreferenciamento vem do arquivo original); o que muda é o detalhe fino. Precisa do GSD original? **Recorte a área de interesse no QGIS** e abra o recorte no app — um pedaço pequeno cabe em resolução cheia.
 - **Nuvem `.laz`:** abre em 3D no app (**🧊 Nuvem (3D)**) ou no **CloudCompare / QGIS** (Camada → Adicionar Camada de Nuvem de Pontos).
 
 ## 6. Dados e backup

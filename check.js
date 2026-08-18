@@ -83,23 +83,74 @@ let orfIds = 0;
 for (const r of new Set(refs)) if (!ids.has(r)) { fail(`id órfão: $('${r}') / getElementById('${r}') — nenhum id="${r}" no HTML`); orfIds++; }
 if (!orfIds) ok(`ids: ${new Set(refs).size} referências literais — todas existem no HTML`);
 
-/* ── 4) arquivos locais referenciados existem ── */
+/* ── 4) arquivos locais referenciados existem ──
+   COMPANHEIRO COM FALLBACK PARA A RAIZ (guia r105d): resolver `sw.js`, `vendor/…` e
+   `apresentacao.html` só ao lado do ARQUIVO SOB TESTE quebra assim que alguém aponta
+   o harness para uma cópia — e apontar para uma cópia é exatamente o que faz uma
+   campanha de mutação. O resultado é um ✗ FIXO em todas as rodadas, que faz toda
+   mutação passar por confirmada, inclusive as que ficaram verdes. Ao lado do arquivo
+   se existir; senão ao lado do próprio check.js (a raiz do repositório). */
 const baseDir = path.dirname(file);
+const companion = rel => { const near = path.join(baseDir, rel); return fs.existsSync(near) ? near : path.join(__dirname, rel); };
 const localRefs = new Set();
 for (const m of html.matchAll(/(?:src|href)\s*=\s*"\.\/([^"]+)"/g)) localRefs.add(m[1]);
 for (const m of js.matchAll(/'\.\/(vendor\/[^']+)'/g)) localRefs.add(m[1]);
-const swPath = path.join(baseDir, 'sw.js');
+const swPath = companion('sw.js');
 if (fs.existsSync(swPath)) for (const m of fs.readFileSync(swPath, 'utf8').matchAll(/'\.\/([^']+)'/g)) localRefs.add(m[1]);
 let missing = 0;
-for (const r of localRefs) if (!fs.existsSync(path.join(baseDir, r))) { fail(`arquivo local ausente: ./${r}`); missing++; }
+for (const r of localRefs) if (!fs.existsSync(companion(r))) { fail(`arquivo local ausente: ./${r}`); missing++; }
 if (!missing) ok(`arquivos locais: ${localRefs.size} referências (HTML + PRECACHE do SW) — todas existem`);
+
+/* ── 4b) toda lib do vendor/ que o HTML carrega está no PRECACHE do SW ──────
+   O item 4 prova que o arquivo EXISTE em disco; não prova que ele é pré-cacheado.
+   Lib nova entra pelo <script> e o PRECACHE fica para trás — o app segue perfeito
+   online e, em campo sem sinal, morre no primeiro uso da funcionalidade nova. É a
+   falha que o self-hosting (v1.19.0) existe para impedir, e nada mais a vigia. */
+const htmlVendor = [...html.matchAll(/<script\s+src="\.\/(vendor\/[^"]+)"/g)].map(m => m[1]);
+const swSrc = fs.existsSync(swPath) ? fs.readFileSync(swPath, 'utf8') : '';
+const precache = new Set([...swSrc.matchAll(/'\.\/([^']+)'/g)].map(m => m[1]));
+if (!htmlVendor.length) fail('nenhum <script src="./vendor/…"> no HTML — a extração do PRECACHE secou');
+else {
+  const fora = htmlVendor.filter(v => !precache.has(v));
+  if (fora.length) fail(`lib carregada pelo HTML e FORA do PRECACHE (quebra offline): ${fora.join(', ')}`);
+  else ok(`offline: ${htmlVendor.length} libs do vendor/ no HTML — todas no PRECACHE do SW`);
+}
+
+/* ── 4c) leitura de raster pela pirâmide (v1.20.0) ──────────────────────────
+   O bug: `file.arrayBuffer()` + `parseGeoraster(ArrayBuffer)` decodificava a
+   resolução cheia — 3,8 GB de pico num ortho de 200 MP, e o navegador reiniciava
+   o app. A correção é escolher o nível da pirâmide do COG e ler só os tiles dele.
+   Nada no fluxo de release reabre este caminho, e a regressão é INVISÍVEL nos
+   ortos pequenos com que se testa no dia a dia: só aparece no arquivo grande do
+   usuário, como um app que reinicia sozinho. Daí a asserção.
+   O `\s*\(` na extração não é enfeite: sem ele a captura casa por PREFIXO, e uma
+   mutação que renomeia a função para `_tiffToGeorasterX` deixa a suíte inteira verde
+   (pega na campanha da v1.20.0). E extrair a função certa não prova que é ela que
+   roda — por isso a chamada em handleRasterFile é asserção à parte. */
+const loader = (js.match(/async function _tiffToGeoraster\s*\([\s\S]*?\n}/) || [])[0];
+console.log('       [captura] carregador de raster = ' + (loader ? loader.split('\n').length + ' linhas' : 'NÃO ENCONTRADO'));
+if (!/await\s+_tiffToGeoraster\s*\(/.test(js)) fail('raster: handleRasterFile não chama _tiffToGeoraster — o carregador testado não é o que roda');
+else ok('raster: o carregador testado é o que handleRasterFile executa');
+if (!loader) fail('raster: _tiffToGeoraster não encontrada — a extração secou ou o carregador foi removido');
+else {
+  if (/\.arrayBuffer\s*\(/.test(loader)) fail('raster: o carregador materializa o arquivo inteiro (.arrayBuffer()) — é o defeito da v1.19.1');
+  else ok('raster: o carregador não materializa o arquivo inteiro em memória');
+  if (!/GeoTIFF\.fromBlob\s*\(/.test(loader)) fail('raster: o carregador não usa GeoTIFF.fromBlob — sem leitura sob demanda não há pirâmide');
+  else if (!/getImageCount\s*\(/.test(js)) fail('raster: ninguém enumera os níveis da pirâmide (getImageCount ausente)');
+  else ok('raster: níveis da pirâmide enumerados e lidos sob demanda (fromBlob)');
+  // a extensão tem de sair do nível 0: o ModelPixelScale do overview é arredondado
+  // e desloca a borda em ~meio pixel — num app que mede em cima do raster, isso é erro.
+  if (!/base\.im\.getBoundingBox\s*\(/.test(loader)) fail('raster: georreferência não derivada do nível 0 (base.im.getBoundingBox ausente)');
+  else if (!/pixelWidth:\s*\(bb\[2\]-bb\[0\]\)\s*\/\s*W/.test(loader)) fail('raster: pixelWidth não derivado da extensão do nível 0 — a borda desloca no reamostrado');
+  else ok('raster: georreferência derivada da extensão do nível 0, não do overview');
+}
 
 /* ── 5) apresentacao.html — a página pública do §37 ────────────────────────
    Estas asserções existem porque NENHUM passo do release toca este arquivo:
    ele não é recompilado, não entra no smoke do app e ninguém o reabre. Sem
    teste, ele apodrece sozinho — e em público. Rodam aqui, no degrau estático,
    porque nada nelas precisa de DOM. */
-const presPath = path.join(baseDir, 'apresentacao.html');
+const presPath = companion('apresentacao.html');
 if (!fs.existsSync(presPath)) {
   console.log('ok     apresentacao.html não existe neste projeto — §37 é tópico de decisão (pulado)');
 } else {

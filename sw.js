@@ -1,6 +1,6 @@
-/* OrtoFly — Service Worker v1.19.0 */
+/* OrtoFly — Service Worker v1.20.0 */
 
-const CACHE_NAME = 'ortofly-v43';
+const CACHE_NAME = 'ortofly-v44';
 
 // Tudo que o app precisa para funcionar OFFLINE (uso em campo, sem sinal):
 // libs self-hosted (vendor/) + manifest + ícones. O HTML fica de fora da
@@ -12,7 +12,7 @@ const PRECACHE = [
   './vendor/leaflet/images/marker-icon.png', './vendor/leaflet/images/marker-icon-2x.png',
   './vendor/leaflet/images/marker-shadow.png',
   './vendor/jszip.min.js', './vendor/supabase.js', './vendor/exifr.umd.js',
-  './vendor/georaster.min.js', './vendor/georaster-layer.min.js',
+  './vendor/geotiff.min.js', './vendor/georaster.min.js', './vendor/georaster-layer.min.js',
   './vendor/three/three.min.js', './vendor/three/OrbitControls.js', './vendor/three/PLYLoader.js',
   './vendor/three/MTLLoader.js', './vendor/three/OBJLoader.js', './vendor/three/GLTFLoader.js',
   './vendor/laz-perf/index.mjs', './vendor/laz-perf/laz-perf.wasm'

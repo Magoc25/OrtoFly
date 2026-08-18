@@ -12,10 +12,17 @@ após a primeira visita. Também elimina o risco de uma lib "latest" mudar sozin
 | `jszip.min.js` | JSZip | 3.10.1 | MIT (dual MIT/GPL-3.0-or-later) | cdnjs |
 | `supabase.js` | @supabase/supabase-js (UMD) | 2.110.8 | MIT | jsdelivr |
 | `exifr.umd.js` | exifr (full UMD) | 7.1.3 | MIT | jsdelivr |
+| `geotiff.min.js` | geotiff.js (`dist-browser`, UMD) | 2.1.3 | MIT | jsdelivr |
 | `georaster.min.js` | georaster (browser bundle) | 1.6.0 | Apache-2.0 | jsdelivr |
 | `georaster-layer.min.js` (+ `….LICENSE.txt`) | georaster-layer-for-leaflet | 4.1.2 | Apache-2.0 | jsdelivr |
 | `three/three.min.js` + `three/*.js` | three.js (+ OrbitControls, PLY/MTL/OBJ/GLTF loaders) | 0.128.0 | MIT | jsdelivr |
 | `laz-perf/index.mjs` + `laz-perf/laz-perf.wasm` | laz-perf (build ESM do jsdelivr; autocontido) | 0.0.6 | Apache-2.0 | jsdelivr `+esm` |
+
+> **Por que `geotiff.min.js` existe se o `georaster` já empacota o geotiff:** o bundle do
+> georaster não expõe o geotiff, e `parseGeoraster(ArrayBuffer)` sempre decodifica a
+> resolução CHEIA — num ortho de 200 MP isso são ~3,8 GB de pico e o navegador reinicia o
+> app. Com o geotiff direto o app escolhe o nível da pirâmide do COG e lê só os tiles dele
+> (v1.20.0). O georaster continua sendo quem monta o raster, via `parseGeoraster(values, meta)`.
 
 > As licenças acima também estão declaradas no [LICENSE.md](../LICENSE.md) do projeto
 > (seção "Componentes de terceiros").

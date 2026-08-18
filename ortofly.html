@@ -261,6 +261,7 @@ footer{
       <input type="file" id="rasterInput" accept=".tif,.tiff,image/tiff" class="hidden" />
       <input type="file" id="viewer3dInput" accept=".las,.laz,.ply,.obj,.glb,.gltf" class="hidden" />
       <div id="rasterStatus" class="spec" style="margin-top:8px"></div>
+      <div id="rasterNote"></div>
       <div id="rasterCtrls" class="hidden" style="margin-top:8px">
         <div class="row" id="rasterCmapRow">
           <div class="field"><label for="rasterCmap">Paleta (DSM)</label><select id="rasterCmap"><option value="terrain">Terreno</option><option value="viridis">Viridis</option><option value="grayscale">Cinza</option></select></div>
@@ -649,6 +650,7 @@ footer{
 <script src="./vendor/jszip.min.js"></script>
 <script src="./vendor/supabase.js"></script>
 <script src="./vendor/exifr.umd.js"></script>
+<script src="./vendor/geotiff.min.js"></script>
 <script src="./vendor/georaster.min.js"></script>
 <script src="./vendor/georaster-layer.min.js"></script>
 <script src="./vendor/three/three.min.js"></script>
@@ -658,8 +660,8 @@ footer{
 <script src="./vendor/three/OBJLoader.js"></script>
 <script src="./vendor/three/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.19.0 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.19.1';
+/* ═══════════════ OrtoFly v1.20.0 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.20.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1368,8 +1370,71 @@ const VEG_DESC={VARI:'Visible Atmospherically Resistant Index',GLI:'Green Leaf I
 // extrai [R,G,B] de um pixel do raster (trata alfa/nodata/YCbCr); null = mascarado
 function _pixRGB(v){ const {gr,bands,ycc}=_rasterMeta; if(!v) return null; const a=(bands>=4)?v[3]:255; if(a===0) return null; let r=v[0],g=v[1],b=v[2]; if(r==null||g==null||b==null) return null; if(gr.noDataValue!=null&&r===gr.noDataValue&&g===gr.noDataValue&&b===gr.noDataValue) return null; if(ycc){ const Y=r,Cb=g-128,Cr=b-128; r=Y+1.402*Cr; g=Y-0.344136*Cb-0.714136*Cr; b=Y+1.772*Cb; } return [r,g,b]; }
 function rasterStatus(t){ const e=$('rasterStatus'); if(e) e.textContent=t||''; }
+function rasterNote(html){ const e=$('rasterNote'); if(e) e.innerHTML=html?`<div class="note">${html}</div>`:''; }
 function openRaster(){ $('rasterInput').click(); }
-function tiffPhotometric(ab){ try{ const dv=new DataView(ab); const le=dv.getUint16(0,false)===0x4949; const g16=o=>dv.getUint16(o,le),g32=o=>dv.getUint32(o,le); if(g16(2)!==42) return null; const ifd=g32(4),n=g16(ifd); for(let i=0;i<n;i++){ const o=ifd+2+i*12; if(g16(o)===262) return (g16(o+2)===3)?g16(o+8):g32(o+8); } return null; }catch(e){ return null; } }
+
+/* ═══ Leitura de GeoTIFF/COG pela PIRÂMIDE (v1.20.0) ══════════════════════════
+   Um ortomosaico de drone não cabe decodificado na memória de um navegador. O
+   caminho antigo — `file.arrayBuffer()` + `parseGeoraster(ArrayBuffer)` — lia o
+   arquivo inteiro e mandava o georaster decodificar a resolução CHEIA: num ortho
+   de 16011×12772×4 bandas (959 MB em disco, 780 MB de pixel) isso mede 3,8 GB de
+   pico e 157 s, e o WebKit reinicia o app antes do fim ("este app web foi
+   recarregado devido ao uso significativo de memória"). Não é teto do aparelho:
+   nenhum navegador entrega 4 GB para abrir uma imagem.
+   O ODM grava o ortho como COG **com pirâmide**, então a resposta já está dentro
+   do arquivo: escolhemos o maior nível que cabe no orçamento e lemos só os tiles
+   DELE (o mesmo ortho: 13 s e 724 MB). Arquivo sem pirâmide cai na decimação em
+   faixas, que limita o pico independentemente do tamanho da imagem.
+   O que se perde é RESOLUÇÃO — e isso é dito na tela, porque se mede em cima
+   deste raster (zonal, índices, GCP). O georreferenciamento não se perde: a
+   extensão sai sempre do nível 0, nunca do ModelPixelScale do overview (que é
+   arredondado e desloca a borda em ~meio pixel). */
+const RASTER_MAX_BYTES = 220e6;   // pixel decodificado que aceitamos manter em memória
+const RASTER_STRIP_ROWS = 512;    // linhas de saída por faixa, na decimação
+
+// níveis da pirâmide (IFDs), do maior para o menor, com o custo em memória de cada um
+async function _tiffLevels(tiff){
+  const n=await tiff.getImageCount(), out=[];
+  for(let i=0;i<n;i++){ const im=await tiff.getImage(i);
+    out.push({im,w:im.getWidth(),h:im.getHeight(),bytes:im.getWidth()*im.getHeight()*im.getBytesPerPixel()}); }
+  return out;
+}
+// decima um nível lendo em faixas: o pico fica no tamanho da faixa, não no da imagem
+async function _readDecimated(im,W,H,nb,oW,oH,onProg){
+  const out=new Array(nb), rows=Math.max(1,Math.min(oH,RASTER_STRIP_ROWS));
+  for(let oy=0;oy<oH;oy+=rows){
+    const oh=Math.min(rows,oH-oy);
+    const top=Math.round(oy*H/oH), bot=Math.round((oy+oh)*H/oH);   // grade de saída, sem deriva: a última faixa fecha em H
+    const part=await im.readRasters({window:[0,top,W,bot],width:oW,height:oh});
+    for(let b=0;b<nb;b++){ if(!out[b]) out[b]=new part[b].constructor(oW*oH); out[b].set(part[b],oy*oW); }
+    if(onProg) onProg((oy+oh)/oH);
+    await new Promise(r=>setTimeout(r,0));   // devolve o fio ao navegador entre faixas
+  }
+  return out;
+}
+// File/Blob de GeoTIFF -> georaster pronto para o app (mesmo formato do performCrop)
+async function _tiffToGeoraster(file,onProg){
+  const PG=window.parseGeoraster||window.GeoRaster;
+  const tiff=await window.GeoTIFF.fromBlob(file);            // lazy: nada do arquivo é lido aqui
+  const levels=await _tiffLevels(tiff), base=levels[0];
+  const pick=levels.find(l=>l.bytes<=RASTER_MAX_BYTES)||levels[levels.length-1];
+  const im=pick.im, nb=im.getSamplesPerPixel();
+  let W=pick.w, H=pick.h, bands;
+  if(pick.bytes<=RASTER_MAX_BYTES){ bands=await im.readRasters(); }
+  else {                                                     // sem pirâmide utilizável: decima o que houver
+    const k=Math.ceil(Math.sqrt(pick.bytes/RASTER_MAX_BYTES));
+    W=Math.max(1,Math.floor(pick.w/k)); H=Math.max(1,Math.floor(pick.h/k));
+    bands=await _readDecimated(im,pick.w,pick.h,nb,W,H,onProg);
+  }
+  const values=bands.map(b=>{ const rows=new Array(H); for(let y=0;y<H;y++){ const s=y*W; rows[y]=b.subarray(s,s+W); } return rows; });
+  const bb=base.im.getBoundingBox(), gk=base.im.geoKeys||{};  // georreferência: sempre do nível 0
+  let nd=null; try{ nd=base.im.getGDALNoData(); }catch(e){}
+  const gr=await PG(values,{ noDataValue:(nd==null?null:nd),
+    projection:gk.ProjectedCSTypeGeoKey||gk.GeographicTypeGeoKey||4326,
+    xmin:bb[0], ymax:bb[3], pixelWidth:(bb[2]-bb[0])/W, pixelHeight:(bb[3]-bb[1])/H });
+  return { gr, factor:base.w/W, full:(W===base.w&&H===base.h),
+           ycc:base.im.fileDirectory.PhotometricInterpretation===6, srcW:base.w, srcH:base.h };
+}
 function buildRasterLayer(){ const o={georaster:_rasterMeta.gr,opacity:(+$('rasterOpacity').value||100)/100,resolution:256,pane:'rasterPane'};
   const fn=_rasterColorFn();   // fonte única de cor (RGB/DSM/índice — trata YCbCr, alpha e nodata); aqui só embrulha em CSS
   o.pixelValuesToColorFn=v=>{ const c=fn(v); return c?`rgb(${c[0]},${c[1]},${c[2]})`:null; };
@@ -1378,24 +1443,36 @@ function rebuildRasterLayer(fit){ if(rasterLayer) rasterLayer.remove(); rasterLa
 function resetIndexUI(bands){ $('indexRow').classList.toggle('hidden',(bands||0)<3); if($('indexSel'))$('indexSel').value='none'; $('indexCmapRow').classList.add('hidden'); $('indexClearBtn').classList.add('hidden'); $('indexInfo').textContent=''; }
 async function handleRasterFile(file){
   const PG=window.parseGeoraster||window.GeoRaster;
-  if(!PG||!window.GeoRasterLayer){ toast('Biblioteca de raster não carregou (sem conexão?)','error'); return; }
+  if(!PG||!window.GeoRasterLayer||!window.GeoTIFF){ toast('Biblioteca de raster não carregou (sem conexão?)','error'); return; }
   if(!map){ toast('Mapa indisponível','error'); return; }
-  try{ rasterStatus('Lendo '+file.name+' ('+(file.size/1048576).toFixed(0)+' MB)…');
-    const ab=await file.arrayBuffer(); const gr=await PG(ab); const ycc=tiffPhotometric(ab)===6;
+  try{ rasterStatus('Lendo '+file.name+' ('+(file.size/1048576).toFixed(0)+' MB)…'); rasterNote('');
+    await new Promise(r=>setTimeout(r,0));   // deixa o status aparecer antes da leitura
+    const {gr,factor,full,ycc,srcW,srcH}=await _tiffToGeoraster(file,p=>rasterStatus(`Lendo ${file.name}… ${Math.round(p*100)}%`));
     const bands=gr.numberOfRasters||1;
     const mn=(gr.mins&&gr.mins[0]!=null)?gr.mins[0]:gr.minValue, mx=(gr.maxs&&gr.maxs[0]!=null)?gr.maxs[0]:gr.maxValue;
-    _rasterMeta={gr,bands,mn,mx,ycc,orig:{xmin:gr.xmin,xmax:gr.xmax,ymin:gr.ymin,ymax:gr.ymax}};
+    _rasterMeta={gr,bands,mn,mx,ycc,factor,orig:{xmin:gr.xmin,xmax:gr.xmax,ymin:gr.ymin,ymax:gr.ymax}};
     _rasterShift={dx:0,dy:0}; _gcpTransform=null; _rasterIndex=null; _rasterIndexRange=null; _rasterUncropped=null; if(_rasterOverlay){ _rasterOverlay.remove(); _rasterOverlay=null; } if(_cropDrawing) cancelCropDraw();   // novo raster: zera ajuste por GCP, índice e recorte
     rebuildRasterLayer(true);
     $('rasterCtrls').classList.remove('hidden'); $('rasterCmapRow').classList.toggle('hidden',bands>=3);
     resetIndexUI(bands); $('cropFullBtn').classList.add('hidden');
     rasterStatus(`${file.name} · ${gr.width}×${gr.height} · ${bands} banda(s)${bands<3&&isFinite(mn)?` · ${(+mn).toFixed(1)}–${(+mx).toFixed(1)}`:''}`);
+    rasterNote(full?'':rasterReducedNote(factor,srcW,srcH));
     toast('Raster carregado ✅');
-  }catch(e){ console.error('[Raster]',e); toast('Erro ao ler raster: '+e.message,'error'); rasterStatus(''); }
+  }catch(e){ console.error('[Raster]',e); toast('Erro ao ler raster: '+e.message,'error'); rasterStatus(''); rasterNote(''); }
+}
+/* Aviso de resolução reduzida. Existe porque o app é ferramenta de MEDIÇÃO: quem
+   roda estatística zonal ou índice sobre um raster reamostrado tem de saber em que
+   GSD está medindo. O GSD só é dito quando o CRS é projetado (em metros) — num
+   raster em graus, pixelWidth não é distância. */
+function rasterReducedNote(factor,srcW,srcH){
+  const c=_rasterCRS(), gsd=(c&&!c.geoRaster)?` · GSD ${(_rasterMeta.gr.pixelWidth*100).toFixed(2)} cm`:'';
+  return `Carregado a <b>1/${Math.round(factor)} da resolução original</b>${gsd}. O arquivo tem ${srcW}×${srcH} px — `
+       + `resolução cheia não cabe na memória do navegador. Medidas de área e posição continuam corretas; `
+       + `detalhe fino, não. Para medir no GSD original, recorte a área no QGIS e abra o recorte.`;
 }
 function setRasterOpacity(){ const op=(+$('rasterOpacity').value||100)/100; if(_rasterOverlay){ _rasterOverlay.setOpacity(op); if(rasterLayer) rasterLayer.setOpacity(0); } else if(rasterLayer) rasterLayer.setOpacity(op); }
 function recolorRaster(){ if(!rasterLayer||!_rasterMeta||_rasterMeta.bands>=3) return; rebuildRasterLayer(false); }
-function clearRaster(){ if(_cropDrawing) cancelCropDraw(); if(_rasterOverlay){ _rasterOverlay.remove(); _rasterOverlay=null; } if(rasterLayer){ rasterLayer.remove(); rasterLayer=null; } _rasterMeta=null; _rasterUncropped=null; _rasterShift={dx:0,dy:0}; _gcpTransform=null; _rasterIndex=null; _rasterIndexRange=null; if($('gcpStatus'))$('gcpStatus').textContent=''; if($('cropFullBtn'))$('cropFullBtn').classList.add('hidden'); $('rasterCtrls').classList.add('hidden'); rasterStatus(''); }
+function clearRaster(){ if(_cropDrawing) cancelCropDraw(); if(_rasterOverlay){ _rasterOverlay.remove(); _rasterOverlay=null; } if(rasterLayer){ rasterLayer.remove(); rasterLayer=null; } _rasterMeta=null; _rasterUncropped=null; _rasterShift={dx:0,dy:0}; _gcpTransform=null; _rasterIndex=null; _rasterIndexRange=null; if($('gcpStatus'))$('gcpStatus').textContent=''; if($('cropFullBtn'))$('cropFullBtn').classList.add('hidden'); $('rasterCtrls').classList.add('hidden'); rasterStatus(''); rasterNote(''); }
 
 /* ───── Índices de vegetação por RGB (Fase 2-B) ───── */
 function _computeIndexRange(fn){
@@ -1492,7 +1569,7 @@ async function performCrop(polyLL,mask){
     const mn=(newGr.mins&&newGr.mins[0]!=null)?newGr.mins[0]:newGr.minValue, mx=(newGr.maxs&&newGr.maxs[0]!=null)?newGr.maxs[0]:newGr.maxValue;
     if(_rasterOverlay){ _rasterOverlay.remove(); _rasterOverlay=null; } _rasterIndex=null; _rasterIndexRange=null;
     const sh={..._rasterShift};   // o recorte herda o georref já deslocado por GCP; orig SEM o shift p/ o "↺ Remover ajuste" continuar desfazendo
-    _rasterMeta={gr:newGr,bands:bandsNew,mn,mx,ycc:_rasterMeta.ycc,masked:!!mask,orig:{xmin:newGr.xmin-sh.dx,xmax:newGr.xmax-sh.dx,ymin:newGr.ymin-sh.dy,ymax:newGr.ymax-sh.dy}};
+    _rasterMeta={gr:newGr,bands:bandsNew,mn,mx,ycc:_rasterMeta.ycc,factor:_rasterMeta.factor,masked:!!mask,orig:{xmin:newGr.xmin-sh.dx,xmax:newGr.xmax-sh.dx,ymin:newGr.ymin-sh.dy,ymax:newGr.ymax-sh.dy}};   // o recorte herda a resolução em que o raster foi carregado — o aviso do rasterNote continua valendo
     _rasterShift=sh;
     rebuildRasterLayer(true); refreshRasterDisplay();
     resetIndexUI(bandsNew);

@@ -3,20 +3,18 @@
 #   degrau 2 = tests/smoke.js (boot + plano + exports num DOM simulado)
 # O jsdom é instalado SÓ aqui no CI — o repositório não tem package.json de
 # propósito (protocolo OneDrive: nada de node_modules na pasta local).
-# paths filtrados p/ não disparar nos commits automáticos do stats.json (r31).
+# FILTRO PELA NEGATIVA (guia r103d): workflow de verificação usa paths-ignore, nunca
+# paths. Allowlist é a lista do que está protegido, e ela encolhe CALADA a cada arquivo
+# novo que ninguém acrescentou — a falha dela é silêncio, não erro. A negativa nomeia só
+# o ruído conhecido (o commit automático do stats.json, r31) e não tem como omitir o que
+# nasceu depois. Foi assim que a apresentacao.html quase ficou sem gatilho (r100).
 name: checks
 
 on:
   push:
     branches: [main]
-    paths:
-      - 'ortofly.html'
-      - 'apresentacao.html'   # a página do §37 não entra em release nenhum: se o CI não olhar p/ ela aqui, nada olha
-      - 'sw.js'
-      - 'manifest.json'
-      - 'check.js'
-      - 'tests/**'
-      - '.github/workflows/checks.yml'
+    paths-ignore:
+      - 'stats.json'
   workflow_dispatch:
 
 jobs:

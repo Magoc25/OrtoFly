@@ -12,7 +12,7 @@ Desenvolvido por **Marlon Gomes da Costa (MGC Dev)**
 >
 > 💬 **Ajude a validar!** Testou? **Conte como foi** — funcionou no seu fluxo? o ortomosaico/DSM ficou coerente com a realidade medida em campo? Relatos sobre o funcionamento e a **qualidade dos produtos** são muito bem-vindos e orientam a evolução do app. Use a **avaliação dentro do app** ou [abra uma issue no GitHub](https://github.com/Magoc25/OrtoFly/issues).
 
-[![Versão](https://img.shields.io/badge/versão-1.19.1-blue)](./CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/versão-1.20.0-blue)](./CHANGELOG.md)
 [![Status](https://img.shields.io/badge/status-beta%20%C2%B7%20em%20valida%C3%A7%C3%A3o-yellow)](./TERMS.md)
 [![Licença](https://img.shields.io/badge/licença-não%20comercial-orange)](#-licença-e-termos-de-uso)
 [![PIX](https://img.shields.io/badge/apoie-PIX-brightgreen)](#-apoiar-o-projeto)
@@ -100,7 +100,7 @@ O OrtoFly **não controla o drone diretamente** — por restrições do SDK da D
 
 - **Importação de fotos DJI + EXIF** — lê GPS, altitude, data e modelo das fotos e plota os centros no mapa (as imagens ficam só na sessão, não são enviadas nem salvas). Gera a **envoltória** da área a partir das fotos.
 - **Mosaico rápido (GPS)** — pré-mosaico **não métrico** que posiciona as fotos pelo GPS/rumo/altitude, com exportação em PNG + world file. É um preview aproximado (para o resultado métrico, use a aba Processar).
-- **Visualizador 2D** — abre **ortomosaico/DSM (GeoTIFF/COG)** no mapa, com paletas para DSM e controle de opacidade.
+- **Visualizador 2D** — abre **ortomosaico/DSM (GeoTIFF/COG)** no mapa, com paletas para DSM e controle de opacidade. Ortomosaico grande é carregado pelos **níveis de resolução que o próprio arquivo já traz**, então abre rápido e sem derrubar o navegador; se não couber em resolução cheia, o app **avisa em que resolução carregou** (fator e GSD) — posição e extensão continuam exatas.
 - **Visualizador 3D** — abre **nuvem de pontos** (LAS/LAZ/PLY) ou **malha** (OBJ/glTF/GLB) no navegador.
 - **Recorte do ortomosaico** — marque a área de interesse (polígono ou retângulo, ou reaproveite a área do voo) e **recorte** o raster; passe a visualizar, calcular estatística e gerar índice **só na parte útil**, e salve o recorte (PNG + worldfile). **↺ Imagem inteira** restaura o original.
 - **Índices de vegetação por RGB** — a partir de uma ortho colorida, calcula e colore **VARI, GLI, NGRDI, ExG, ExGR, MGRVI, RGBVI, TGI, VEG** (proxies de vigor; **não** são NDVI, que exige infravermelho). A estatística por pontos passa a amostrar o índice, e a imagem do índice é exportável (PNG + worldfile).
