@@ -44,6 +44,18 @@ scripts.forEach((src, i) => {
 });
 const js = scripts.join('\n');
 
+/* FONTE SEM COMENTÁRIOS — para as asserções de AUSÊNCIA.
+   Asserção de ausência não pode ser violada por PROSA, e o comentário que explica
+   um defeito contém o padrão proibido **por definição**: foi assim que a asserção
+   "nenhuma cópia do pacote em new Blob([buf])" ficou vermelha contra o código que
+   a corrigia, porque o comentário logo acima citava a linha antiga. Quem procura
+   "isto NÃO existe no código" lê daqui. (Sanity check obrigatório: se a remoção
+   comer código de verdade, a asserção passa de graça — o caso r90c.) */
+const jsCode = js.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
+if (jsCode.length < js.length * 0.5 || !jsCode.includes('const APP_VERSION'))
+  fail(`remoção de comentários comeu código (${jsCode.length} de ${js.length} bytes) — asserções de ausência não são confiáveis`);
+
+
 /* ── 2) handlers órfãos ── */
 // funções/variáveis globais definidas no script (handlers inline resolvem no escopo global)
 const defined = new Set();
@@ -127,7 +139,7 @@ else {
    mutação que renomeia a função para `_tiffToGeorasterX` deixa a suíte inteira verde
    (pega na campanha da v1.20.0). E extrair a função certa não prova que é ela que
    roda — por isso a chamada em handleRasterFile é asserção à parte. */
-const loader = (js.match(/async function _tiffToGeoraster\s*\([\s\S]*?\n}/) || [])[0];
+const loader = (jsCode.match(/async function _tiffToGeoraster\s*\([\s\S]*?\n}/) || [])[0];
 console.log('       [captura] carregador de raster = ' + (loader ? loader.split('\n').length + ' linhas' : 'NÃO ENCONTRADO'));
 if (!/await\s+_tiffToGeoraster\s*\(/.test(js)) fail('raster: handleRasterFile não chama _tiffToGeoraster — o carregador testado não é o que roda');
 else ok('raster: o carregador testado é o que handleRasterFile executa');
@@ -143,6 +155,34 @@ else {
   if (!/base\.im\.getBoundingBox\s*\(/.test(loader)) fail('raster: georreferência não derivada do nível 0 (base.im.getBoundingBox ausente)');
   else if (!/pixelWidth:\s*\(bb\[2\]-bb\[0\]\)\s*\/\s*W/.test(loader)) fail('raster: pixelWidth não derivado da extensão do nível 0 — a borda desloca no reamostrado');
   else ok('raster: georreferência derivada da extensão do nível 0, não do overview');
+}
+
+/* ── 4d) leitura do all.zip por faixa (v1.20.1) ─────────────────────────────
+   Mesmo defeito do 4c, num arquivo maior: o caminho antigo media 2,80 GB de pico
+   com um pacote de 887 MB, e o release não passa por aqui — o `all.zip` só é
+   grande no NodeODM do usuário, nunca no teste. As três alocações que somavam
+   aquilo (ArrayBuffer do pacote, cópia no `new Blob([buf])`, índice do JSZip) são
+   *ausências*, então as mutações têm de INSERIR o padrão proibido (r84b). */
+const zipLoader = (jsCode.match(/async function odmGetZip\s*\([\s\S]*?\n[^\n]*return _odmZip; \}/) || [])[0];
+const zipRO = (jsCode.match(/async function zipAbrir\s*\([\s\S]*?\n}/) || [])[0];
+console.log('       [captura] odmGetZip = ' + (zipLoader ? zipLoader.split('\n').length + ' linhas' : 'NÃO ENCONTRADO')
+          + ' · zipAbrir = ' + (zipRO ? zipRO.split('\n').length + ' linhas' : 'NÃO ENCONTRADO'));
+if (!zipLoader || !zipRO) fail('all.zip: odmGetZip/zipAbrir não encontradas — a extração secou ou o caminho foi removido');
+else {
+  if (/\.arrayBuffer\s*\(/.test(zipLoader)) fail('all.zip: odmGetZip materializa o pacote inteiro (.arrayBuffer()) — é o defeito da v1.20.0');
+  else if (!/await r\.blob\s*\(/.test(zipLoader)) fail('all.zip: odmGetZip não guarda o download como Blob — sem isso o pacote vai para a memória');
+  else ok('all.zip: o pacote fica como Blob, nunca em ArrayBuffer');
+  if (/new Blob\(\[\s*buf/.test(jsCode)) fail('all.zip: cópia do pacote em new Blob([buf]) — dobra a memória e ela fica viva');
+  else ok('all.zip: nenhuma cópia do pacote em memória');
+  if (!/_zipDir\s*\(/.test(zipRO)) fail('all.zip: zipAbrir não lê o diretório central — sem isso não há leitura por faixa');
+  else if (!/DecompressionStream/.test(zipRO)) fail('all.zip: zipAbrir não infla em fluxo (DecompressionStream ausente)');
+  else ok('all.zip: diretório central por faixa + inflate em fluxo');
+  // reembrulhar o File extraído copia o arquivo inteiro — a guarda é o que evita isso
+  if (!/blob instanceof File && blob\.name===name/.test(js)) fail('all.zip: odmOpenZip reembrulha o File extraído — new File([blob]) COPIA o arquivo inteiro');
+  else ok('all.zip: o File extraído é usado direto, sem reembrulhar');
+  // Zip64 não é luxo: all.zip com nuvem densa + ortho passa de 4 GB
+  if (!/0x07064b50/.test(js) || !/0x06064b50/.test(js)) fail('all.zip: sem Zip64 — pacote acima de 4 GB não abriria');
+  else ok('all.zip: Zip64 tratado (pacote > 4 GB)');
 }
 
 /* ── 5) apresentacao.html — a página pública do §37 ────────────────────────

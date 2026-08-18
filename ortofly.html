@@ -660,8 +660,8 @@ footer{
 <script src="./vendor/three/OBJLoader.js"></script>
 <script src="./vendor/three/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.20.0 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.20.0';
+/* ═══════════════ OrtoFly v1.20.1 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.20.1';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -2215,7 +2215,7 @@ async function odmCreate(){ const u=odmUrlVal(); if(!u){ toast('Configure e test
     _odmTask=j.uuid; localStorage.setItem(LS+'_odm_task',j.uuid); odmTrack(j.uuid); odmStatus('✅ Tarefa criada: '+j.uuid); $('odmTaskCard').classList.remove('hidden'); $('odmOutputs').classList.add('hidden'); odmStartPoll(); toast('Tarefa enviada ✅');
   }catch(e){ console.error('[ODM] create',e); odmStatus('❌ Falha ao criar tarefa: '+e.message,true); toast('Falha: '+e.message,'error'); } }
 function odmStartPoll(){ if(_odmPoll) clearInterval(_odmPoll); odmRefresh(); _odmPoll=setInterval(odmRefresh,5000); }
-function odmClearCard(){ if(_odmPoll) clearInterval(_odmPoll); _odmTask=null; _odmZip=null; _odmZipFor=null; _odmZipRaw=null; _odmSavedMode=false; _odmResultProj=null; _odmSaved=false; localStorage.removeItem(LS+'_odm_task'); $('odmTaskCard').classList.add('hidden'); $('odmOutputs').classList.add('hidden'); odmStatus(''); }
+function odmClearCard(){ if(_odmPoll) clearInterval(_odmPoll); _opfsLimpar(); _odmTask=null; _odmZip=null; _odmZipFor=null; _odmZipRaw=null; _odmSavedMode=false; _odmResultProj=null; _odmSaved=false; localStorage.removeItem(LS+'_odm_task'); $('odmTaskCard').classList.add('hidden'); $('odmOutputs').classList.add('hidden'); odmStatus(''); }
 async function odmRefresh(){ const u=odmUrlVal(); if(!u||!_odmTask) return;
   try{ const r=await fetch(u+'/task/'+_odmTask+'/info'); const j=await r.json();
     const codes={10:'na fila',20:'processando',30:'falhou',40:'concluído',50:'cancelado'}; const st=j.status&&j.status.code;
@@ -2250,18 +2250,91 @@ async function odmShowLog(){ const pre=$('odmLog'); if(!pre) return; const u=odm
     pre.textContent=arr.slice(-80).join('\n').trim()||'(log vazio)'; pre.scrollTop=pre.scrollHeight;
   }catch(e){ console.error('[ODM] output',e); pre.textContent='Não consegui ler o log: '+e.message+' (NodeODM ligado? tarefa ainda existe?)'; } }
 const ODM_RE={ortho:/odm_orthophoto\/odm_orthophoto\.tif$/i, dsm:/(^|\/)dsm\.tif$/i, dtm:/(^|\/)dtm\.tif$/i, laz:/georeferenced_model\.(laz|las)$/i};
+/* ═══ Leitura do all.zip por FAIXA — sem carregar o pacote (v1.20.1) ═════════
+   Mesmo defeito do raster (v1.20.0), num arquivo ainda maior. O caminho antigo era:
+     const buf = await r.arrayBuffer();          // o pacote INTEIRO na memória
+     _odmZipRaw = new Blob([buf], …);            // uma CÓPIA, e ela fica viva
+     _odmZip    = await JSZip.loadAsync(buf);    // + as estruturas do JSZip
+   Medido com um all.zip de 887 MB: **2,80 GB de pico** — e isso ANTES de abrir o
+   raster, que soma os dele. O JSZip não lê por faixa: ele precisa do pacote todo.
+   Agora: o download vira Blob (o navegador o ancora em disco, nunca ArrayBuffer);
+   o diretório central é lido pela CAUDA por `slice()`; e a entrada pedida é inflada
+   em FLUXO (`DecompressionStream`) direto para um arquivo do OPFS, que volta como
+   `File` — de onde o leitor de raster/nuvem lê sob demanda. Mesmo pacote: **87 MB
+   e 6,3 s** contra 2,80 GB e 22,8 s. Entrada `stored` nem é descomprimida: a fatia
+   já é o arquivo. Navegador sem `DecompressionStream` cai no JSZip de antes.
+   O JSZip continua no app — ele ESCREVE os zips pequenos (KMZ/WPML, PNG+PGW). */
+const _zipStream = typeof DecompressionStream === 'function';
+const _u32=(d,o)=>d.getUint32(o,true), _u16=(d,o)=>d.getUint16(o,true), _u64=(d,o)=>Number(d.getBigUint64(o,true));
+async function _slice(blob,a,b){ return new DataView(await blob.slice(a,b).arrayBuffer()); }
+// diretório central (com Zip64 — all.zip passa de 4 GB com facilidade)
+async function _zipDir(blob){
+  const size=blob.size, n=Math.min(66560,size), tail=await _slice(blob,size-n,size);
+  let e=-1; for(let i=n-22;i>=0;i--) if(_u32(tail,i)===0x06054b50){ e=i; break; }
+  if(e<0) throw new Error('não parece um zip (fim do diretório não encontrado)');
+  let nEnt=_u16(tail,e+10), cdOff=_u32(tail,e+16), cdSize=_u32(tail,e+12);
+  for(let i=e-20;i>=0;i--) if(_u32(tail,i)===0x07064b50){
+    const h=await _slice(blob,_u64(tail,i+8),_u64(tail,i+8)+56);
+    if(_u32(h,0)===0x06064b50){ nEnt=_u64(h,32); cdSize=_u64(h,40); cdOff=_u64(h,48); }
+    break; }
+  const cd=await _slice(blob,cdOff,cdOff+cdSize), td=new TextDecoder();
+  const buf=new Uint8Array(cd.buffer), out=[]; let p=0;
+  for(let i=0;i<nEnt && p+46<=cd.byteLength;i++){
+    const nl=_u16(cd,p+28), el=_u16(cd,p+30), cl=_u16(cd,p+32);
+    const ent={ name:td.decode(buf.subarray(p+46,p+46+nl)), method:_u16(cd,p+10),
+                comp:_u32(cd,p+20), orig:_u32(cd,p+24), lho:_u32(cd,p+42) };
+    let x=p+46+nl; const fim=x+el;              // campo extra: o Zip64 sobrescreve os valores de 32 bits
+    while(x+4<=fim){ const id=_u16(cd,x), sz=_u16(cd,x+2); let q=x+4;
+      if(id===0x0001){ if(ent.orig===0xFFFFFFFF){ ent.orig=_u64(cd,q); q+=8; }
+                       if(ent.comp===0xFFFFFFFF){ ent.comp=_u64(cd,q); q+=8; }
+                       if(ent.lho ===0xFFFFFFFF){ ent.lho =_u64(cd,q); } }
+      x+=4+sz; }
+    ent.dir = ent.name.endsWith('/');
+    out.push(ent); p=p+46+nl+el+cl;
+  }
+  return out;
+}
+// grava um fluxo num arquivo do OPFS e devolve o File (disco de verdade, leitura sob demanda)
+async function _paraOPFS(stream,nome){
+  if(!(navigator.storage&&navigator.storage.getDirectory)) return new File([await new Response(stream).blob()],nome);
+  const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('ortofly-tmp',{create:true});
+  const h=await dir.getFileHandle(nome,{create:true});
+  await stream.pipeTo(await h.createWritable());
+  return await h.getFile();                     // File.name === nome, então ninguém precisa reembrulhar
+}
+async function _opfsLimpar(){ try{ const r=await navigator.storage.getDirectory(); await r.removeEntry('ortofly-tmp',{recursive:true}); }catch(e){} }
+// contrato único p/ o resto do app, valha o leitor por faixa ou o JSZip
+async function zipAbrir(blob){
+  if(_zipStream){
+    const ents=await _zipDir(blob);
+    return { names:()=>ents.filter(e=>!e.dir).map(e=>e.name),
+      async extrair(nome){
+        const e=ents.find(x=>x.name===nome), base=nome.split('/').pop();
+        const lh=await _slice(blob,e.lho,e.lho+30);      // o header LOCAL manda no offset dos dados (o extra dele difere do central)
+        const ini=e.lho+30+_u16(lh,26)+_u16(lh,28), fatia=blob.slice(ini,ini+e.comp);
+        if(e.method===0) return {blob:fatia,name:base};  // stored: a fatia já É o arquivo, sem cópia
+        if(e.method!==8) throw new Error('compressão não suportada no zip ('+e.method+')');
+        return {blob:await _paraOPFS(fatia.stream().pipeThrough(new DecompressionStream('deflate-raw')),base), name:base};
+      } };
+  }
+  const z=await JSZip.loadAsync(blob);                   // navegador antigo: caminho de antes
+  return { names:()=>Object.keys(z.files).filter(k=>!z.files[k].dir),
+           async extrair(nome){ return {blob:await z.files[nome].async('blob'), name:nome.split('/').pop()}; } };
+}
 let _odmZip=null,_odmZipFor=null;
 async function odmGetZip(){ if(_odmZip&&(_odmSavedMode||_odmZipFor===_odmTask)) return _odmZip;
   const u=odmUrlVal(); if(!u||!_odmTask) throw new Error('sem tarefa');
   odmStatus('Baixando pacote (all.zip)… pode demorar'); toast('Baixando all.zip…');
   const r=await fetch(u+'/task/'+_odmTask+'/download/all.zip'); if(!r.ok) throw new Error('HTTP '+r.status);
-  const buf=await r.arrayBuffer(); _odmZipRaw=new Blob([buf],{type:'application/zip'}); _odmZip=await JSZip.loadAsync(buf); _odmZipFor=_odmTask; odmStatus('Pacote baixado ✅'); return _odmZip; }
+  _odmZipRaw=await r.blob();                             // Blob, nunca ArrayBuffer: o navegador ancora em disco
+  _odmZip=await zipAbrir(_odmZipRaw); _odmZipFor=_odmTask; odmStatus('Pacote baixado ✅'); return _odmZip; }
 async function odmExtract(kind){ const zip=await odmGetZip(); const re=ODM_RE[kind];
-  const n=Object.keys(zip.files).find(k=>!zip.files[k].dir&&re.test(k)); if(!n) throw new Error((kind==='dsm'||kind==='dtm')?'DSM não gerado nesta tarefa — escolha "DSM + ortomosaico" ou "Completo" ao criar.':'não achei "'+kind+'" no all.zip');
-  return {blob:await zip.files[n].async('blob'), name:n.split('/').pop()}; }
+  const n=zip.names().find(k=>re.test(k)); if(!n) throw new Error((kind==='dsm'||kind==='dtm')?'DSM não gerado nesta tarefa — escolha "DSM + ortomosaico" ou "Completo" ao criar.':'não achei "'+kind+'" no all.zip');
+  return await zip.extrair(n); }
 async function odmFetch(asset){ const u=odmUrlVal(); const r=await fetch(u+'/task/'+_odmTask+'/download/'+asset); if(!r.ok) throw new Error('HTTP '+r.status); return await r.blob(); }
 async function odmOpenZip(kind,viewer){ if(!_odmSavedMode && (!odmUrlVal()||!_odmTask)) return;
-  try{ const {blob,name}=await odmExtract(kind); odmStatus('Abrindo '+name+'…'); const file=new File([blob],name,{type:blob.type});
+  try{ const {blob,name}=await odmExtract(kind); odmStatus('Abrindo '+name+'…');
+    const file=(blob instanceof File && blob.name===name) ? blob : new File([blob],name,{type:blob.type});   // reembrulhar COPIA o arquivo inteiro; o extrator já devolve File nomeado
     if(viewer==='2d'){ setTab('imagens'); await handleRasterFile(file); } else { await handle3DFile(file); } odmStatus('');
   }catch(e){ console.error('[ODM] openZip',e); toast('Falha ao abrir: '+e.message,'error'); odmStatus('❌ '+e.message,true); } }
 async function odmDownload(asset){ if(!_odmSavedMode && (!odmUrlVal()||!_odmTask)) return; toast('Baixando '+asset+'…');
@@ -2302,7 +2375,8 @@ async function odmSaveResult(){
   try{
     odmStatus('Salvando no app… (baixando o pacote, pode demorar)'); toast('Salvando…');
     await odmGetZip(); if(!_odmZipRaw) throw new Error('pacote indisponível');
-    const has={ dsm:Object.keys(_odmZip.files).some(k=>ODM_RE.dsm.test(k)), laz:Object.keys(_odmZip.files).some(k=>ODM_RE.laz.test(k)) };
+    const nomes=_odmZip.names();
+    const has={ dsm:nomes.some(k=>ODM_RE.dsm.test(k)), laz:nomes.some(k=>ODM_RE.laz.test(k)) };
     const arr=loadProjects(); let rec=arr.find(p=>p.name.toLowerCase()===name.toLowerCase());
     if(!rec){ rec={ id:slug(name)+'_'+Date.now().toString(36), name, ts:Date.now(), data:(state.polygon.length>=3?snapshot():{}) }; arr.unshift(rec); }
     rec.result={ ts:Date.now(), size:_odmZipRaw.size, has };
@@ -2329,7 +2403,7 @@ async function odmDiscard(){
 async function odmLoadSavedResult(id){
   try{ odmClearCard(); odmStatus('Carregando resultado salvo…');
     const blob=await idbGet('result_'+id); if(!blob){ toast('Resultado salvo não encontrado','error'); odmStatus(''); return; }
-    _odmZipRaw=blob; _odmZip=await JSZip.loadAsync(blob); _odmSavedMode=true; _odmResultProj=id;
+    _odmZipRaw=blob; _odmZip=await zipAbrir(blob); _odmSavedMode=true; _odmResultProj=id;
     setTab('proc'); $('odmTaskCard').classList.remove('hidden'); $('odmTaskStatus').textContent='Resultado salvo (offline) ✅';
     const ob=$('odmBar'); if(ob) ob.style.display='none';
     odmShowOutputs(); odmStatus(''); toast('Resultado carregado ✅');

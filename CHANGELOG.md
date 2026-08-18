@@ -5,6 +5,21 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.20.1] — Agosto 2026
+
+### 🐛 Correções
+
+- **Baixar e abrir o resultado do NodeODM carregava o pacote inteiro na memória.** Era o mesmo defeito da v1.20.0, num arquivo ainda maior: o `all.zip` ia inteiro para a memória, era **copiado** mais uma vez e ainda passava pelo JSZip, que precisa do pacote todo para listar o que há dentro. Num pacote de 887 MB isso mede **2,80 GB de pico** — e isso **antes** de abrir o ortomosaico, que soma os dele. Na prática, quem processava um voo grande e clicava em abrir o resultado batia no mesmo travamento que a v1.20.0 tinha acabado de corrigir.
+  Agora o pacote nunca vai para a memória: fica como arquivo, o app lê **só o índice** dele (inclusive pacotes acima de 4 GB) e descomprime **em fluxo** apenas o produto que você pediu, direto para o armazenamento do navegador — de onde o visualizador lê sob demanda. Mesmo pacote: **6,3 s** contra 22,8 s, com os bytes conferidos por assinatura contra o arquivo original. Produto guardado sem compressão nem chega a ser descomprimido.
+  Vale igual para **resultados salvos offline**, que usam o mesmo caminho.
+
+### 🔧 Melhorado
+
+- **Verificação (CI):** +6 asserções — que o pacote não vira `ArrayBuffer`, que não há cópia dele, que a leitura é por faixa com descompressão em fluxo, que o arquivo extraído não é reembrulhado (reembrulhar copia o arquivo inteiro) e que pacotes acima de 4 GB são tratados. **7/7 validadas por mutação.** As asserções de *ausência* passaram a ler o código **sem comentários**: o comentário que explica um defeito contém o padrão proibido por definição, e chegou a derrubar a asserção que vigiava a própria correção.
+- Manutenção: `CACHE_NAME` do Service Worker em `v45`.
+
+---
+
 ## [1.20.0] — Agosto 2026
 
 ### 🐛 Correções
