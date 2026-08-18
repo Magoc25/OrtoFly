@@ -5,6 +5,23 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.20.2] — Agosto 2026
+
+### 🐛 Correções
+
+- **Nuvem de pontos `.laz` era montada inteira na memória — e 93% dela era jogada fora logo depois.** O visualizador 3D sempre teve um teto de 2 milhões de pontos (acima disso ele amostra, e diz isso na tela). O problema é que esse teto era aplicado **no fim**: antes dele, o app descomprimia a nuvem completa, copiava o resultado, e copiava de novo. Numa nuvem densa de 30 milhões de pontos isso mede **2,25 GB** — para exibir os mesmos 2 milhões de pontos de sempre.
+  Agora a amostragem acontece **durante** a descompressão: cada ponto é decodificado como antes, mas só o que vai para a tela é guardado. Mesma nuvem: **106 MB**. O que você vê é exatamente igual — as posições e as cores foram conferidas **ponto a ponto** contra a versão anterior.
+  O leitor de `.las` e o de `.laz` passaram a usar o mesmo núcleo, então cor, amostragem e centralização não têm mais como divergir entre os dois formatos. O status agora diz **"Nuvem LAZ"** quando o arquivo é `.laz` (antes dizia LAS, porque o caminho convertia um no outro).
+
+### 🔧 Melhorado
+
+- **Verificação (CI):** +3 asserções — que o `.laz` não é materializado nem copiado, que a amostragem acontece durante o decode, e que os dois formatos compartilham o núcleo. **5/5 validadas por mutação.**
+- Manutenção: `CACHE_NAME` do Service Worker em `v46`.
+
+> **Nota sobre os outros formatos 3D:** `.ply`, `.obj` e `.glb` continuam sendo lidos por inteiro — os leitores desses formatos precisam do arquivo completo para funcionar, e ali não há cópia extra a eliminar. Se um `.ply` muito grande travar, exporte como `.laz`.
+
+---
+
 ## [1.20.1] — Agosto 2026
 
 ### 🐛 Correções

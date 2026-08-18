@@ -660,8 +660,8 @@ footer{
 <script src="./vendor/three/OBJLoader.js"></script>
 <script src="./vendor/three/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.20.1 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.20.1';
+/* ═══════════════ OrtoFly v1.20.2 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.20.2';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -2104,46 +2104,74 @@ async function getLazPerf(){
   _lazPerf=await create({locateFile:()=>base+'laz-perf.wasm'});
   return _lazPerf;
 }
+/* ═══ Nuvem LAS/LAZ — a nuvem NUNCA existe inteira em memória (v1.20.2) ══════
+   O `loadLAZ` era o pior caminho do app, e por um motivo quase cômico: ele
+   materializava o LAS descomprimido inteiro (`out`), copiava tudo num `new File`,
+   o `loadLAS` fazia `arrayBuffer()` (terceira cópia) — e só ENTÃO aplicava o teto
+   de 2 M de pontos que o app sempre teve, jogando fora ~93% do que acabara de
+   montar três vezes. Numa nuvem densa de 30 M pontos isso mede **2,25 GB** só
+   nessa parte; decimando durante o decode dá **106 MB**, com o mesmo resultado
+   na tela. O decode do laz-perf é idêntico nos dois — o que sai é só cópia.
+   O núcleo abaixo é comum a LAS e LAZ: quem chama entrega os pontos AMOSTRADOS,
+   por acesso aleatório (LAS, que já está na memória) ou decodificando em sequência
+   e descartando (LAZ, que só sabe avançar). */
+function _lasHeader(dv){
+  if(String.fromCharCode(dv.getUint8(0),dv.getUint8(1),dv.getUint8(2),dv.getUint8(3))!=='LASF') throw new Error('arquivo não é LAS/LAZ');
+  const verMin=dv.getUint8(25), off=dv.getUint32(96,true), fmt=dv.getUint8(104)&0x3f, plen=dv.getUint16(105,true);
+  let num=dv.getUint32(107,true); if(num===0&&verMin>=4&&dv.getBigUint64) num=Number(dv.getBigUint64(247,true));
+  const rgbOff={2:20,3:28,5:28,7:30,8:30,10:30}[fmt];
+  return { off, fmt, plen, num,
+    sx:dv.getFloat64(131,true), sy:dv.getFloat64(139,true), sz:dv.getFloat64(147,true),
+    ox:dv.getFloat64(155,true), oy:dv.getFloat64(163,true), oz:dv.getFloat64(171,true),
+    rgbOff, rgbOk:(rgbOff!=null && rgbOff+6<=plen) };
+}
+// `varrer(step, cb)` chama cb(dv,base) SÓ nos pontos que entram na nuvem exibida
+function _lasNuvem(h,num,varrer,rotulo){
+  const step=Math.max(1,Math.ceil(num/2000000)), n=Math.floor(num/step);
+  if(n<=0) throw new Error('nuvem sem pontos');
+  const pos=new Float32Array(n*3), col=h.rgbOk?new Float32Array(n*3):null;
+  let j=0,maxC=0,mnx=Infinity,mny=Infinity,mnz=Infinity,mxx=-Infinity,mxy=-Infinity,mxz=-Infinity;
+  varrer(step,(dv,p)=>{ if(j>=n) return;
+    const wx=dv.getInt32(p,true)*h.sx+h.ox, wy=dv.getInt32(p+4,true)*h.sy+h.oy, wz=dv.getInt32(p+8,true)*h.sz+h.oz;
+    pos[j*3]=wx;pos[j*3+1]=wy;pos[j*3+2]=wz;
+    if(wx<mnx)mnx=wx;if(wy<mny)mny=wy;if(wz<mnz)mnz=wz;if(wx>mxx)mxx=wx;if(wy>mxy)mxy=wy;if(wz>mxz)mxz=wz;
+    if(col){ const r=p+h.rgbOff, cr=dv.getUint16(r,true),cg=dv.getUint16(r+2,true),cb=dv.getUint16(r+4,true);
+      col[j*3]=cr;col[j*3+1]=cg;col[j*3+2]=cb; if(cr>maxC)maxC=cr;if(cg>maxC)maxC=cg;if(cb>maxC)maxC=cb; }
+    j++; });
+  if(j<=0) throw new Error('nuvem sem pontos válidos');
+  const P=j<n?pos.subarray(0,j*3):pos, C=col?(j<n?col.subarray(0,j*3):col):null;   // sem sobra: zeros no fim virariam pontos na origem
+  const hasRGB=!!C&&maxC>0; if(hasRGB){ const cdiv=maxC<=255?255:65535; for(let k=0;k<C.length;k++) C[k]/=cdiv; }   // RGB vem 8-bit (0–255) OU 16-bit (0–65535): detecta pela escala real (senão 8-bit ÷ 65535 fica quase preto)
+  const cx=(mnx+mxx)/2,cy=(mny+mxy)/2,cz=(mnz+mxz)/2; for(let k=0;k<j;k++){ P[k*3]-=cx;P[k*3+1]-=cy;P[k*3+2]-=cz; }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(P,3));
+  if(hasRGB) g.setAttribute('color',new THREE.BufferAttribute(C,3)); else colorByElevation(g);
+  const pts=new THREE.Points(g,new THREE.PointsMaterial({size:1,vertexColors:true})); pts.rotation.x=-Math.PI/2;
+  set3DObject(pts); status3d(`Nuvem ${rotulo} · ${j.toLocaleString('pt-BR')} pts${step>1?` (1/${step})`:''}${hasRGB?(' · RGB '+(maxC<=255?'8-bit':'16-bit')):' · elevação'}`);
+}
 async function loadLAZ(file){
   status3d('Carregando decodificador .laz…');
   let LP; try{ LP=await getLazPerf(); }catch(e){ console.error('[LAZ] lib',e); throw new Error('falha no decodificador .laz: '+((e&&e.message)||e)+' — ou baixe o .laz (⬇ Tudo .zip) e use o CloudCompare.'); }
   status3d('Decodificando '+file.name+'…');
-  const ab=await file.arrayBuffer(); const dv=new DataView(ab);
-  if(String.fromCharCode(dv.getUint8(0),dv.getUint8(1),dv.getUint8(2),dv.getUint8(3))!=='LASF') throw new Error('arquivo não é LAS/LAZ');
-  const verMin=dv.getUint8(25), off=dv.getUint32(96,true), plen=dv.getUint16(105,true);
-  let num=dv.getUint32(107,true); if(num===0&&verMin>=4&&dv.getBigUint64) num=Number(dv.getBigUint64(247,true));
-  if(num<=0) throw new Error('nuvem .laz sem pontos');
+  const ab=await file.arrayBuffer(); const h=_lasHeader(new DataView(ab));
+  if(h.num<=0) throw new Error('nuvem .laz sem pontos');
   const u8=new Uint8Array(ab);
   const fp=LP._malloc(u8.length); LP.HEAPU8.set(u8,fp);
   const zip=new LP.LASZip(); zip.open(fp,u8.length);
-  const pp=LP._malloc(plen); const out=new Uint8Array(off+num*plen); out.set(u8.subarray(0,off),0);
-  for(let i=0;i<num;i++){ zip.getPoint(pp); out.set(LP.HEAPU8.subarray(pp,pp+plen), off+i*plen); }
-  try{ zip.delete(); }catch(_){} LP._free(pp); LP._free(fp);
-  await loadLAS(new File([out.buffer], file.name.replace(/\.laz$/i,'.las'), {type:'application/octet-stream'}));
+  const pp=LP._malloc(h.plen);
+  const ponto=new Uint8Array(h.plen), pdv=new DataView(ponto.buffer);   // 34 bytes: copiar p/ fora do HEAPU8 (que pode ser trocado se o heap do WASM crescer)
+  try{
+    _lasNuvem(h,h.num,(step,cb)=>{
+      for(let i=0;i<h.num;i++){ zip.getPoint(pp);        // o LAZ só sabe avançar: todo ponto é decodificado…
+        if(i%step) continue;                             // …mas só o amostrado é guardado (antes, TODOS eram, três vezes)
+        ponto.set(LP.HEAPU8.subarray(pp,pp+h.plen)); cb(pdv,0); }
+    },'LAZ');
+  } finally { try{ zip.delete(); }catch(_){} LP._free(pp); LP._free(fp); }
 }
 async function loadLAS(file){
   const buf=await file.arrayBuffer(); const dv=new DataView(buf);
-  if(String.fromCharCode(dv.getUint8(0),dv.getUint8(1),dv.getUint8(2),dv.getUint8(3))!=='LASF') throw new Error('Arquivo não é LAS');
-  const verMin=dv.getUint8(25); const off=dv.getUint32(96,true); const fmt=dv.getUint8(104)&0x3f; const plen=dv.getUint16(105,true);
-  let num=dv.getUint32(107,true); if(num===0&&verMin>=4&&dv.getBigUint64) num=Number(dv.getBigUint64(247,true));
-  const sx=dv.getFloat64(131,true),sy=dv.getFloat64(139,true),sz=dv.getFloat64(147,true);
-  const ox=dv.getFloat64(155,true),oy=dv.getFloat64(163,true),oz=dv.getFloat64(171,true);
-  const maxFit=Math.floor((buf.byteLength-off)/plen); num=Math.min(num,Math.max(0,maxFit)); if(num<=0) throw new Error('LAS sem pontos');
-  const rgbOff={2:20,3:28,5:28,7:30,8:30,10:30}[fmt]; const rgbOk=rgbOff!=null&&(rgbOff+6)<=plen;
-  const step=Math.max(1,Math.ceil(num/2000000)); const n=Math.floor(num/step);
-  const pos=new Float32Array(n*3); const col=rgbOk?new Float32Array(n*3):null;
-  let j=0,maxC=0,mnx=Infinity,mny=Infinity,mnz=Infinity,mxx=-Infinity,mxy=-Infinity,mxz=-Infinity;
-  for(let i=0;i<num&&j<n;i+=step){ const p=off+i*plen; const wx=dv.getInt32(p,true)*sx+ox, wy=dv.getInt32(p+4,true)*sy+oy, wz=dv.getInt32(p+8,true)*sz+oz;
-    pos[j*3]=wx;pos[j*3+1]=wy;pos[j*3+2]=wz;
-    if(wx<mnx)mnx=wx;if(wy<mny)mny=wy;if(wz<mnz)mnz=wz;if(wx>mxx)mxx=wx;if(wy>mxy)mxy=wy;if(wz>mxz)mxz=wz;
-    if(rgbOk){ const r=p+rgbOff; const cr=dv.getUint16(r,true),cg=dv.getUint16(r+2,true),cb=dv.getUint16(r+4,true); col[j*3]=cr;col[j*3+1]=cg;col[j*3+2]=cb; if(cr>maxC)maxC=cr;if(cg>maxC)maxC=cg;if(cb>maxC)maxC=cb; }
-    j++; }
-  const hasRGB=!!col&&maxC>0; if(hasRGB){ const cdiv=maxC<=255?255:65535; for(let k=0;k<col.length;k++) col[k]/=cdiv; }   // RGB vem 8-bit (0–255) OU 16-bit (0–65535): detecta pela escala real (senão 8-bit ÷ 65535 fica quase preto)
-  const cx=(mnx+mxx)/2,cy=(mny+mxy)/2,cz=(mnz+mxz)/2; for(let k=0;k<n;k++){ pos[k*3]-=cx;pos[k*3+1]-=cy;pos[k*3+2]-=cz; }
-  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3));
-  if(hasRGB) g.setAttribute('color',new THREE.BufferAttribute(col,3)); else colorByElevation(g);
-  const pts=new THREE.Points(g,new THREE.PointsMaterial({size:1,vertexColors:true})); pts.rotation.x=-Math.PI/2;
-  set3DObject(pts); status3d(`Nuvem LAS · ${n.toLocaleString('pt-BR')} pts${step>1?` (1/${step})`:''}${hasRGB?(' · RGB '+(maxC<=255?'8-bit':'16-bit')):' · elevação'}`);
+  const h=_lasHeader(dv);
+  const maxFit=Math.floor((buf.byteLength-h.off)/h.plen); const num=Math.min(h.num,Math.max(0,maxFit));
+  if(num<=0) throw new Error('LAS sem pontos');
+  _lasNuvem(h,num,(step,cb)=>{ for(let i=0;i<num;i+=step) cb(dv,h.off+i*h.plen); },'LAS');
 }
 
 /* ═══════════════ PROCESSAR (NodeODM) — Fase 5 ═══════════════ */

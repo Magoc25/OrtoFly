@@ -185,6 +185,28 @@ else {
   else ok('all.zip: Zip64 tratado (pacote > 4 GB)');
 }
 
+/* ── 4e) nuvem LAS/LAZ sem materializar a nuvem (v1.20.2) ───────────────────
+   O `loadLAZ` montava o LAS descomprimido inteiro, copiava num `new File` e
+   delegava ao `loadLAS`, que fazia `arrayBuffer()` — três cópias — para só então
+   aplicar o teto de 2 M de pontos e jogar fora ~93%. Medido numa nuvem de 30 M:
+   2,25 GB contra 106 MB decimando durante o decode. O que trava a volta do
+   defeito é a AUSÊNCIA de `loadLAS(`/`new File(` dentro do `loadLAZ`. */
+const lazPath = (jsCode.match(/async function loadLAZ\s*\([\s\S]*?\n}/) || [])[0];
+const lasPath = (jsCode.match(/async function loadLAS\s*\([\s\S]*?\n}/) || [])[0];
+console.log('       [captura] loadLAZ = ' + (lazPath ? lazPath.split('\n').length + ' linhas' : 'NÃO ENCONTRADO')
+          + ' · loadLAS = ' + (lasPath ? lasPath.split('\n').length + ' linhas' : 'NÃO ENCONTRADO'));
+if (!lazPath || !lasPath) fail('nuvem: loadLAZ/loadLAS não encontradas — a extração secou ou o caminho foi removido');
+else {
+  if (/\bloadLAS\s*\(/.test(lazPath)) fail('nuvem: loadLAZ delega ao loadLAS — isso exige materializar o LAS inteiro (o defeito da v1.20.1)');
+  else if (/new File\s*\(/.test(lazPath)) fail('nuvem: loadLAZ copia a nuvem num new File — cópia do arquivo inteiro');
+  else ok('nuvem: loadLAZ não materializa nem copia a nuvem descomprimida');
+  if (!/i%step/.test(lazPath)) fail('nuvem: a decimação não acontece DURANTE o decode do .laz — sem isso a nuvem inteira é guardada');
+  else ok('nuvem: só o ponto amostrado é guardado, durante o decode');
+  if (!/_lasNuvem\s*\(/.test(lazPath) || !/_lasNuvem\s*\(/.test(lasPath))
+    fail('nuvem: LAS e LAZ não compartilham o núcleo _lasNuvem — a lógica de decimação/cor se duplica e diverge');
+  else ok('nuvem: LAS e LAZ pelo mesmo núcleo (_lasNuvem)');
+}
+
 /* ── 5) apresentacao.html — a página pública do §37 ────────────────────────
    Estas asserções existem porque NENHUM passo do release toca este arquivo:
    ele não é recompilado, não entra no smoke do app e ninguém o reabre. Sem
