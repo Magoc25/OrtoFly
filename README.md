@@ -36,9 +36,13 @@ Depois de abrir a URL acima, você pode instalar como aplicativo nativo, com íc
 
 | Plataforma | Como instalar |
 |---|---|
-| **Chrome / Edge no PC** | Clique no ícone de instalação (☐ com seta) na barra de endereços → Instalar |
+| **Mac (Safari)** | Menu **Arquivo → "Adicionar ao Dock"** — o app ganha ícone próprio, janela sem barra de endereços e entra no Launchpad |
+| **Mac (Chrome / Edge)** | Ícone de instalação (☐ com seta) na barra de endereços → Instalar |
+| **Windows / Linux (Chrome / Edge)** | Ícone de instalação (☐ com seta) na barra de endereços → Instalar |
 | **Android (Chrome)** | Menu (⋮) → "Instalar app" ou "Adicionar à tela inicial" |
 | **iPhone / iPad (Safari)** | Compartilhar (□↑) → "Adicionar à Tela de Início" |
+
+> 💡 **Abrindo ortomosaico grande?** Ele é lido pelos níveis de resolução que o próprio arquivo traz, então cabe na memória do navegador — mas é a operação mais pesada do app. Se o seu aparelho tiver pouca memória, feche outras abas antes.
 
 ---
 
