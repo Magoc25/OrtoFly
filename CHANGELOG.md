@@ -5,6 +5,26 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.20.4] — Agosto 2026
+
+### 🔧 Melhorado
+
+- **Ortomosaico grande abre gastando menos memória e um pouco mais rápido.** A imagem passou a ser lida **em faixas** em todos os casos — antes isso só acontecia com arquivos sem níveis de resolução prontos. Medido no Safari com o mesmo ortomosaico de 200 megapixels: o pico caiu de **1.771 MB para 1.537 MB** e o tempo de 14,4 s para 12,7 s. **O que você vê é exatamente igual** — mesma resolução, mesma posição, mesmos pixels, conferidos um a um contra a versão anterior. De brinde, a porcentagem de progresso agora aparece em qualquer imagem grande.
+
+### 📊 Os números desta série, agora medidos no navegador
+
+- As notas das versões 1.20.0 e 1.20.1 citaram medições feitas **fora do navegador**, que subestimam bastante o consumo real (erraram de 1,1× a 33×, sempre para menos). Refeitas no Safari:
+
+  | o que você faz | antes | agora |
+  |---|---|---|
+  | abrir ortomosaico de 200 MP | memória suficiente para o sistema encerrar o app | ~1,5 GB |
+  | abrir um resultado do NodeODM | ~3,1 GB | ~0,43 GB |
+  | abrir nuvem densa (30 M pontos) | ~6,1 GB — **encerrava o app** | ~0,07 GB |
+
+  Medições em ambiente substituto deixaram de ser publicadas.
+
+---
+
 ## [1.20.3] — Agosto 2026
 
 ### 🐛 Correções
@@ -56,7 +76,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ### 🐛 Correções
 
 - **Ortomosaico grande fazia o app reiniciar sozinho.** Abrir um GeoTIFF/COG em **Imagens → Visualizar resultados** lia o arquivo inteiro e mandava decodificar a **resolução cheia**: num ortomosaico de 16011×12772 px com 4 bandas (959 MB em disco), isso pede **3,8 GB de memória** e leva **157 s** — e o navegador reinicia a página antes de terminar. No Safari a mensagem é _"este app web foi recarregado devido ao uso significativo de memória"_; no Chrome a aba trava ou morre. **Não era limitação do computador:** nenhum navegador entrega 4 GB para abrir uma imagem.
-  Agora o app usa a **pirâmide que o próprio arquivo já traz** (o ODM grava o ortomosaico como COG com níveis de resolução prontos): ele escolhe o maior nível que cabe na memória e lê **só os blocos daquele nível** — nunca o arquivo inteiro. O mesmo ortomosaico abre em **13 s com 724 MB**. Arquivo sem pirâmide é reduzido em faixas, o que também limita o consumo.
+  Agora o app usa a **pirâmide que o próprio arquivo já traz** (o ODM grava o ortomosaico como COG com níveis de resolução prontos): ele escolhe o maior nível que cabe na memória e lê **só os blocos daquele nível** — nunca o arquivo inteiro. O mesmo ortomosaico passou a abrir em segundos, sem derrubar o app. Arquivo sem pirâmide é reduzido em faixas, o que também limita o consumo.
+  > ⚠️ **Correção (v1.20.4):** esta nota citava *"13 s com 724 MB"*, número medido **fora do navegador**. No Safari o pico real é ~1,8 GB (~1,5 GB desde a v1.20.4). A correção funciona e é grande — o app deixou de ser encerrado —, mas o número publicado estava otimista.
   Quando a imagem entra em resolução reduzida, **o app diz isso na tela** — o fator (ex.: `1/2`), o GSD resultante (ex.: 5,35 cm) e o tamanho original —, porque é sobre esse raster que a estatística zonal, os índices e o ajuste por GCP são calculados. **Posição e extensão continuam exatas:** o georreferenciamento é sempre derivado do nível original, não do nível reduzido.
 
 ### 🔧 Melhorado
