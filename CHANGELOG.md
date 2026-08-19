@@ -5,6 +5,19 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.20.3] — Agosto 2026
+
+### 🐛 Correções
+
+- **Baixar o pacote do NodeODM ainda passava tudo pela memória.** A v1.20.1 trocou a leitura do `all.zip` por uma que não monta o pacote em memória — mas o **download** continuava virando um objeto na memória antes de assentar em disco. Medindo no Safari com um pacote de 887 MB: o pico ficou em **2,8 GB**, praticamente o mesmo de antes da v1.20.1. Agora o pacote é gravado **direto no armazenamento do navegador conforme chega**, sem nunca existir inteiro na memória: o mesmo pacote passou a custar **434 MB de pico** (e ~93 MB depois de terminar).
+  Isso vale para o caminho inteiro — baixar, listar o conteúdo e extrair o produto: **6,6× menos memória** que a versão anterior, com o resultado conferido byte a byte.
+
+### 🔧 Melhorado
+
+- **Verificação (CI):** a asserção do download passou a exigir o caminho em fluxo. Ela substitui uma que exigia apenas "não usar `ArrayBuffer`" — e que ficava **verde** enquanto o consumo real seguia em 2,8 GB.
+
+---
+
 ## [1.20.2] — Agosto 2026
 
 ### 🐛 Correções
@@ -27,7 +40,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ### 🐛 Correções
 
 - **Baixar e abrir o resultado do NodeODM carregava o pacote inteiro na memória.** Era o mesmo defeito da v1.20.0, num arquivo ainda maior: o `all.zip` ia inteiro para a memória, era **copiado** mais uma vez e ainda passava pelo JSZip, que precisa do pacote todo para listar o que há dentro. Num pacote de 887 MB isso mede **2,80 GB de pico** — e isso **antes** de abrir o ortomosaico, que soma os dele. Na prática, quem processava um voo grande e clicava em abrir o resultado batia no mesmo travamento que a v1.20.0 tinha acabado de corrigir.
-  Agora o pacote nunca vai para a memória: fica como arquivo, o app lê **só o índice** dele (inclusive pacotes acima de 4 GB) e descomprime **em fluxo** apenas o produto que você pediu, direto para o armazenamento do navegador — de onde o visualizador lê sob demanda. Mesmo pacote: **6,3 s** contra 22,8 s, com os bytes conferidos por assinatura contra o arquivo original. Produto guardado sem compressão nem chega a ser descomprimido.
+  Agora o app lê **só o índice** do pacote (inclusive pacotes acima de 4 GB) e descomprime **em fluxo** apenas o produto que você pediu, direto para o armazenamento do navegador — de onde o visualizador lê sob demanda. Os bytes foram conferidos por assinatura contra o arquivo original. Produto guardado sem compressão nem chega a ser descomprimido.
+  > ⚠️ **Correção (v1.20.3):** esta nota dizia originalmente que "o pacote nunca vai para a memória" e citava tempos medidos fora do navegador. **Estava errado.** Medições feitas depois, no Safari, mostraram que o pico de memória **não** tinha caído (2,8 GB, contra 3,1 GB antes) — o que caiu, e muito, foi o consumo *depois* de terminar (1,1 GB → ~100 MB). O pico só foi resolvido na **v1.20.3**, que grava o download direto em disco. O texto acima foi ajustado para descrever apenas o que esta versão de fato entregou.
   Vale igual para **resultados salvos offline**, que usam o mesmo caminho.
 
 ### 🔧 Melhorado

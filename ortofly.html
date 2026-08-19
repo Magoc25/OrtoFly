@@ -660,8 +660,8 @@ footer{
 <script src="./vendor/three/OBJLoader.js"></script>
 <script src="./vendor/three/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.20.2 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.20.2';
+/* ═══════════════ OrtoFly v1.20.3 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.20.3';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -2354,7 +2354,13 @@ async function odmGetZip(){ if(_odmZip&&(_odmSavedMode||_odmZipFor===_odmTask)) 
   const u=odmUrlVal(); if(!u||!_odmTask) throw new Error('sem tarefa');
   odmStatus('Baixando pacote (all.zip)… pode demorar'); toast('Baixando all.zip…');
   const r=await fetch(u+'/task/'+_odmTask+'/download/all.zip'); if(!r.ok) throw new Error('HTTP '+r.status);
-  _odmZipRaw=await r.blob();                             // Blob, nunca ArrayBuffer: o navegador ancora em disco
+  // MEDIDO no Safari (19/08): `await r.blob()` de um pacote de 887 MB leva a memória a
+  // ~2,2 GB e SEGURA — o WebKit só assenta o Blob em disco depois. Trocar arrayBuffer por
+  // blob melhorou o repouso (1134 -> ~100 MB) e NÃO melhorou o pico. O corpo da resposta
+  // vai direto para o disco, em fluxo, e é lido de volta como arquivo.
+  _odmZipRaw = (r.body && navigator.storage && navigator.storage.getDirectory)
+    ? await _paraOPFS(r.body,'all.zip')                  // fluxo -> disco, sem passar pela memória
+    : await r.blob();                                    // sem OPFS: como antes (o pico é o preço)
   _odmZip=await zipAbrir(_odmZipRaw); _odmZipFor=_odmTask; odmStatus('Pacote baixado ✅'); return _odmZip; }
 async function odmExtract(kind){ const zip=await odmGetZip(); const re=ODM_RE[kind];
   const n=zip.names().find(k=>re.test(k)); if(!n) throw new Error((kind==='dsm'||kind==='dtm')?'DSM não gerado nesta tarefa — escolha "DSM + ortomosaico" ou "Completo" ao criar.':'não achei "'+kind+'" no all.zip');

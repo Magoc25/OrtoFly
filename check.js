@@ -170,8 +170,11 @@ console.log('       [captura] odmGetZip = ' + (zipLoader ? zipLoader.split('\n')
 if (!zipLoader || !zipRO) fail('all.zip: odmGetZip/zipAbrir não encontradas — a extração secou ou o caminho foi removido');
 else {
   if (/\.arrayBuffer\s*\(/.test(zipLoader)) fail('all.zip: odmGetZip materializa o pacote inteiro (.arrayBuffer()) — é o defeito da v1.20.0');
-  else if (!/await r\.blob\s*\(/.test(zipLoader)) fail('all.zip: odmGetZip não guarda o download como Blob — sem isso o pacote vai para a memória');
-  else ok('all.zip: o pacote fica como Blob, nunca em ArrayBuffer');
+  // MEDIDO no Safari: `await r.blob()` de 887 MB leva a memória a ~2,2 GB e SEGURA (o WebKit
+  // assenta em disco só depois). O download tem de ir em FLUXO para o disco — foi o que levou
+  // o pico de 2.849 MB para 434 MB. `r.blob()` sobra só como fallback de navegador sem OPFS.
+  else if (!/_paraOPFS\s*\(\s*r\.body/.test(zipLoader)) fail('all.zip: o download não vai em fluxo para o disco — com `await r.blob()` o pacote passa INTEIRO pela memória (medido: 2,2 GB)');
+  else ok('all.zip: download em fluxo para o disco, sem passar pela memória');
   if (/new Blob\(\[\s*buf/.test(jsCode)) fail('all.zip: cópia do pacote em new Blob([buf]) — dobra a memória e ela fica viva');
   else ok('all.zip: nenhuma cópia do pacote em memória');
   if (!/_zipDir\s*\(/.test(zipRO)) fail('all.zip: zipAbrir não lê o diretório central — sem isso não há leitura por faixa');
