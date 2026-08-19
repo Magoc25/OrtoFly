@@ -5,6 +5,19 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.20.5] — Agosto 2026
+
+### 🆕 Adicionado
+
+- **Botão "Abrir em resolução cheia"**, no próprio aviso que aparece quando o ortomosaico entra reduzido. Ele mostra o GSD que você teria e **quanto custa** antes de você clicar (no ortomosaico de 200 MP: ~5,7 GB). O padrão continua sendo a resolução que abre folgado — mas agora é uma escolha sua, e não uma porta fechada.
+
+### 🐛 Correções
+
+- **O aviso dizia que a resolução cheia "não cabe na memória do navegador". Não é verdade — e foi medido.** No Safari, o mesmo ortomosaico de 16011×12772 abre inteiro: 5,0 GB de pico e **~4,5 GB que ficam ocupados o resto da sessão**, em 51 s. Cabe; o motivo de não ser o padrão é outro, e o texto agora diz qual: o que pesa não é o momento de abrir, é a memória que **fica parada** — e é dela que partem a estatística por pontos, os índices e o recorte. Em aparelho com pouca memória, isso reinicia o app.
+  O aviso também deixou de mandar você para o QGIS: **medidas de área e posição sempre foram exatas** mesmo na resolução reduzida (o georreferenciamento vem do arquivo original), e o que muda é só o detalhe fino.
+
+---
+
 ## [1.20.4] — Agosto 2026
 
 ### 🔧 Melhorado

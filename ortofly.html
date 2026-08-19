@@ -660,8 +660,8 @@ footer{
 <script src="./vendor/three/OBJLoader.js"></script>
 <script src="./vendor/three/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.20.4 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.20.4';
+/* ═══════════════ OrtoFly v1.20.5 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.20.5';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1424,16 +1424,17 @@ async function _lerEmFaixas(im,W,H,nb,oW,oH,onProg){
   return out;
 }
 // File/Blob de GeoTIFF -> georaster pronto para o app (mesmo formato do performCrop)
-async function _tiffToGeoraster(file,onProg){
+async function _tiffToGeoraster(file,onProg,orcamento){
+  const ORC=orcamento||RASTER_MAX_BYTES;                     // o botão "resolução cheia" passa Infinity
   const PG=window.parseGeoraster||window.GeoRaster;
   const tiff=await window.GeoTIFF.fromBlob(file);            // lazy: nada do arquivo é lido aqui
   const levels=await _tiffLevels(tiff), base=levels[0];
-  const pick=levels.find(l=>l.bytes<=RASTER_MAX_BYTES)||levels[levels.length-1];
+  const pick=levels.find(l=>l.bytes<=ORC)||levels[levels.length-1];
   const im=pick.im, nb=im.getSamplesPerPixel();
   let W=pick.w, H=pick.h, bands;
-  if(pick.bytes<=RASTER_MAX_BYTES){ bands=await _lerEmFaixas(im,pick.w,pick.h,nb,pick.w,pick.h,onProg); }
+  if(pick.bytes<=ORC){ bands=await _lerEmFaixas(im,pick.w,pick.h,nb,pick.w,pick.h,onProg); }
   else {                                                     // sem pirâmide utilizável: decima o que houver
-    const k=Math.ceil(Math.sqrt(pick.bytes/RASTER_MAX_BYTES));
+    const k=Math.ceil(Math.sqrt(pick.bytes/ORC));
     W=Math.max(1,Math.floor(pick.w/k)); H=Math.max(1,Math.floor(pick.h/k));
     bands=await _lerEmFaixas(im,pick.w,pick.h,nb,W,H,onProg);
   }
@@ -1443,7 +1444,7 @@ async function _tiffToGeoraster(file,onProg){
   const gr=await PG(values,{ noDataValue:(nd==null?null:nd),
     projection:gk.ProjectedCSTypeGeoKey||gk.GeographicTypeGeoKey||4326,
     xmin:bb[0], ymax:bb[3], pixelWidth:(bb[2]-bb[0])/W, pixelHeight:(bb[3]-bb[1])/H });
-  return { gr, factor:base.w/W, full:(W===base.w&&H===base.h),
+  return { gr, factor:base.w/W, full:(W===base.w&&H===base.h), cheiaBytes:base.bytes,
            ycc:base.im.fileDirectory.PhotometricInterpretation===6, srcW:base.w, srcH:base.h };
 }
 function buildRasterLayer(){ const o={georaster:_rasterMeta.gr,opacity:(+$('rasterOpacity').value||100)/100,resolution:256,pane:'rasterPane'};
@@ -1452,13 +1453,16 @@ function buildRasterLayer(){ const o={georaster:_rasterMeta.gr,opacity:(+$('rast
   return new window.GeoRasterLayer(o); }
 function rebuildRasterLayer(fit){ if(rasterLayer) rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); if(fit){ try{ map.fitBounds(rasterLayer.getBounds()); }catch(e){} } }
 function resetIndexUI(bands){ $('indexRow').classList.toggle('hidden',(bands||0)<3); if($('indexSel'))$('indexSel').value='none'; $('indexCmapRow').classList.add('hidden'); $('indexClearBtn').classList.add('hidden'); $('indexInfo').textContent=''; }
-async function handleRasterFile(file){
+let _rasterFile=null;   // guardado p/ o botão "resolução cheia" reler o MESMO arquivo
+function loadRasterFull(){ if(_rasterFile) handleRasterFile(_rasterFile,true); }
+async function handleRasterFile(file,cheia){
   const PG=window.parseGeoraster||window.GeoRaster;
   if(!PG||!window.GeoRasterLayer||!window.GeoTIFF){ toast('Biblioteca de raster não carregou (sem conexão?)','error'); return; }
   if(!map){ toast('Mapa indisponível','error'); return; }
   try{ rasterStatus('Lendo '+file.name+' ('+(file.size/1048576).toFixed(0)+' MB)…'); rasterNote('');
     await new Promise(r=>setTimeout(r,0));   // deixa o status aparecer antes da leitura
-    const {gr,factor,full,ycc,srcW,srcH}=await _tiffToGeoraster(file,p=>rasterStatus(`Lendo ${file.name}… ${Math.round(p*100)}%`));
+    _rasterFile=file;
+    const {gr,factor,full,ycc,srcW,srcH,cheiaBytes}=await _tiffToGeoraster(file,p=>rasterStatus(`Lendo ${file.name}… ${Math.round(p*100)}%`),cheia?Infinity:0);
     const bands=gr.numberOfRasters||1;
     const mn=(gr.mins&&gr.mins[0]!=null)?gr.mins[0]:gr.minValue, mx=(gr.maxs&&gr.maxs[0]!=null)?gr.maxs[0]:gr.maxValue;
     _rasterMeta={gr,bands,mn,mx,ycc,factor,orig:{xmin:gr.xmin,xmax:gr.xmax,ymin:gr.ymin,ymax:gr.ymax}};
@@ -1467,19 +1471,28 @@ async function handleRasterFile(file){
     $('rasterCtrls').classList.remove('hidden'); $('rasterCmapRow').classList.toggle('hidden',bands>=3);
     resetIndexUI(bands); $('cropFullBtn').classList.add('hidden');
     rasterStatus(`${file.name} · ${gr.width}×${gr.height} · ${bands} banda(s)${bands<3&&isFinite(mn)?` · ${(+mn).toFixed(1)}–${(+mx).toFixed(1)}`:''}`);
-    rasterNote(full?'':rasterReducedNote(factor,srcW,srcH));
+    rasterNote(full?'':rasterReducedNote(factor,srcW,srcH,cheiaBytes));
     toast('Raster carregado ✅');
   }catch(e){ console.error('[Raster]',e); toast('Erro ao ler raster: '+e.message,'error'); rasterStatus(''); rasterNote(''); }
 }
 /* Aviso de resolução reduzida. Existe porque o app é ferramenta de MEDIÇÃO: quem
    roda estatística zonal ou índice sobre um raster reamostrado tem de saber em que
    GSD está medindo. O GSD só é dito quando o CRS é projetado (em metros) — num
-   raster em graus, pixelWidth não é distância. */
-function rasterReducedNote(factor,srcW,srcH){
+   raster em graus, pixelWidth não é distância.
+   ⚠️ A 1ª redação afirmava que "resolução cheia não cabe na memória do navegador".
+   MEDIDO no Safari (19/08) com o VOO 06: cabe — 5,0 GB de pico e ~4,5 GB EM REPOUSO,
+   em 51 s. Cabia e a frase estava errada. O padrão continua sendo o nível que cabe
+   folgado, mas quem quiser a original pede, com o preço à vista: o problema não é o
+   pico, é o repouso, que fica ocupado o resto da sessão e é de onde toda zonal,
+   índice e recorte partem. Estimativa ~7× o pixel decodificado (medido: 6,4–7,5×). */
+function rasterReducedNote(factor,srcW,srcH,cheiaBytes){
   const c=_rasterCRS(), gsd=(c&&!c.geoRaster)?` · GSD ${(_rasterMeta.gr.pixelWidth*100).toFixed(2)} cm`:'';
-  return `Carregado a <b>1/${Math.round(factor)} da resolução original</b>${gsd}. O arquivo tem ${srcW}×${srcH} px — `
-       + `resolução cheia não cabe na memória do navegador. Medidas de área e posição continuam corretas; `
-       + `detalhe fino, não. Para medir no GSD original, recorte a área no QGIS e abra o recorte.`;
+  const gsdCheio=(c&&!c.geoRaster)?` (GSD ${(_rasterMeta.gr.pixelWidth*100/Math.round(factor)).toFixed(2)} cm)`:'';
+  const est=cheiaBytes?` · ~${(cheiaBytes*7/1073741824).toFixed(1)} GB de memória`:'';
+  return `Carregado a <b>1/${Math.round(factor)} da resolução original</b>${gsd} — é o maior nível que o app abre por padrão. `
+       + `O arquivo tem ${srcW}×${srcH} px. <b>Medidas de área e posição continuam exatas</b>; o que muda é o detalhe fino.`
+       + `<div style="margin-top:7px"><button class="btn sm" onclick="loadRasterFull()">🔍 Abrir em resolução cheia${gsdCheio}</button>`
+       + `<span class="spec" style="margin-left:8px">custa${est} durante toda a sessão — o app pode reiniciar em aparelho com pouca RAM</span></div>`;
 }
 function setRasterOpacity(){ const op=(+$('rasterOpacity').value||100)/100; if(_rasterOverlay){ _rasterOverlay.setOpacity(op); if(rasterLayer) rasterLayer.setOpacity(0); } else if(rasterLayer) rasterLayer.setOpacity(op); }
 function recolorRaster(){ if(!rasterLayer||!_rasterMeta||_rasterMeta.bands>=3) return; rebuildRasterLayer(false); }

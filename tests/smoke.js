@@ -203,8 +203,18 @@ async function main() {
   // o aviso de resolução reduzida é derivado do raster carregado, nunca escrito à mão
   check('raster: o aviso de resolução reduzida cita o fator e a origem do limite',
     ev("(function(){_rasterMeta={gr:{pixelWidth:0.0535,projection:31983,xmin:1,ymax:1}};"
-     + "var t=rasterReducedNote(2,16011,12772);_rasterMeta=null;"
+     + "var t=rasterReducedNote(2,16011,12772,817969968);_rasterMeta=null;"
      + "return /1\\/2 da resolução original/.test(t) && /16011×12772/.test(t) && /GSD 5\\.35 cm/.test(t);})()") === true);
+  /* o aviso tem de OFERECER a resolução cheia com o preço à vista — a redação anterior
+     afirmava que ela "não cabe na memória", o que a medição no Safari desmentiu (cabe:
+     5,0 GB de pico, ~4,5 GB em repouso). Alegação sobre a plataforma dentro da UI é da
+     mesma família do CHANGELOG: ou está medida, ou não se afirma (guia r109/r110). */
+  check('raster: o aviso oferece a resolução cheia, com custo e GSD, e não afirma que ela "não cabe"',
+    ev("(function(){_rasterMeta={gr:{pixelWidth:0.0535,projection:31983,xmin:1,ymax:1}};"
+     + "var t=rasterReducedNote(2,16011,12772,817969968);_rasterMeta=null;"
+     + "return /loadRasterFull\\(\\)/.test(t) && /GSD 2\\.67 cm/.test(t) && /GB de memória/.test(t) && !/não cabe/.test(t);})()") === true);
+  check('raster: o botão de resolução cheia relê o MESMO arquivo já escolhido',
+    ev("typeof loadRasterFull==='function' && /_rasterFile/.test(String(loadRasterFull))") === true);
 
   check('sem erros de console/jsdom durante o smoke', consoleErrs.length === 0);
   consoleErrs.forEach(e => console.error('       ' + e));
