@@ -660,8 +660,8 @@ footer{
 <script src="./vendor/three/OBJLoader.js"></script>
 <script src="./vendor/three/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.20.3 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.20.3';
+/* ═══════════════ OrtoFly v1.20.4 — © 2026 MGC Dev ═══════════════ */
+const APP_VERSION = '1.20.4';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1399,13 +1399,16 @@ async function _tiffLevels(tiff){
     out.push({im,w:im.getWidth(),h:im.getHeight(),bytes:im.getWidth()*im.getHeight()*im.getBytesPerPixel()}); }
   return out;
 }
-// decima um nível lendo em faixas: o pico fica no tamanho da faixa, não no da imagem
-async function _readDecimated(im,W,H,nb,oW,oH,onProg){
+/* lê um nível EM FAIXAS: o pico deixa de depender do tamanho da imagem e passa a
+   depender do tamanho da faixa. Com oW<W ele também decima (contingência p/ arquivo
+   sem pirâmide). MEDIDO no Safari (19/08), nível 1 do VOO 06: leitura única 1.771 MB
+   × em faixas 1.537 MB, com a saída byte a byte idêntica e 1,7 s a menos. */
+async function _lerEmFaixas(im,W,H,nb,oW,oH,onProg){
   const out=new Array(nb), rows=Math.max(1,Math.min(oH,RASTER_STRIP_ROWS));
   for(let oy=0;oy<oH;oy+=rows){
     const oh=Math.min(rows,oH-oy);
     const top=Math.round(oy*H/oH), bot=Math.round((oy+oh)*H/oH);   // grade de saída, sem deriva: a última faixa fecha em H
-    const part=await im.readRasters({window:[0,top,W,bot],width:oW,height:oh});
+    const part=await im.readRasters(oW===W?{window:[0,top,W,bot]}:{window:[0,top,W,bot],width:oW,height:oh});   // 1:1 não passa pelo reamostrador (identidade custa e arredonda à toa)
     for(let b=0;b<nb;b++){ if(!out[b]) out[b]=new part[b].constructor(oW*oH); out[b].set(part[b],oy*oW); }
     if(onProg) onProg((oy+oh)/oH);
     await new Promise(r=>setTimeout(r,0));   // devolve o fio ao navegador entre faixas
@@ -1420,11 +1423,11 @@ async function _tiffToGeoraster(file,onProg){
   const pick=levels.find(l=>l.bytes<=RASTER_MAX_BYTES)||levels[levels.length-1];
   const im=pick.im, nb=im.getSamplesPerPixel();
   let W=pick.w, H=pick.h, bands;
-  if(pick.bytes<=RASTER_MAX_BYTES){ bands=await im.readRasters(); }
+  if(pick.bytes<=RASTER_MAX_BYTES){ bands=await _lerEmFaixas(im,pick.w,pick.h,nb,pick.w,pick.h,onProg); }
   else {                                                     // sem pirâmide utilizável: decima o que houver
     const k=Math.ceil(Math.sqrt(pick.bytes/RASTER_MAX_BYTES));
     W=Math.max(1,Math.floor(pick.w/k)); H=Math.max(1,Math.floor(pick.h/k));
-    bands=await _readDecimated(im,pick.w,pick.h,nb,W,H,onProg);
+    bands=await _lerEmFaixas(im,pick.w,pick.h,nb,W,H,onProg);
   }
   const values=bands.map(b=>{ const rows=new Array(H); for(let y=0;y<H;y++){ const s=y*W; rows[y]=b.subarray(s,s+W); } return rows; });
   const bb=base.im.getBoundingBox(), gk=base.im.geoKeys||{};  // georreferência: sempre do nível 0

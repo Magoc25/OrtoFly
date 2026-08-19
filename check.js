@@ -152,6 +152,10 @@ else {
   else ok('raster: níveis da pirâmide enumerados e lidos sob demanda (fromBlob)');
   // a extensão tem de sair do nível 0: o ModelPixelScale do overview é arredondado
   // e desloca a borda em ~meio pixel — num app que mede em cima do raster, isso é erro.
+  // MEDIDO no Safari: ler o nível de uma vez custa 1.771 MB; em faixas, 1.537 MB, com
+  // saída idêntica. O `readRasters()` nu no caminho da pirâmide é a regressão a vigiar.
+  if (!/_lerEmFaixas\s*\(im,pick\.w,pick\.h,nb,pick\.w,pick\.h/.test(loader)) fail('raster: o nível que cabe no orçamento não é lido em faixas — intermediários do decode sem limite');
+  else ok('raster: todo nível é lido em faixas, com o pico preso ao tamanho da faixa');
   if (!/base\.im\.getBoundingBox\s*\(/.test(loader)) fail('raster: georreferência não derivada do nível 0 (base.im.getBoundingBox ausente)');
   else if (!/pixelWidth:\s*\(bb\[2\]-bb\[0\]\)\s*\/\s*W/.test(loader)) fail('raster: pixelWidth não derivado da extensão do nível 0 — a borda desloca no reamostrado');
   else ok('raster: georreferência derivada da extensão do nível 0, não do overview');
