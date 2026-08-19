@@ -1389,6 +1389,14 @@ function openRaster(){ $('rasterInput').click(); }
    deste raster (zonal, índices, GCP). O georreferenciamento não se perde: a
    extensão sai sempre do nível 0, nunca do ModelPixelScale do overview (que é
    arredondado e desloca a borda em ~meio pixel). */
+/* ORÇAMENTO — DECIDIDO, não é chute (usuário, 2026-08-19). Medido no Safari com o
+   VOO 06 (16011×12772×4), lendo em faixas:
+     220e6 -> nível 1: 8006×6386, GSD  5,35 cm, pico ~1,54 GB, 12,7 s   <- em uso
+      60e6 -> nível 2: 4003×3193, GSD 10,70 cm, pico ~0,79 GB,  3,3 s
+   A troca é resolução por folga, e a decisão foi MANTER 5,35 cm: funciona na máquina
+   do autor e, em app de medição, reduzir resolução por precaução é troca que se faz
+   com evidência de falha, não com receio dela. **Não reabra sem relato de travamento**
+   — e, se reabrir, meça de novo (§35 Degrau 4): número de Node aqui erra ~2,4×. */
 const RASTER_MAX_BYTES = 220e6;   // pixel decodificado que aceitamos manter em memória
 const RASTER_STRIP_ROWS = 512;    // linhas de saída por faixa, na decimação
 
