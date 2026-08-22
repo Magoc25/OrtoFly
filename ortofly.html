@@ -149,6 +149,14 @@ footer{
   display:none; max-width:min(64vw,330px); line-height:1.4; font-variant-numeric:tabular-nums;
 }
 .crs-badge.active{display:block}
+/* Fio-cruz do desenho: uma linha vertical e uma horizontal acompanhando o cursor,
+   como no gráfico de ativos. Serve para alinhar o corte e o vértice com feições
+   que ficam FORA do ponto onde se clica — a mira do cursor sozinha não faz isso.
+   z-index 450: acima do overlayPane (400) do Leaflet e abaixo dos marcadores (600). */
+.xhair{position:absolute; z-index:450; pointer-events:none; display:none; background:rgba(240,169,59,.8)}
+.xhair.on{display:block}
+#xhairV{top:0; bottom:0; width:1px}
+#xhairH{left:0; right:0; height:1px}
 .crs-box{border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 9px; margin-bottom:8px; background:var(--bg); line-height:1.4}
 .crs-box .crs-code{font-size:13px; font-variant-numeric:tabular-nums}
 .crs-box .crs-sub{font-size:11.5px; color:var(--muted); margin-top:2px; font-variant-numeric:tabular-nums}
@@ -207,6 +215,8 @@ footer{
       <button class="btn sm" onclick="cancelDraw()">Cancelar</button>
     </div>
     <div class="crs-badge" id="crsBadge"></div>
+    <div class="xhair" id="xhairV"></div>
+    <div class="xhair" id="xhairH"></div>
   </div>
 
   <aside class="panel">
@@ -313,6 +323,13 @@ footer{
         <p class="hint" style="margin-top:0;margin-bottom:6px">Índices RGB são <b>proxies de vigor</b> da vegetação — <b>não são NDVI</b> (que exige câmera multiespectral com infravermelho).</p>
         <button class="btn sm block" onclick="exportRasterImage(false)" style="margin-bottom:2px">⬇ Imagem (PNG + worldfile)</button>
         <label for="exportMarks" style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);margin:0 0 6px;cursor:pointer"><input type="checkbox" id="exportMarks" checked style="width:auto" /> Incluir as marcações (área desenhada e buffers)</label>
+        <div class="field" style="margin-bottom:8px"><label for="markWeight">Espessura das marcações — no mapa e na imagem salva</label>
+          <select id="markWeight" onchange="markWeightChange()">
+            <option value="1">Fina — 0,15% da largura</option>
+            <option value="2" selected>Média — 0,25% (padrão)</option>
+            <option value="3">Grossa — 0,40%</option>
+            <option value="4">Extra grossa — 0,60%</option>
+          </select></div>
         <button class="btn sm block" onclick="clearRaster()">🗑️ Remover raster</button>
       </div>
       <p class="hint">2D: ortomosaico/DSM (GeoTIFF/COG) no mapa. 3D: nuvem LAS/LAZ/PLY ou malha OBJ/glTF/GLB.</p>
@@ -684,7 +701,7 @@ footer{
 <script src="./vendor/three/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.20.5 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.21.1';
+const APP_VERSION = '1.22.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -744,7 +761,12 @@ function initMap(){
   map.on('dblclick', e=>{ if(drawing){ if(!_drawDuplo) return; L.DomEvent.stop(e); finishDraw(); }
                           else if(_cropDrawing&&!_cropRect){ if(!_cropDuplo) return; L.DomEvent.stop(e); finishCropDraw(); } });
   // borracha elástica do retângulo: entre o 1º e o 2º canto o usuário vê o que está marcando
-  map.on('mousemove', e=>{ if(_cropDrawing&&_cropRect&&_cropPts.length===1) updateCropDraft([e.latlng.lat,e.latlng.lng]); });
+  map.on('mousemove', e=>{
+    const marcando=_marcandoNoMapa(); xhairShow(marcando); if(marcando) xhairMove(e.containerPoint);
+    if(_cropDrawing&&_cropRect&&_cropPts.length===1) updateCropDraft([e.latlng.lat,e.latlng.lng]);
+  });
+  map.on('mouseout', ()=>xhairShow(false));
+  map.on('mouseover', ()=>xhairShow(_marcandoNoMapa()));
   gridLayer = L.layerGroup().addTo(map);
   photoLayer = L.layerGroup().addTo(map);
   map.createPane('rasterPane'); map.getPane('rasterPane').style.zIndex=350;   // raster acima de qualquer mapa-base
@@ -764,13 +786,13 @@ function onMapClick(e){ if(_pickCb){ const cb=_pickCb; _pickCb=null; map.getCont
 function updateDraft(){ if(draftLayer){draftLayer.remove();draftLayer=null;} if(draftPts.length){ draftLayer=L.polygon(draftPts,{color:'#14b88a',weight:2,dashArray:'5,6',fillOpacity:.06}).addTo(map);} $('drawCount').textContent=draftPts.length; }
 function finishDraw(){ if(draftPts.length<3){ toast('Marque pelo menos 3 vértices'); return; } state.polygon=draftPts.slice(); endDraw(); renderAOI(); fitAOI(); recompute(); toast('Área definida ✅'); }
 function cancelDraw(){ endDraw(); }
-function endDraw(){ drawing=false; draftPts=[]; if(draftLayer){draftLayer.remove();draftLayer=null;} $('drawBar').classList.remove('active'); map.getContainer().style.cursor=''; try{map.doubleClickZoom.enable();}catch(e){} }
+function endDraw(){ drawing=false; draftPts=[]; xhairShow(false); if(draftLayer){draftLayer.remove();draftLayer=null;} $('drawBar').classList.remove('active'); map.getContainer().style.cursor=''; try{map.doubleClickZoom.enable();}catch(e){} }
 function clearArea(){ state.polygon=[]; clearAOILayers(); if(gridLayer) gridLayer.clearLayers(); state.lastPlan=null; renderOutputs(null); }
 function clearAOILayers(){ if(aoiLayer){aoiLayer.remove();aoiLayer=null;} vtxLayers.forEach(m=>m.remove()); vtxLayers=[]; }
 function renderAOI(){
   if(!map) return;
   clearAOILayers(); if(state.polygon.length<3) return;
-  aoiLayer = L.polygon(state.polygon,{color:'#36d399',weight:2,fillColor:'#14b88a',fillOpacity:.07}).addTo(map);
+  aoiLayer = L.polygon(state.polygon,{color:'#36d399',weight:_markW().px,fillColor:'#14b88a',fillOpacity:.07}).addTo(map);
   state.polygon.forEach((p,i)=>{
     const m=L.marker(p,{draggable:true,icon:vtxIcon,keyboard:false}).addTo(map);
     m.on('drag', ev=>{ state.polygon[i]=[ev.latlng.lat,ev.latlng.lng]; if(aoiLayer) aoiLayer.setLatLngs(state.polygon); scheduleRecompute(); });
@@ -1621,6 +1643,24 @@ function _mesmoPonto(a,b){ if(!a||!b||!map) return false;
   try{ const p=map.latLngToContainerPoint(L.latLng(a[0],a[1])), q=map.latLngToContainerPoint(L.latLng(b[0],b[1]));
        const dx=Math.abs(p.x-q.x), dy=Math.abs(p.y-q.y);
        return isFinite(dx)&&isFinite(dy)&&dx<=CLIQUE_DUPLO_PX&&dy<=CLIQUE_DUPLO_PX; }catch(e){ return false; } }
+/* ESPESSURA DAS MARCAÇÕES. A unidade que importa é FRAÇÃO DA LARGURA DA IMAGEM:
+   ela não muda com o tamanho do raster, com o recorte nem com o zoom, então o número
+   consegue mesmo carregar a propriedade que afirma (guia r114 — constante que decide
+   sobre percepção numa unidade que o usuário muda não expressa nada).
+   Por que a linha saía fina só no ARQUIVO: o export usava `ow/700` = **0,143%** da
+   largura, abaixo da faixa usual de figura (0,2–0,5%); no mapa, os 2 px do Leaflet
+   sobre ~800 px de largura já davam ~0,25%, e por isso a tela parecia certa. O padrão
+   passou a ser 0,25% — a mesma coisa que o usuário já via na tela e aprovava.
+   `px` é o par no mapa, onde o Leaflet mede em pixel de tela, não em fração. */
+const MARK_W={ '1':{frac:0.0015,px:1}, '2':{frac:0.0025,px:2}, '3':{frac:0.0040,px:3}, '4':{frac:0.0060,px:5} };
+function _markW(){ const s=$('markWeight'); return (s&&MARK_W[s.value])||MARK_W['2']; }
+function markWeightChange(){ renderAOI(); if(_zonalResults) zonalRedraw(); }
+
+/* Fio-cruz: só aparece enquanto o usuário está marcando alguma coisa no mapa. */
+function _marcandoNoMapa(){ return drawing||_cropDrawing||_zonalPicking||!!_pickCb; }
+function xhairShow(on){ const v=$('xhairV'), h=$('xhairH'); if(v)v.classList.toggle('on',!!on); if(h)h.classList.toggle('on',!!on); }
+function xhairMove(pt){ const v=$('xhairV'), h=$('xhairH'); if(!pt) return; if(v)v.style.left=pt.x+'px'; if(h)h.style.top=pt.y+'px'; }
+
 function _cropMode(){ const el=document.querySelector('input[name="cropMode"]:checked'); return el?el.value:'poly'; }
 function _llToXY(lat,lon){ const c=_rasterCRS(); if(!c) return null; if(c.geoRaster) return [lon,lat]; return lonLatToRaster(lon,lat,c.epsg); }
 function _pointInPoly(x,y,poly){ let inside=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1]; if(((yi>y)!==(yj>y)) && (x<(xj-xi)*(y-yi)/((yj-yi)||1e-12)+xi)) inside=!inside; } return inside; }
@@ -1663,7 +1703,7 @@ function cropMarcaCanto(){ if(_cropCantoLayer){ _cropCantoLayer.remove(); _cropC
   if(!map||!_cropDrawing||!_cropRect||_cropPts.length!==1) return;
   try{ _cropCantoLayer=L.circleMarker(_cropPts[0],{radius:5,color:'#f0a93b',weight:2,fillColor:'#f0a93b',fillOpacity:.9}).addTo(map); }catch(e){}
 }
-function cancelCropDraw(){ _cropDrawing=false; _cropPts=[]; _cropDuplo=false; if(_cropDraftLayer){ _cropDraftLayer.remove(); _cropDraftLayer=null; } if(_cropCantoLayer){ _cropCantoLayer.remove(); _cropCantoLayer=null; } if(map){ map.getContainer().style.cursor=''; try{ map.doubleClickZoom.enable(); }catch(e){} } cropBtnLabel(); }
+function cancelCropDraw(){ _cropDrawing=false; _cropPts=[]; _cropDuplo=false; xhairShow(false); if(_cropDraftLayer){ _cropDraftLayer.remove(); _cropDraftLayer=null; } if(_cropCantoLayer){ _cropCantoLayer.remove(); _cropCantoLayer=null; } if(map){ map.getContainer().style.cursor=''; try{ map.doubleClickZoom.enable(); }catch(e){} } cropBtnLabel(); }
 function finishCropDraw(){ let poly=_cropPts.slice();
   // nenhum dos dois ramos CANCELA: marcação incompleta mantém o desenho vivo para o
   // usuário continuar, em vez de jogar fora os vértices que ele já clicou.
@@ -1896,7 +1936,7 @@ function drawZonalCircles(results,radius){
   const style=($('zonalStyle')&&$('zonalStyle').value)||'solido';
   const dash=style==='pontilhado'?'5,5':null;
   results.forEach(r=>{ if(r.area||!(r.lat>=-90&&r.lat<=90&&r.lon>=-180&&r.lon<=180)) return; const ok=!r.error; const col=ok?color:'#e0533d'; drawn++;
-    L.circle([r.lat,r.lon],{radius:(r.radius||radius),color:col,weight:2,dashArray:dash,fillOpacity:.10})
+    L.circle([r.lat,r.lon],{radius:(r.radius||radius),color:col,weight:_markW().px,dashArray:dash,fillOpacity:.10})
       .bindPopup(`<b>${esc(r.name)}</b><br>${r.lat.toFixed(5)}, ${r.lon.toFixed(5)}`+(r.swapped?' <span style="color:#e0a13d">(X/Y corrigidos)</span>':'')+(ok&&r.bands?'<br>'+r.bands.map(b=>`${esc(b.label)}: ${_zfmt(b.mean)} (n=${b.n})`).join('<br>'):`<br><i>${esc(r.error||'')}</i>`))
       .addTo(_zonalLayer);
     if(ok && style==='ponto') L.circleMarker([r.lat,r.lon],{radius:2.5,color:col,weight:1,fillColor:col,fillOpacity:1,interactive:false}).addTo(_zonalLayer);
@@ -2139,7 +2179,7 @@ function _renderRasterCanvas(maxPx){
 function _desenharMarcas(ctx,gr,scale,ow){
   let n=0;
   const px=x=>((x-gr.xmin)/gr.pixelWidth)*scale, py=y=>((gr.ymax-y)/gr.pixelHeight)*scale;
-  const lw=Math.max(1.5,ow/700);
+  const lw=Math.max(1.5,ow*_markW().frac);   // fração da largura, não px fixo (r114)
   // (a) área desenhada na aba ✈️ Voo — vem em lat/lon, então precisa do CRS do raster
   if(typeof state==='object' && state.polygon && state.polygon.length>=3){
     const xy=[]; for(const q of state.polygon){ const c=_llToXY(q[0],q[1]); if(!c){ xy.length=0; break; } xy.push(c); }

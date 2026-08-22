@@ -305,7 +305,8 @@ async function main() {
 
   let L3;
   const pincel = { arc: 0, moveTo: 0, lineTo: 0, stroke: 0, fillText: 0 };
-  pincel.zerar = () => { pincel.arc = pincel.moveTo = pincel.lineTo = pincel.stroke = pincel.fillText = 0; };
+  pincel.lws = [];
+  pincel.zerar = () => { pincel.arc = pincel.moveTo = pincel.lineTo = pincel.stroke = pincel.fillText = 0; pincel.lws = []; };
   const errs3 = [];
   const vc3 = new VirtualConsole();
   vc3.on('jsdomError', e => errs3.push('jsdomError: ' + ((e && e.message) || e)));
@@ -324,7 +325,14 @@ async function main() {
                  putImageData() {}, drawImage() {}, beginPath() {}, closePath() {},
                  // o pincel CONTA: é assim que se pergunta "o que saiu desenhado na imagem salva"
                  arc() { pincel.arc++; }, moveTo() { pincel.moveTo++; }, lineTo() { pincel.lineTo++; },
-                 stroke() { pincel.stroke++; }, fill() {}, fillText() { pincel.fillText++; }, setLineDash() {} };
+                 stroke() { pincel.stroke++; }, fill() {}, fillText() { pincel.fillText++; }, setLineDash() {},
+                 // guarda cada espessura pedida: e por ela que se pergunta se a
+                 // linha saiu fina ou grossa no arquivo
+                 set lineWidth(v) { pincel.lws.push(v); }, get lineWidth() { return pincel.lws[pincel.lws.length - 1] || 1; },
+                 set strokeStyle(v) {}, get strokeStyle() { return '#000'; },
+                 set fillStyle(v) {}, get fillStyle() { return '#000'; },
+                 set font(v) {}, get font() { return ''; },
+                 set textBaseline(v) {}, get textBaseline() { return 'bottom'; } };
       };
       window.HTMLCanvasElement.prototype.toDataURL = () => 'data:image/png;base64,';
       window.HTMLCanvasElement.prototype.toBlob = function (cb) { cb(new window.Blob([''], { type: 'image/png' })); };
@@ -469,6 +477,50 @@ async function main() {
   pincel.zerar(); await w3.exportRasterImage(false);
   check('export: depois do RECORTE as marcacoes continuam saindo na imagem salva',
     pincel.arc >= 2 && pincel.fillText >= 2);
+
+  /* ESPESSURA das marcacoes. A unidade e FRACAO DA LARGURA da imagem, entao a
+     assercao precisa de um raster largo o bastante para o piso de 1,5 px nao
+     dominar: com os 40 px do raster acima TODA opcao daria 1,5 e a assercao
+     ficaria cega -- degeneracao que nao teria como se formar (guia r90/r113). */
+  // 1 banda de proposito: o que esta sob teste e a ESPESSURA do traco, e o
+  // rasterizador percorre uma banda por pixel -- tres bandas triplicariam o
+  // tempo do smoke inteiro sem acrescentar nada a asserção.
+  const bandaG = []; for (let r = 0; r < 1200; r++) bandaG.push(new Uint8Array(1200).fill(120));
+  const grBig = await w3.parseGeoraster([bandaG],
+    { noDataValue: null, projection: 31983, xmin: 443000, ymax: 9224000, pixelWidth: 1, pixelHeight: 1 });
+  w3.__grBig = grBig;
+  ev3('_rasterMeta={gr:__grBig,bands:1,mn:0,mx:255,ycc:false,factor:1,orig:{xmin:__grBig.xmin,xmax:__grBig.xmax,ymin:__grBig.ymin,ymax:__grBig.ymax}}');
+  const selPeso = el(doc3, 'markWeight');
+  const linhaCom = async v => {
+    if (selPeso) { selPeso.value = v; selPeso.dispatchEvent(new w3.Event('change')); }
+    pincel.zerar(); await w3.exportRasterImage(false);
+    return pincel.lws.length ? Math.min.apply(null, pincel.lws) : 0;   // o minimo e a linha do buffer (a da AOI leva 1,2x)
+  };
+  const lFina = await linhaCom('1'), lMedia = await linhaCom('2'), lGrossa = await linhaCom('4');
+  console.log('       [captura] linha exportada em imagem de 1200 px: fina=' + lFina + ' media=' + lMedia + ' grossa=' + lGrossa);
+  check('espessura: a opcao muda a linha da imagem salva, e mais grossa sai mais grossa',
+    lFina > 0 && lFina < lMedia && lMedia < lGrossa);
+  check('espessura: o padrao sai em ~0,25% da largura (faixa usual de figura: 0,2-0,5%)',
+    Math.abs(lMedia / 1200 - 0.0025) < 0.0003);
+  if (selPeso) { selPeso.value = '2'; selPeso.dispatchEvent(new w3.Event('change')); }
+
+  /* FIO-CRUZ: as duas linhas so existem enquanto se marca alguma coisa no mapa.
+     Dirigido pelo caminho do usuario -- chama o handler de desenho e move o mouse. */
+  ev3('startDraw()');
+  mapa3.fire('mousemove', { latlng: { lat: -7.010, lng: -45.490 }, containerPoint: { x: 123, y: 77 } });
+  const xv = el(doc3, 'xhairV'), xh = el(doc3, 'xhairH');
+  check('fio-cruz: aparece ao desenhar area e segue o cursor nos dois eixos',
+    has(doc3, 'xhairV', 'on') === true && has(doc3, 'xhairH', 'on') === true &&
+    !!xv && xv.style.left === '123px' && !!xh && xh.style.top === '77px');
+  ev3('endDraw()');
+  check('fio-cruz: some quando o desenho encerra', has(doc3, 'xhairV', 'on') === false && has(doc3, 'xhairH', 'on') === false);
+
+  modo('poly'); if (btn3) btn3.click();
+  mapa3.fire('mousemove', { latlng: { lat: -7.012, lng: -45.488 }, containerPoint: { x: 200, y: 150 } });
+  check('fio-cruz: aparece tambem ao marcar o RECORTE (nao so ao desenhar area)',
+    has(doc3, 'xhairV', 'on') === true && !!xv && xv.style.left === '200px');
+  ev3('cancelCropDraw()');
+  check('fio-cruz: some ao cancelar o recorte', has(doc3, 'xhairV', 'on') === false);
 
   check('cenario 3: nenhuma excecao nao tratada', errs3.length === 0);
   errs3.forEach(e => console.error('       ' + e));

@@ -5,6 +5,24 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.22.0] — Agosto 2026
+
+### 🆕 Adicionado
+
+- **Fio-cruz ao marcar no mapa.** Enquanto você desenha a área, marca o recorte ou coleta pontos, uma **linha vertical e uma horizontal** acompanham o cursor de ponta a ponta do mapa — como no gráfico de ativos. Serve para alinhar o corte e o vértice com feições que ficam **fora** do ponto onde se clica, coisa que a mira do cursor sozinha não resolve.
+- **Espessura das marcações**, no painel do visualizador: **Fina · Média · Grossa · Extra grossa**. Vale para o **mapa e para a imagem salva** ao mesmo tempo.
+
+### 🐛 Corrigido
+
+- **As marcações saíam finas demais na imagem salva.** Medido: a linha do export estava em **0,143% da largura da imagem**, abaixo da faixa usual de figura (0,2–0,5%) — e é por isso que a tela parecia certa e o arquivo não: **no mapa, os 2 px do Leaflet sobre ~800 px de largura já davam ~0,25%**. O padrão passou a ser **0,25%**, ou seja, exatamente a espessura que você já via na tela e aprovava. Os rótulos do seletor dizem a porcentagem de cada opção.
+
+### 🔧 Melhorado
+
+- A espessura é expressa em **fração da largura da imagem**, e não em pixels fixos: assim ela não muda de significado quando o raster é maior, quando você recorta ou quando o zoom muda — o número consegue mesmo carregar a propriedade que promete.
+- **Verificação:** +6 asserções (smoke em **55**), **24/24 na campanha completa de mutação**, com rodada limpa antes. Duas delas são de **ausência** (o fio-cruz tem de sumir ao encerrar) e foram validadas **tirando quem o apaga**, não inserindo padrão nenhum.
+
+---
+
 ## [1.21.1] — Agosto 2026
 
 ### 🐛 Corrigido
