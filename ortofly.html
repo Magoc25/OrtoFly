@@ -140,6 +140,21 @@ footer{
   display:none; gap:6px; align-items:center; box-shadow:0 4px 16px rgba(0,0,0,.5);
 }
 .draw-bar.active{display:flex}
+/* CRS do produto aberto: a faixa fixa (painel) confere ANTES de colar os pontos;
+   o selo sobre o mapa acompanha a imagem no print/figura. Os dois lêem renderCRS(). */
+.crs-badge{
+  position:absolute; bottom:14px; right:10px; z-index:500;
+  background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:4px 9px;
+  font-size:11.5px; color:var(--text); box-shadow:0 4px 16px rgba(0,0,0,.5);
+  display:none; max-width:min(64vw,330px); line-height:1.4; font-variant-numeric:tabular-nums;
+}
+.crs-badge.active{display:block}
+.crs-box{border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 9px; margin-bottom:8px; background:var(--bg); line-height:1.4}
+.crs-box .crs-code{font-size:13px; font-variant-numeric:tabular-nums}
+.crs-box .crs-sub{font-size:11.5px; color:var(--muted); margin-top:2px; font-variant-numeric:tabular-nums}
+.crs-box .crs-warn{font-size:11.5px; color:var(--warn); margin-top:4px}
+.crs-box label{display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--muted); margin-top:5px; cursor:pointer}
+.crs-box label input{width:auto}
 .draw-bar span{font-size:12.5px;color:var(--muted);padding:0 6px}
 .vtx{width:14px;height:14px;border-radius:50%;background:var(--accent);border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.5)}
 .leaflet-container{font-family:inherit}
@@ -191,6 +206,7 @@ footer{
       <button class="btn sm primary" onclick="finishDraw()">Concluir</button>
       <button class="btn sm" onclick="cancelDraw()">Cancelar</button>
     </div>
+    <div class="crs-badge" id="crsBadge"></div>
   </div>
 
   <aside class="panel">
@@ -263,6 +279,12 @@ footer{
       <div id="rasterStatus" class="spec" style="margin-top:8px"></div>
       <div id="rasterNote"></div>
       <div id="rasterCtrls" class="hidden" style="margin-top:8px">
+        <div class="crs-box" id="crsBox">
+          <div class="crs-code">🧭 Sistema de referência (CRS): <b id="crsCode">—</b></div>
+          <div class="crs-sub" id="crsName">—</div>
+          <div class="crs-warn hidden" id="crsWarn"></div>
+          <label for="crsShow"><input type="checkbox" id="crsShow" checked onchange="renderCRS()" /> Mostrar sobre o mapa</label>
+        </div>
         <div class="row" id="rasterCmapRow">
           <div class="field"><label for="rasterCmap">Paleta (DSM)</label><select id="rasterCmap"><option value="terrain">Terreno</option><option value="viridis">Viridis</option><option value="grayscale">Cinza</option></select></div>
         </div>
@@ -661,7 +683,7 @@ footer{
 <script src="./vendor/three/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.20.5 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.20.5';
+const APP_VERSION = '1.21.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -714,7 +736,14 @@ function initMap(){
   esri.addTo(map);
   L.control.layers({'Satélite (Esri)':esri,'Mapa (OSM)':osm}, null, {position:'topright'}).addTo(map);
   map.on('click', onMapClick);
-  map.on('dblclick', e=>{ if(drawing){ L.DomEvent.stop(e); finishDraw(); } else if(_cropDrawing&&!_cropRect){ L.DomEvent.stop(e); finishCropDraw(); } });
+  // SÓ conclui quando o duplo-clique foi mesmo um duplo-clique: o Leaflet sintetiza
+  // `dblclick` a partir de dois cliques próximos NO TEMPO, sem olhar a distância, então
+  // dois vértices marcados rápido chegavam aqui como "concluir". A flag `_*Duplo` é ligada
+  // pelo próprio clique que foi descartado por cair em cima do anterior.
+  map.on('dblclick', e=>{ if(drawing){ if(!_drawDuplo) return; L.DomEvent.stop(e); finishDraw(); }
+                          else if(_cropDrawing&&!_cropRect){ if(!_cropDuplo) return; L.DomEvent.stop(e); finishCropDraw(); } });
+  // borracha elástica do retângulo: entre o 1º e o 2º canto o usuário vê o que está marcando
+  map.on('mousemove', e=>{ if(_cropDrawing&&_cropRect&&_cropPts.length===1) updateCropDraft([e.latlng.lat,e.latlng.lng]); });
   gridLayer = L.layerGroup().addTo(map);
   photoLayer = L.layerGroup().addTo(map);
   map.createPane('rasterPane'); map.getPane('rasterPane').style.zIndex=350;   // raster acima de qualquer mapa-base
@@ -725,9 +754,12 @@ function initMap(){
 }
 
 /* ---------- desenho da AOI ---------- */
-let drawing=false, draftPts=[], draftLayer=null;
-function startDraw(){ if(!map){ toast('Mapa indisponível','error'); return; } clearArea(); drawing=true; draftPts=[]; map.doubleClickZoom.disable(); $('drawBar').classList.add('active'); $('drawCount').textContent='0'; map.getContainer().style.cursor='crosshair'; }
-function onMapClick(e){ if(_pickCb){ const cb=_pickCb; _pickCb=null; map.getContainer().style.cursor=''; cb(e.latlng); return; } if(_zonalPicking){ zonalPickAdd(e.latlng); return; } if(_cropDrawing){ cropAddPoint(e.latlng); return; } if(!drawing) return; draftPts.push([e.latlng.lat,e.latlng.lng]); updateDraft(); }
+let drawing=false, draftPts=[], draftLayer=null, _drawDuplo=false;
+function startDraw(){ if(!map){ toast('Mapa indisponível','error'); return; } clearArea(); drawing=true; draftPts=[]; _drawDuplo=false; map.doubleClickZoom.disable(); $('drawBar').classList.add('active'); $('drawCount').textContent='0'; map.getContainer().style.cursor='crosshair'; }
+function onMapClick(e){ if(_pickCb){ const cb=_pickCb; _pickCb=null; map.getContainer().style.cursor=''; cb(e.latlng); return; } if(_zonalPicking){ zonalPickAdd(e.latlng); return; } if(_cropDrawing){ cropAddPoint(e.latlng); return; } if(!drawing) return;
+  const novo=[e.latlng.lat,e.latlng.lng];
+  if(draftPts.length && _mesmoPonto(novo,draftPts[draftPts.length-1])){ _drawDuplo=true; return; }   // 2º clique do duplo-clique não é vértice
+  _drawDuplo=false; draftPts.push(novo); updateDraft(); }
 function updateDraft(){ if(draftLayer){draftLayer.remove();draftLayer=null;} if(draftPts.length){ draftLayer=L.polygon(draftPts,{color:'#14b88a',weight:2,dashArray:'5,6',fillOpacity:.06}).addTo(map);} $('drawCount').textContent=draftPts.length; }
 function finishDraw(){ if(draftPts.length<3){ toast('Marque pelo menos 3 vértices'); return; } state.polygon=draftPts.slice(); endDraw(); renderAOI(); fitAOI(); recompute(); toast('Área definida ✅'); }
 function cancelDraw(){ endDraw(); }
@@ -1353,7 +1385,7 @@ function cmapCSS(t,name){ const c=cmapRGB(t,name); return `rgb(${c[0]*255|0},${c
 
 /* --- 2D raster (GeoTIFF/COG) --- */
 let rasterLayer=null, _rasterMeta=null, _rasterShift={dx:0,dy:0}, _gcpTransform=null, _gcpLast=null, _pickCb=null, _rasterIndex=null, _rasterIndexRange=null, _rasterOverlay=null;
-let _cropDrawing=false, _cropPts=[], _cropDraftLayer=null, _cropRect=false, _rasterUncropped=null;
+let _cropDrawing=false, _cropPts=[], _cropDraftLayer=null, _cropRect=false, _rasterUncropped=null, _cropDuplo=false, _cropCantoLayer=null;
 // índices de vegetação por RGB (proxies de vigor — NÃO são NDVI, que exige infravermelho)
 const VEG_INDICES={
   VARI:(r,g,b)=>(g-r)/((g+r-b)||1e-9),
@@ -1472,6 +1504,7 @@ async function handleRasterFile(file,cheia){
     resetIndexUI(bands); $('cropFullBtn').classList.add('hidden');
     rasterStatus(`${file.name} · ${gr.width}×${gr.height} · ${bands} banda(s)${bands<3&&isFinite(mn)?` · ${(+mn).toFixed(1)}–${(+mx).toFixed(1)}`:''}`);
     rasterNote(full?'':rasterReducedNote(factor,srcW,srcH,cheiaBytes));
+    renderCRS();
     toast('Raster carregado ✅');
   }catch(e){ console.error('[Raster]',e); toast('Erro ao ler raster: '+e.message,'error'); rasterStatus(''); rasterNote(''); }
 }
@@ -1494,9 +1527,42 @@ function rasterReducedNote(factor,srcW,srcH,cheiaBytes){
        + `<div style="margin-top:7px"><button class="btn sm" onclick="loadRasterFull()">🔍 Abrir em resolução cheia${gsdCheio}</button>`
        + `<span class="spec" style="margin-left:8px">custa${est} durante toda a sessão — o app pode reiniciar em aparelho com pouca RAM</span></div>`;
 }
+/* ───── CRS do produto aberto (faixa no painel + selo sobre o mapa) ─────
+   Existe porque o app é ferramenta de MEDIÇÃO: estatística zonal, ajuste por GCP e
+   recorte só batem se os pontos colados estiverem no mesmo sistema da imagem. Até a
+   v1.20.5 o EPSG só saía no LEIAME.txt do export — depois do trabalho feito.
+   Diz apenas o que dá para verificar no arquivo (guia r112): sem entrada na tabela,
+   mostra o código e cala o nome; em CRS geográfico não converte pixel em centímetro,
+   porque em graus pixelWidth não é distância. */
+function _crsNum(v,geo){ return geo?(+v).toFixed(6):(+v).toFixed(0); }
+function renderCRS(){
+  const box=$('crsBox'), badge=$('crsBadge'); if(!box||!badge) return;
+  const c=(_rasterMeta&&_rasterMeta.gr)?_rasterCRS():null;
+  if(!c){ box.classList.add('hidden'); badge.classList.remove('active'); badge.textContent=''; return; }
+  box.classList.remove('hidden');
+  const {gr,epsg,geoRaster}=c, nome=crsNome(epsg);
+  const codigo = epsg ? ('EPSG:'+epsg) : 'não declarado no arquivo';
+  const metros = !geoRaster && (!!utmZoneOf(epsg) || epsg===3857);
+  const unidade = geoRaster ? 'graus' : (metros ? 'metros' : null);
+  const px = metros ? ` · pixel ${(gr.pixelWidth*100).toFixed(2)} cm` : '';
+  const linha2 = [nome, unidade].filter(Boolean).join(' · ') + px;
+  $('crsCode').textContent = codigo;
+  $('crsName').innerHTML = (linha2 || 'sistema não identificado pelo código')
+    + `<br>E ${_crsNum(gr.xmin,geoRaster)} … ${_crsNum(gr.xmax,geoRaster)}`
+    + ` · N ${_crsNum(gr.ymin,geoRaster)} … ${_crsNum(gr.ymax,geoRaster)}`;
+  // o app só reprojeta lat/lon para os CRS que sabe converter; sem isso o recorte
+  // pelo mapa e a entrada de pontos em graus não têm como funcionar — e é melhor
+  // dizer isso aqui do que deixar o usuário descobrir no meio da medição
+  const semReproj = !geoRaster && !lonLatToRaster(0,0,epsg);
+  const w=$('crsWarn'); w.classList.toggle('hidden',!semReproj);
+  if(semReproj) w.textContent='⚠️ O app não reprojeta este CRS: informe os pontos em E, N (mesmo sistema da imagem) — recorte pelo mapa indisponível.';
+  const ligado = $('crsShow') ? $('crsShow').checked : true;
+  badge.innerHTML = '🧭 ' + codigo + (nome?(' · '+nome):'') + (unidade?(' · '+unidade):'');
+  badge.classList.toggle('active', ligado);
+}
 function setRasterOpacity(){ const op=(+$('rasterOpacity').value||100)/100; if(_rasterOverlay){ _rasterOverlay.setOpacity(op); if(rasterLayer) rasterLayer.setOpacity(0); } else if(rasterLayer) rasterLayer.setOpacity(op); }
 function recolorRaster(){ if(!rasterLayer||!_rasterMeta||_rasterMeta.bands>=3) return; rebuildRasterLayer(false); }
-function clearRaster(){ if(_cropDrawing) cancelCropDraw(); if(_rasterOverlay){ _rasterOverlay.remove(); _rasterOverlay=null; } if(rasterLayer){ rasterLayer.remove(); rasterLayer=null; } _rasterMeta=null; _rasterUncropped=null; _rasterShift={dx:0,dy:0}; _gcpTransform=null; _rasterIndex=null; _rasterIndexRange=null; if($('gcpStatus'))$('gcpStatus').textContent=''; if($('cropFullBtn'))$('cropFullBtn').classList.add('hidden'); $('rasterCtrls').classList.add('hidden'); rasterStatus(''); rasterNote(''); }
+function clearRaster(){ if(_cropDrawing) cancelCropDraw(); if(_rasterOverlay){ _rasterOverlay.remove(); _rasterOverlay=null; } if(rasterLayer){ rasterLayer.remove(); rasterLayer=null; } _rasterMeta=null; _rasterUncropped=null; _rasterShift={dx:0,dy:0}; _gcpTransform=null; _rasterIndex=null; _rasterIndexRange=null; if($('gcpStatus'))$('gcpStatus').textContent=''; if($('cropFullBtn'))$('cropFullBtn').classList.add('hidden'); $('rasterCtrls').classList.add('hidden'); rasterStatus(''); rasterNote(''); renderCRS(); }
 
 /* ───── Índices de vegetação por RGB (Fase 2-B) ───── */
 function _computeIndexRange(fn){
@@ -1542,25 +1608,66 @@ function clearIndex(){ _rasterIndex=null; _rasterIndexRange=null; if($('indexSel
 function recolorIndex(){ if(_rasterIndex) refreshRasterDisplay(); }
 
 /* ───── Recorte do ortomosaico (polígono/retângulo/AOI do voo) ───── */
+/* Duplo-clique NÃO é dois vértices. O Leaflet sintetiza um `dblclick` sempre que dois
+   cliques caem a menos de 200 ms um do outro (quando `Browser.touch` é verdadeiro, o que
+   vale em todo navegador que exponha `TouchEvent` — o Safari do macOS inclusive) e ele
+   NÃO confere distância: dois vértices marcados rápido viravam "concluir", e o desenho
+   morria antes do 3º ponto. Quem separa o gesto do vértice é a DISTÂNCIA entre os dois
+   cliques, e ela mora em PIXEL DE TELA — é onde o gesto acontece. Em grau o mesmo limiar
+   mudaria de significado a cada nível de zoom (guia r114). */
+const CLIQUE_DUPLO_PX=12;   // folga de tremor/trackpad; vértices distintos ficam muito além disso
+function _mesmoPonto(a,b){ if(!a||!b||!map) return false;
+  try{ const p=map.latLngToContainerPoint(L.latLng(a[0],a[1])), q=map.latLngToContainerPoint(L.latLng(b[0],b[1]));
+       const dx=Math.abs(p.x-q.x), dy=Math.abs(p.y-q.y);
+       return isFinite(dx)&&isFinite(dy)&&dx<=CLIQUE_DUPLO_PX&&dy<=CLIQUE_DUPLO_PX; }catch(e){ return false; } }
 function _cropMode(){ const el=document.querySelector('input[name="cropMode"]:checked'); return el?el.value:'poly'; }
 function _llToXY(lat,lon){ const c=_rasterCRS(); if(!c) return null; if(c.geoRaster) return [lon,lat]; return lonLatToRaster(lon,lat,c.epsg); }
 function _pointInPoly(x,y,poly){ let inside=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1]; if(((yi>y)!==(yj>y)) && (x<(xj-xi)*(y-yi)/((yj-yi)||1e-12)+xi)) inside=!inside; } return inside; }
 function cropToggle(){
   if(!_rasterMeta||!_rasterMeta.gr){ toast('Carregue um raster (GeoTIFF/COG) primeiro','error'); return; }
-  if(_cropDrawing){ finishCropDraw(); return; }
-  _cropRect=_cropMode()==='rect'; _cropDrawing=true; _cropPts=[];
+  // no RETÂNGULO o botão só pode CANCELAR: o 2º canto conclui sozinho, então "concluir"
+  // com 1 canto marcado não existe. Antes ele caía num `return` que NÃO limpava o estado,
+  // e o canto velho sobrevivia para o próximo clique — o recorte saltava para uma área
+  // que o usuário nunca marcou (medido: 42,1 ha no lugar de 1,0 ha).
+  if(_cropDrawing){ if(_cropRect) cancelCropDraw(); else finishCropDraw(); return; }
+  _cropRect=_cropMode()==='rect'; _cropDrawing=true; _cropPts=[]; _cropDuplo=false;
   if(map){ map.getContainer().style.cursor='crosshair'; try{ map.doubleClickZoom.disable(); }catch(e){} }
-  const b=$('cropDrawBtn'); if(b){ b.classList.add('primary'); b.textContent=_cropRect?'Clique 2 cantos do retângulo…':'✓ Concluir recorte (0)'; }
-  toast(_cropRect?'Clique 2 cantos do retângulo no mapa':'Clique os vértices · duplo-clique (ou botão) conclui · Esc cancela');
+  cropBtnLabel();
+  toast(_cropRect?'Clique o 1º canto do retângulo · Esc cancela':'Clique os vértices · duplo-clique no ÚLTIMO (ou botão) conclui · Esc cancela');
 }
-function cropAddPoint(ll){ _cropPts.push([ll.lat,ll.lng]); updateCropDraft(); if(_cropRect&&_cropPts.length===2){ finishCropDraw(); return; } const b=$('cropDrawBtn'); if(b&&!_cropRect) b.textContent=`✓ Concluir recorte (${_cropPts.length})`; }
-function updateCropDraft(){ if(_cropDraftLayer){ _cropDraftLayer.remove(); _cropDraftLayer=null; } let pts=_cropPts;
-  if(_cropRect&&_cropPts.length===2){ const a=_cropPts[0],b=_cropPts[1]; pts=[[a[0],a[1]],[a[0],b[1]],[b[0],b[1]],[b[0],a[1]]]; }
-  if(pts.length>=2) _cropDraftLayer=L.polygon(pts,{color:'#f0a93b',weight:2,dashArray:'5,6',fillOpacity:.06}).addTo(map); }
-function cancelCropDraw(){ _cropDrawing=false; _cropPts=[]; if(_cropDraftLayer){ _cropDraftLayer.remove(); _cropDraftLayer=null; } if(map){ map.getContainer().style.cursor=''; try{ map.doubleClickZoom.enable(); }catch(e){} } const b=$('cropDrawBtn'); if(b){ b.classList.remove('primary'); b.textContent='✂️ Marcar área e recortar'; } }
+// rótulo do botão = estado do desenho. No retângulo ele também é o ÚNICO retorno visual
+// entre os dois cliques: antes, marcar o 1º canto não mudava nada na tela.
+function cropBtnLabel(){ const b=$('cropDrawBtn'); if(!b) return;
+  if(!_cropDrawing){ b.classList.remove('primary'); b.textContent='✂️ Marcar área e recortar'; return; }
+  b.classList.add('primary');
+  b.textContent=_cropRect ? (_cropPts.length?'✕ Cancelar · clique o 2º canto':'✕ Cancelar · clique o 1º canto')
+                          : `✓ Concluir recorte (${_cropPts.length})`;
+}
+function cropAddPoint(ll){
+  const novo=[ll.lat,ll.lng];
+  // 2º clique de um duplo-clique NÃO é vértice novo: marca a intenção de concluir.
+  if(_cropPts.length && _mesmoPonto(novo,_cropPts[_cropPts.length-1])){ _cropDuplo=true; return; }
+  _cropDuplo=false; _cropPts.push(novo); updateCropDraft();
+  if(_cropRect&&_cropPts.length===2){ finishCropDraw(); return; }
+  cropBtnLabel();
+}
+function updateCropDraft(hover){ if(_cropDraftLayer){ _cropDraftLayer.remove(); _cropDraftLayer=null; } let pts=_cropPts;
+  if(_cropRect){ const a=_cropPts[0], b=_cropPts[1]||hover; pts=(a&&b)?[[a[0],a[1]],[a[0],b[1]],[b[0],b[1]],[b[0],a[1]]]:_cropPts; }
+  if(pts.length>=2) _cropDraftLayer=L.polygon(pts,{color:'#f0a93b',weight:2,dashArray:'5,6',fillOpacity:.06}).addTo(map);
+  cropMarcaCanto();
+}
+// marca o 1º canto do retângulo. Em toque não há `mousemove`, então a borracha elástica
+// não aparece — sem esta marca o usuário ficaria sem retorno nenhum no mapa.
+function cropMarcaCanto(){ if(_cropCantoLayer){ _cropCantoLayer.remove(); _cropCantoLayer=null; }
+  if(!map||!_cropDrawing||!_cropRect||_cropPts.length!==1) return;
+  try{ _cropCantoLayer=L.circleMarker(_cropPts[0],{radius:5,color:'#f0a93b',weight:2,fillColor:'#f0a93b',fillOpacity:.9}).addTo(map); }catch(e){}
+}
+function cancelCropDraw(){ _cropDrawing=false; _cropPts=[]; _cropDuplo=false; if(_cropDraftLayer){ _cropDraftLayer.remove(); _cropDraftLayer=null; } if(_cropCantoLayer){ _cropCantoLayer.remove(); _cropCantoLayer=null; } if(map){ map.getContainer().style.cursor=''; try{ map.doubleClickZoom.enable(); }catch(e){} } cropBtnLabel(); }
 function finishCropDraw(){ let poly=_cropPts.slice();
-  if(_cropRect){ if(poly.length<2){ toast('Clique 2 cantos'); return; } const a=poly[0],b=poly[1]; poly=[[a[0],a[1]],[a[0],b[1]],[b[0],b[1]],[b[0],a[1]]]; }
-  if(poly.length<3){ toast('Marque ao menos 3 vértices'); cancelCropDraw(); return; }
+  // nenhum dos dois ramos CANCELA: marcação incompleta mantém o desenho vivo para o
+  // usuário continuar, em vez de jogar fora os vértices que ele já clicou.
+  if(_cropRect){ if(poly.length<2){ toast('Clique o 2º canto do retângulo'); return; } const a=poly[0],b=poly[1]; poly=[[a[0],a[1]],[a[0],b[1]],[b[0],b[1]],[b[0],a[1]]]; }
+  if(poly.length<3){ toast('Marque ao menos 3 vértices'); return; }
   const mask=!_cropRect; cancelCropDraw(); performCrop(poly,mask); }
 function cropFromAOI(){ if(!state.polygon||state.polygon.length<3){ toast('Nenhuma área de voo (AOI) definida na aba ✈️ Voo','error'); return; } performCrop(state.polygon.slice(), _cropMode()!=='rect'); }
 async function performCrop(polyLL,mask){
@@ -1580,7 +1687,15 @@ async function performCrop(polyLL,mask){
   const out=[]; for(let b=0;b<nb;b++){ const sband=vals[b], band=new Array(newH); for(let ri=0;ri<newH;ri++){ const srow=sband[r0+ri]; let drow; if(srow&&srow.slice){ drow=srow.slice(c0,c1+1); if(singleMask) drow=Float32Array.from(drow); } else { drow=new Float32Array(newW); for(let ci=0;ci<newW;ci++) drow[ci]=srow[c0+ci]; } band[ri]=drow; } out.push(band); }
   let ndOut=gr.noDataValue;
   if(mask){
-    if(nb>=3){ const AC=Ctor||Uint8Array, alpha=new Array(newH); for(let ri=0;ri<newH;ri++){ const Yc=gr.ymax-(r0+ri+0.5)*py, arow=new AC(newW); for(let ci=0;ci<newW;ci++){ const Xc=gr.xmin+(c0+ci+0.5)*px; arow[ci]=_pointInPoly(Xc,Yc,polyXY)?255:0; } alpha[ri]=arow; } if(nb>=4) out[3]=alpha; else out.push(alpha); }
+    // A máscara do recorte se SOMA à do arquivo, nunca a substitui: a ortho do ODM vem
+    // RGBA com alfa=0 fora da área voada, e sobrescrever `out[3]` promovia esse vazio a
+    // pixel válido (medido: 3.960 px sem dado virando dado) — que depois entrava na
+    // estatística zonal e nos índices como se fosse solo/planta.
+    if(nb>=3){ const AC=Ctor||Uint8Array, alpha=new Array(newH), origA=(nb>=4)?out[3]:null;
+      for(let ri=0;ri<newH;ri++){ const Yc=gr.ymax-(r0+ri+0.5)*py, arow=new AC(newW), oa=origA?origA[ri]:null;
+        for(let ci=0;ci<newW;ci++){ const Xc=gr.xmin+(c0+ci+0.5)*px; arow[ci]=_pointInPoly(Xc,Yc,polyXY)?(oa?oa[ci]:255):0; }
+        alpha[ri]=arow; }
+      if(nb>=4) out[3]=alpha; else out.push(alpha); }
     else { // banda única: preenche fora do polígono com nodata (sentinela se não houver)
       let sent=gr.noDataValue; if(sent==null){ let mn=Infinity; for(let ri=0;ri<newH;ri++){ const row=out[0][ri]; for(let ci=0;ci<newW;ci++){ const v=row[ci]; if(!isNaN(v)&&v<mn)mn=v; } } sent=(mn===Infinity?0:mn)-1; }
       ndOut=sent; for(let ri=0;ri<newH;ri++){ const Yc=gr.ymax-(r0+ri+0.5)*py, row=out[0][ri]; for(let ci=0;ci<newW;ci++){ const Xc=gr.xmin+(c0+ci+0.5)*px; if(!_pointInPoly(Xc,Yc,polyXY)) row[ci]=sent; } } }
@@ -1598,7 +1713,7 @@ async function performCrop(polyLL,mask){
     rebuildRasterLayer(true); refreshRasterDisplay();
     resetIndexUI(bandsNew);
     $('cropFullBtn').classList.remove('hidden');
-    rasterStatus(`Recorte · ${newGr.width}×${newGr.height} · ${bandsNew} banda(s)`);
+    rasterStatus(`Recorte · ${newGr.width}×${newGr.height} · ${bandsNew} banda(s)`); renderCRS();
     if($('zonalPts').value.trim()) zonalCompute();
     toast('Recorte aplicado ✅');
   }catch(e){ console.error('[crop]',e); rasterStatus(''); toast('Erro ao recortar: '+e.message,'error'); }
@@ -1608,7 +1723,7 @@ function cropRestore(){ if(!_rasterUncropped) return; if(_rasterOverlay){ _raste
   const o=_rasterMeta.orig, g0=_rasterMeta.gr; _rasterShift=o?{dx:g0.xmin-o.xmin,dy:g0.ymin-o.ymin}:{dx:0,dy:0};   // o gr original (mutado in-place) pode ainda carregar o deslocamento por GCP
   rebuildRasterLayer(true); refreshRasterDisplay();
   resetIndexUI(_rasterMeta.bands);
-  $('cropFullBtn').classList.add('hidden'); rasterStatus('Imagem inteira'); if($('zonalPts').value.trim()) zonalCompute(); toast('Imagem inteira restaurada'); }
+  $('cropFullBtn').classList.add('hidden'); rasterStatus('Imagem inteira'); renderCRS(); if($('zonalPts').value.trim()) zonalCompute(); toast('Imagem inteira restaurada'); }
 
 /* ═══════════════ ESTATÍSTICA ZONAL (pontos + buffer circular) ═══════════════ */
 let _zonalLayer=null, _zonalResults=null, _zonalPicking=false, _zonalPickLayer=null;
@@ -1630,6 +1745,17 @@ function utmZoneOf(epsg){
   if(epsg>=32701&&epsg<=32760) return {zone:epsg-32700,south:true};
   if(epsg>=31978&&epsg<=31985) return {zone:epsg-31960,south:true};   // SIRGAS 2000 / UTM 18S–25S (Brasil)
   return null;
+}
+/* Nome legível do CRS — FONTE ÚNICA: o PROJCS do .prj (_wktForEPSG) e a faixa/selo
+   da tela derivam daqui, em vez de remontar a lista cada um (guia r71b).
+   Código fora da tabela devolve null e a tela mostra só "EPSG:N": inventar nome de
+   CRS é pior que não dizer nome nenhum — o usuário alinharia os pontos por ele. */
+function crsNome(epsg){ epsg=+epsg||0;
+  if(epsg===4326) return 'WGS 84';
+  if(epsg===4674) return 'SIRGAS 2000';
+  if(epsg===3857) return 'WGS 84 / Pseudo-Mercator';
+  const z=utmZoneOf(epsg); if(!z) return null;
+  return (epsg>=31978&&epsg<=31985?'SIRGAS 2000':'WGS 84')+` / UTM zone ${z.zone}${z.south?'S':'N'}`;
 }
 // UTM (metros) -> [lat,lon] graus
 function utmToLatLon(E,N,zone,south){
@@ -1789,7 +1915,7 @@ function _wktForEPSG(epsg){ epsg=+epsg||0;
   if(epsg===3857) return 'PROJCS["WGS 84 / Pseudo-Mercator",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]],PROJECTION["Mercator_1SP"],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1]]';
   const z=utmZoneOf(epsg); if(!z) return null; const cm=(z.zone-1)*6-180+3, fn=z.south?10000000:0, sirgas=(epsg>=31978&&epsg<=31985);
   const geog=sirgas?'GEOGCS["SIRGAS 2000",DATUM["Sistema_de_Referencia_Geocentrico_para_las_AmericaS_2000",SPHEROID["GRS 1980",6378137,298.257222101]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]':'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]';
-  const nm=sirgas?`SIRGAS 2000 / UTM zone ${z.zone}S`:`WGS 84 / UTM zone ${z.zone}${z.south?'S':'N'}`;
+  const nm=crsNome(epsg);   // mesma tabela que a faixa de CRS da tela (r71b)
   return `PROJCS["${nm}",${geog},PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",${cm}],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",${fn}],UNIT["metre",1]]`;
 }
 // esquema do CSV/TXT da estatística zonal — FONTE ÚNICA: cabeçalho, preenchimento da linha de erro e o LEIA-ME derivam daqui (guia r71b)

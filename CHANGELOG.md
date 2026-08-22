@@ -5,6 +5,29 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.21.0] — Agosto 2026
+
+### 🆕 Adicionado
+
+- **O sistema de referência (CRS) do produto aberto agora aparece na tela**, em 🗺️ Visualizar resultados. Uma faixa fixa no painel mostra o **código EPSG**, o **nome do sistema** (ex.: `SIRGAS 2000 / UTM zone 23S`), a **unidade**, o **tamanho do pixel** e a **extensão** da imagem; e um selo sobre o mapa repete o essencial, ligado/desligado por uma caixa de seleção (útil para o print e a figura de metodologia). Antes o EPSG só saía no `LEIAME.txt` do export — ou seja, **depois** do trabalho feito. É a informação de que você precisa **antes** de colar os pontos da estatística zonal: pontos e imagem têm de estar no mesmo sistema.
+- **Aviso quando o app não sabe reprojetar o CRS da imagem.** Nesse caso o recorte pelo mapa e a entrada de pontos em lat/lon não funcionam, e a faixa diz isso na hora, em vez de deixar você descobrir no meio da medição.
+
+### 🐛 Corrigido
+
+- **O recorte por retângulo podia recortar MUITO além do retângulo marcado.** Com um canto já marcado, clicar de novo no botão «Marcar área e recortar» não limpava o estado: o canto velho sobrevivia, e o próximo clique no mapa fechava um retângulo entre ele e o ponto novo. Medido num caso de teste: **42,1 ha recortados no lugar de 1,0 ha**. O botão agora **cancela** a marcação no modo retângulo (onde o 2º canto conclui sozinho, «concluir» não existe), e nenhum caminho deixa canto pendurado.
+- **O duplo-clique não concluía o polígono — e ainda matava o desenho.** O Leaflet **sintetiza** um `dblclick` sempre que dois cliques caem a menos de 200 ms um do outro, sem olhar a distância entre eles (isso vale em todo navegador que exponha `TouchEvent`, o Safari do macOS incluído). Dois vértices marcados rápido viravam «concluir»: com menos de 3 vértices o app descartava tudo com a mensagem «Marque ao menos 3 vértices». Agora o que separa gesto de vértice é a **distância entre os dois cliques em pixel de tela** — duplo-clique conclui, vértices distintos seguem vértices —, e marcação incompleta **nunca mais joga fora** os pontos já clicados.
+- **Duplo-clique no modo retângulo gerava recorte de área zero** (os dois cantos caíam no mesmo ponto). O clique repetido no mesmo lugar deixou de contar como canto novo.
+- **O recorte por polígono apagava a máscara do próprio arquivo.** Ortomosaico do ODM vem RGBA com alfa = 0 fora da área voada; a máscara do recorte **substituía** essa banda, promovendo o vazio a pixel válido (medido: **3.960 px sem dado virando dado** num caso de teste) — e esses pixels entravam depois na estatística zonal e nos índices de vegetação como se fossem solo ou planta. Agora as duas máscaras se **somam**.
+
+### 🔧 Melhorado
+
+- **O modo retângulo passou a dar retorno visual.** Antes, marcar o 1º canto não mudava nada na tela e o recorte era aplicado no 2º clique sem que você tivesse visto o que marcou. Agora o 1º canto ganha uma marca no mapa, o rótulo do botão diz qual canto falta, e uma **borracha elástica** mostra o retângulo enquanto você move o mouse.
+- **Verificação:** o smoke passou de 28 para **43 asserções**. As 15 novas dirigem os controles **a partir do estado inicial do app** — clicam o rádio, clicam o botão e clicam o mapa, em vez de arrumar o estado interno na mão; foi essa forma de testar que faltava para pegar os defeitos acima. Todas **validadas por mutação (12/12)**, com rodada limpa antes.
+
+> **Nota de honestidade sobre o retângulo.** O retângulo é desenhado em lat/lon e recortado pela sua caixa envolvente no CRS da imagem. As duas coisas não são exatamente a mesma: medido na área do VOO 06 (UTM 23S), a sobra é de **0,2 %** — 0,44 m num retângulo de 200 m —, e chega a ~1 % na borda da zona UTM. É pequeno e **não** era a causa do defeito acima, mas existe e fica registrado.
+
+---
+
 ## [1.20.5] — Agosto 2026
 
 ### 🆕 Adicionado

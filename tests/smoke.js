@@ -76,6 +76,18 @@ async function main() {
   check('estática: o espelho do rodapé NÃO nasce com número de versão (r72a/r74b)',
     espelho !== undefined && !/\d+\.\d+/.test(espelho));
 
+  /* Mesmo motivo, para a faixa de CRS: se o placeholder trouxesse um EPSG de
+     exemplo, as asserções dinâmicas do cenário 3 ficariam verdes com o renderCRS()
+     DESLIGADO — o placeholder sozinho as satisfaz. E um EPSG chumbado no HTML é
+     pior que um número de versão velho: aqui ele mentiria sobre o sistema em que
+     o usuário está medindo. Quem defende esta regra é a estática (r74b). */
+  const espCrs = (html.match(/<b\s+id="crsCode"[^>]*>([^<]*)</) || [])[1];
+  const espNome = (html.match(/<div class="crs-sub" id="crsName"[^>]*>([^<]*)</) || [])[1];
+  console.log('       [captura] espelhos de CRS = ' + JSON.stringify(String(espCrs) + ' | ' + String(espNome)));
+  check('estática: os espelhos de CRS NÃO nascem com código/nome de sistema (r72a/r74b)',
+    espCrs !== undefined && espNome !== undefined &&
+    !/EPSG|\d{4,5}/i.test(espCrs) && !/EPSG|UTM|SIRGAS|WGS/i.test(espNome));
+
   const dom = new JSDOM(html, {
     url: 'https://magoc25.github.io/OrtoFly/ortofly.html',   // origem real → localStorage funciona
     runScripts: 'dangerously',
@@ -242,6 +254,179 @@ async function main() {
   check('sem Leaflet: usuário é avisado ("Mapa indisponível")', String(txt(doc2, 'toast')).includes('Mapa indisponível'));
   check('sem Leaflet: nenhuma exceção não tratada', errs2.length === 0);
   errs2.forEach(e => console.error('       ' + e));
+
+  /* -- cenario 3: FERRAMENTAS DO MAPA dirigidas de verdade (guia r113) ---------
+     O stub encadeavel do cenario 1 nao despacha evento nenhum: `map.on('click')`
+     vira no-op, entao TODA assercao sobre recorte teria de ARRUMAR `_cropPts` na
+     mao -- e assercao que monta o estado nunca descobre que o usuario nao CHEGA
+     nele. Foi esse cego que deixou passar os defeitos de agosto/2026: o recorte
+     por retangulo guardava um canto velho e recortava area que ninguem marcou, e
+     o poligono morria no 2o vertice. Aqui o Leaflet falso DESPACHA eventos e
+     converte lat/lng em pixel de tela, e o cenario clica o radio, clica o botao e
+     clica o mapa -- a partir do estado inicial do app. */
+  function leafletComEventos() {
+    const camadas = [];
+    const alvo = extra => Object.assign({
+      _h: {}, on(t, f) { (this._h[t] = this._h[t] || []).push(f); return this; }, off() { return this; },
+      fire(t, d) { (this._h[t] || []).forEach(f => f(d)); return this; },
+      addTo() { camadas.push(this); return this; }, remove() { const i = camadas.indexOf(this); if (i >= 0) camadas.splice(i, 1); return this; },
+      removeLayer() { return this; }, clearLayers() { return this; }, addLayer() { return this; },
+      setLatLngs(v) { this._ll = v; return this; }, getLatLngs() { return [this._ll]; },
+      getBounds() { return { isValid: () => true }; }, setOpacity() { return this; }, setStyle() { return this; },
+      setLatLng(v) { this._ll = v; return this; }, getLatLng() { return { lat: 0, lng: 0 }; },
+      bindTooltip() { return this; }, openTooltip() { return this; }
+    }, extra || {});
+    // projecao linear e INVERTIVEL: e ela que faz _mesmoPonto conseguir separar
+    // "dois vertices distintos" de "duplo-clique no mesmo lugar" (guia r114 -- o
+    // limiar do gesto vive em pixel de tela, entao o falso precisa ter pixel).
+    const K = 1e5;
+    const mapa = alvo({
+      getContainer() { return { style: {} }; }, setView() { return mapa; }, fitBounds() { return mapa; },
+      createPane() { return { style: {} }; }, getPane() { return { style: {} }; },
+      invalidateSize() { return mapa; }, getZoom() { return 16; }, getCenter() { return { lat: 0, lng: 0 }; },
+      latLngToContainerPoint(ll) { return { x: (ll.lng + 46) * K, y: (7 + ll.lat) * -K }; },
+      containerPointToLatLng(pt) { return { lat: -(pt.y / K) - 7, lng: (pt.x / K) - 46 }; },
+      doubleClickZoom: { enable() {}, disable() {} }, dragging: { enable() {}, disable() {} },
+      scrollWheelZoom: { enable() {}, disable() {} }
+    });
+    const L = {
+      map: () => mapa, tileLayer: () => alvo(), polygon: ll => alvo({ _ll: ll }), polyline: ll => alvo({ _ll: ll }),
+      marker: ll => alvo({ _ll: ll }), circle: () => alvo(), circleMarker: ll => alvo({ _ll: ll }),
+      layerGroup: () => alvo(), featureGroup: () => alvo(), imageOverlay: () => alvo(),
+      divIcon: () => ({}), icon: () => ({}), latLng: (a, b) => ({ lat: a, lng: b }),
+      latLngBounds: () => ({ isValid: () => true, extend() { return this; } }),
+      control: Object.assign(() => alvo(), { scale: () => alvo(), layers: () => alvo(), attribution: () => alvo() }),
+      DomEvent: { stop() {}, preventDefault() {}, stopPropagation() {}, on() {}, off() {}, disableClickPropagation() {} },
+      Browser: {}, Util: {}, CRS: { EPSG3857: {} }, _mapa: mapa
+    };
+    return L;
+  }
+
+  let L3;
+  const errs3 = [];
+  const vc3 = new VirtualConsole();
+  vc3.on('jsdomError', e => errs3.push('jsdomError: ' + ((e && e.message) || e)));
+  const dom3 = new JSDOM(html, {
+    url: 'https://magoc25.github.io/OrtoFly/ortofly.html', runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc3,
+    beforeParse(window) {
+      L3 = leafletComEventos(); window.L = L3;
+      window.fetch = () => Promise.reject(new Error('offline (stub)'));
+      window.URL.createObjectURL = () => 'blob:stub'; window.URL.revokeObjectURL = () => {};
+      window.matchMedia = window.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
+      window.scrollTo = () => {}; window.structuredClone = window.structuredClone || structuredClone;
+      // gap do jsdom, nao do app (guia §35): o recorte com mascara redesenha o raster
+      // num canvas, e sem `canvas` instalado o getContext estoura
+      window.HTMLCanvasElement.prototype.getContext = function () {
+        return { createImageData: (w2, h2) => ({ data: new Uint8ClampedArray(w2 * h2 * 4), width: w2, height: h2 }),
+                 putImageData() {}, drawImage() {}, beginPath() {}, arc() {}, moveTo() {}, lineTo() {},
+                 stroke() {}, fill() {}, fillText() {}, setLineDash() {} };
+      };
+      window.HTMLCanvasElement.prototype.toDataURL = () => 'data:image/png;base64,';
+      window.parseGeoraster = (v, m) => { const H = v[0].length, W = v[0][0].length;
+        return Promise.resolve(Object.assign({ values: v, width: W, height: H, numberOfRasters: v.length,
+          xmax: m.xmin + W * m.pixelWidth, ymin: m.ymax - H * m.pixelHeight, mins: [0], maxs: [255], minValue: 0, maxValue: 255 }, m)); };
+      window.GeoRasterLayer = function () { const g = L3.layerGroup(); g.getBounds = () => ({ isValid: () => true }); g.setOpacity = () => g; return g; };
+      window.GeoTIFF = { fromBlob: () => Promise.reject(new Error('n/a')) };
+    }
+  });
+  const w3 = dom3.window, doc3 = w3.document, ev3 = evOf(w3);
+  await new Promise((res, rej) => {
+    const t = setTimeout(() => rej(new Error('cenario 3: load nao disparou em 5 s')), 5000);
+    if (w3.document.readyState === 'complete') { clearTimeout(t); res(); }
+    else w3.addEventListener('load', () => { clearTimeout(t); res(); });
+  });
+
+  // raster sintetico com georreferencia conhecida (EPSG:31983 -- SIRGAS 2000 / UTM 23S)
+  const banda3 = []; for (let r = 0; r < 40; r++) banda3.push(new Uint8Array(40).fill(120));
+  const alfaOrig = []; for (let r = 0; r < 40; r++) alfaOrig.push(new Uint8Array(40).fill(r < 20 ? 0 : 255));   // metade norte SEM DADO
+  const gr3 = await w3.parseGeoraster([banda3, banda3, banda3, alfaOrig],
+    { noDataValue: null, projection: 31983, xmin: 443000, ymax: 9224000, pixelWidth: 1, pixelHeight: 1 });
+  w3.__gr = gr3;
+  ev3('_rasterMeta={gr:__gr,bands:4,mn:0,mx:255,ycc:false,factor:1,orig:{xmin:__gr.xmin,xmax:__gr.xmax,ymin:__gr.ymin,ymax:__gr.ymax}}');
+  ev3('rasterLayer=buildRasterLayer().addTo(map); $("rasterCtrls").classList.remove("hidden"); renderCRS()');
+
+  /* CRS na tela -- o que o usuario precisa ANTES de colar os pontos */
+  const crsCode = txt(doc3, 'crsCode'), crsName = txt(doc3, 'crsName');
+  console.log('       [captura] faixa de CRS = ' + JSON.stringify(String(crsCode) + ' | ' + String(crsName).slice(0, 90)));
+  check('CRS: a faixa do painel mostra o codigo EPSG do raster aberto',
+    String(crsCode).includes('EPSG:31983'));
+  check('CRS: a faixa nomeia o sistema (nao so o numero)',
+    String(crsName).includes('SIRGAS 2000 / UTM zone 23S'));
+  check('CRS: o selo sobre o mapa acende com o raster', has(doc3, 'crsBadge', 'active') === true);
+  const chkCrs = el(doc3, 'crsShow');
+  if (chkCrs) { chkCrs.checked = false; chkCrs.dispatchEvent(new w3.Event('change')); }
+  check('CRS: desmarcar a caixa apaga o selo do mapa (e a faixa do painel fica)',
+    has(doc3, 'crsBadge', 'active') === false && has(doc3, 'crsBox', 'hidden') === false);
+  if (chkCrs) { chkCrs.checked = true; chkCrs.dispatchEvent(new w3.Event('change')); }
+
+  /* recorte dirigido pelo caminho do usuario */
+  const mapa3 = L3._mapa;
+  const clique = (lat, lng) => mapa3.fire('click', { latlng: { lat, lng } });
+  const dbl = (lat, lng) => mapa3.fire('dblclick', { latlng: { lat, lng } });
+  const modo = v => {
+    const r = doc3.querySelector('input[name="cropMode"][value="' + v + '"]');
+    const o = doc3.querySelector('input[name="cropMode"][value="' + (v === 'rect' ? 'poly' : 'rect') + '"]');
+    if (r) r.checked = true; if (o) o.checked = false;
+  };
+  const btn3 = el(doc3, 'cropDrawBtn');
+  let recortes = 0;
+  const performCropReal = w3.performCrop;   // guardado: `delete` numa global de <script> nao remove (r91d)
+  w3.performCrop = () => { recortes++; return Promise.resolve(); };
+
+  // (a) o dblclick SINTETICO do Leaflet (dois vertices marcados rapido) nao pode
+  //     concluir nem cancelar o desenho -- era o defeito do poligono
+  //     Sao TRES vertices de proposito: com dois o desenho ainda nao tem poligono
+  //     valido, entao concluir cedo nao produz recorte nenhum e a assercao passaria
+  //     com ou sem a correcao -- degeneracao que nao tem como se formar (guia r90).
+  //     Com tres, o dblclick sintetizado RECORTA area que o usuario nao fechou.
+  modo('poly'); recortes = 0; if (btn3) btn3.click();
+  clique(-7.0100, -45.4900); clique(-7.0110, -45.4880); clique(-7.0125, -45.4905);
+  dbl(-7.0125, -45.4905);                       // o Leaflet sintetiza isto sozinho
+  check('recorte/poligono: duplo-clique SINTETIZADO entre vertices distintos nao conclui nem cancela',
+    ev3('_cropDrawing') === true && ev3('_cropPts.length') === 3 && recortes === 0);
+
+  // (b) o duplo-clique DE VERDADE (no mesmo ponto) conclui -- e sem vertice duplicado
+  clique(-7.0120, -45.4860);
+  clique(-7.0120, -45.4860); dbl(-7.0120, -45.4860);
+  check('recorte/poligono: duplo-clique no ULTIMO vertice conclui o recorte',
+    recortes === 1 && ev3('_cropDrawing') === false);
+
+  // (c) retangulo: reclicar o botao com 1 canto marcado LIMPA o estado -- o canto
+  //     velho sobrevivendo era o "recorta alem do retangulo marcado"
+  modo('rect'); recortes = 0; if (btn3) btn3.click();
+  clique(-7.0100, -45.4900);
+  const rotulo1 = btn3 ? String(btn3.textContent) : undefined;
+  if (btn3) btn3.click();
+  const limpo = ev3('_cropDrawing') === false && ev3('_cropPts.length') === 0;
+  clique(-7.0300, -45.4600);                    // clique solto: nao pode virar recorte
+  check('recorte/retangulo: o botao cancela e NAO deixa canto velho para o proximo clique',
+    limpo === true && recortes === 0);
+  check('recorte/retangulo: marcar o 1o canto da retorno visual no botao',
+    rotulo1 !== undefined && /2º canto/.test(rotulo1));
+
+  // (d) duplo-clique no retangulo nao pode virar recorte degenerado (2 cantos iguais)
+  recortes = 0; if (btn3) btn3.click();
+  clique(-7.0150, -45.4850); clique(-7.0150, -45.4850); dbl(-7.0150, -45.4850);
+  check('recorte/retangulo: duplo-clique nao vira recorte de area zero',
+    recortes === 0 && ev3('_cropPts.length') === 1);
+  ev3('cancelCropDraw()');
+
+  // (e) caminho feliz do retangulo: dois cantos de verdade recortam
+  recortes = 0; if (btn3) btn3.click();
+  clique(-7.0100, -45.4900); clique(-7.0200, -45.4700);
+  check('recorte/retangulo: dois cantos distintos recortam', recortes === 1);
+
+  /* mascara do poligono se SOMA a do arquivo (nao substitui) */
+  w3.performCrop = performCropReal;   // volta o recorte de verdade para medir a mascara
+  ev3('_rasterMeta={gr:__gr,bands:4,mn:0,mx:255,ycc:false,factor:1,orig:{xmin:__gr.xmin,xmax:__gr.xmax,ymin:__gr.ymin,ymax:__gr.ymax}}');
+  const llCanto = (E, N) => w3.utmToLatLon(E, N, 23, true);
+  await w3.performCrop([llCanto(443002, 9223998), llCanto(443038, 9223998), llCanto(443038, 9223962), llCanto(443002, 9223962)], true);
+  const semDadoVirouDado = ev3('(function(){ var a=_rasterMeta.gr.values[3], n=0; for(var r=0;r<18;r++) for(var c=0;c<a[r].length;c++) if(a[r][c]!==0) n++; return n; })()');
+  check('recorte/poligono: o alfa do ARQUIVO sobrevive (area sem dado nao vira dado)',
+    semDadoVirouDado === 0);
+
+  check('cenario 3: nenhuma excecao nao tratada', errs3.length === 0);
+  errs3.forEach(e => console.error('       ' + e));
 
   console.log(problems.length ? `\n${problems.length} falha(s).` : '\nSmoke OK ✅');
   process.exit(problems.length ? 1 : 0);   // (os timers do app — ping etc. — seguram o processo; saída explícita)
