@@ -19,7 +19,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ### 🔧 Melhorado
 
 - A espessura é expressa em **fração da largura da imagem**, e não em pixels fixos: assim ela não muda de significado quando o raster é maior, quando você recorta ou quando o zoom muda — o número consegue mesmo carregar a propriedade que promete.
-- **Verificação:** +6 asserções (smoke em **55**), **24/24 na campanha completa de mutação**, com rodada limpa antes. Duas delas são de **ausência** (o fio-cruz tem de sumir ao encerrar) e foram validadas **tirando quem o apaga**, não inserindo padrão nenhum.
+- **Verificação:** +6 asserções (smoke em **54**), **24/24 na campanha completa de mutação**, com rodada limpa antes. Duas delas são de **ausência** (o fio-cruz tem de sumir ao encerrar) e foram validadas **tirando quem o apaga**, não inserindo padrão nenhum.
 
 ---
 
