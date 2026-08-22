@@ -5,6 +5,24 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.21.1] — Agosto 2026
+
+### 🐛 Corrigido
+
+- **O que está marcado no mapa agora sai na imagem salva.** O botão **⬇ Imagem (PNG + worldfile)** exportava só os pixels: você via os buffers na tela e não os encontrava no arquivo — e continuava assim depois de recortar. Medido antes de corrigir: aquele botão **não desenhava nada**, nem com o raster inteiro nem com o recorte. Agora ele salva os **buffers da estatística por pontos** (com os nomes) e a **área desenhada** na aba ✈️ Voo.
+- **A área desenhada (AOI) não saía em export nenhum** — nem na «Figura PNG (com pontos)», que já desenhava os buffers. Passou a sair nos dois.
+
+### 🆕 Adicionado
+
+- **Caixa «Incluir as marcações»**, logo abaixo do botão de exportar imagem, **ligada por padrão**. Desmarque para baixar o **raster limpo**: o PNG + worldfile é feito para abrir no QGIS, e ali as marcações são tinta gravada por cima dos pixels, não dado. O `LEIA-ME.txt` do pacote diz quantas marcações foram gravadas — ou nenhuma —, e o nome do arquivo ganha `_marcado` só quando algo foi de fato desenhado.
+
+### 🔧 Melhorado
+
+- Os dois caminhos de exportação (o botão do painel e a «Figura PNG (com pontos)») passaram a desenhar pela **mesma função**, então cor, estilo e posição das marcações não têm como divergir entre eles.
+- **Verificação:** +5 asserções (smoke em **48**), todas **confirmadas por mutação (17/17 na campanha completa)**. A primeira delas é um **gate do próprio arreio**: ela prova que o teste consegue *enxergar* um desenho no canvas antes de qualquer asserção que dependa de um zero — sem isso, "não desenhou nada" e "o teste é cego" dão o mesmo resultado.
+
+---
+
 ## [1.21.0] — Agosto 2026
 
 ### 🆕 Adicionado

@@ -274,7 +274,8 @@ async function main() {
       setLatLngs(v) { this._ll = v; return this; }, getLatLngs() { return [this._ll]; },
       getBounds() { return { isValid: () => true }; }, setOpacity() { return this; }, setStyle() { return this; },
       setLatLng(v) { this._ll = v; return this; }, getLatLng() { return { lat: 0, lng: 0 }; },
-      bindTooltip() { return this; }, openTooltip() { return this; }
+      bindTooltip() { return this; }, openTooltip() { return this; },
+      bindPopup() { return this; }, openPopup() { return this; }, closePopup() { return this; }
     }, extra || {});
     // projecao linear e INVERTIVEL: e ela que faz _mesmoPonto conseguir separar
     // "dois vertices distintos" de "duplo-clique no mesmo lugar" (guia r114 -- o
@@ -303,6 +304,8 @@ async function main() {
   }
 
   let L3;
+  const pincel = { arc: 0, moveTo: 0, lineTo: 0, stroke: 0, fillText: 0 };
+  pincel.zerar = () => { pincel.arc = pincel.moveTo = pincel.lineTo = pincel.stroke = pincel.fillText = 0; };
   const errs3 = [];
   const vc3 = new VirtualConsole();
   vc3.on('jsdomError', e => errs3.push('jsdomError: ' + ((e && e.message) || e)));
@@ -318,10 +321,13 @@ async function main() {
       // num canvas, e sem `canvas` instalado o getContext estoura
       window.HTMLCanvasElement.prototype.getContext = function () {
         return { createImageData: (w2, h2) => ({ data: new Uint8ClampedArray(w2 * h2 * 4), width: w2, height: h2 }),
-                 putImageData() {}, drawImage() {}, beginPath() {}, arc() {}, moveTo() {}, lineTo() {},
-                 stroke() {}, fill() {}, fillText() {}, setLineDash() {} };
+                 putImageData() {}, drawImage() {}, beginPath() {}, closePath() {},
+                 // o pincel CONTA: é assim que se pergunta "o que saiu desenhado na imagem salva"
+                 arc() { pincel.arc++; }, moveTo() { pincel.moveTo++; }, lineTo() { pincel.lineTo++; },
+                 stroke() { pincel.stroke++; }, fill() {}, fillText() { pincel.fillText++; }, setLineDash() {} };
       };
       window.HTMLCanvasElement.prototype.toDataURL = () => 'data:image/png;base64,';
+      window.HTMLCanvasElement.prototype.toBlob = function (cb) { cb(new window.Blob([''], { type: 'image/png' })); };
       window.parseGeoraster = (v, m) => { const H = v[0].length, W = v[0][0].length;
         return Promise.resolve(Object.assign({ values: v, width: W, height: H, numberOfRasters: v.length,
           xmax: m.xmin + W * m.pixelWidth, ymin: m.ymax - H * m.pixelHeight, mins: [0], maxs: [255], minValue: 0, maxValue: 255 }, m)); };
@@ -424,6 +430,45 @@ async function main() {
   const semDadoVirouDado = ev3('(function(){ var a=_rasterMeta.gr.values[3], n=0; for(var r=0;r<18;r++) for(var c=0;c<a[r].length;c++) if(a[r][c]!==0) n++; return n; })()');
   check('recorte/poligono: o alfa do ARQUIVO sobrevive (area sem dado nao vira dado)',
     semDadoVirouDado === 0);
+
+  /* export: o que esta MARCADO no mapa tem de sair na imagem salva.
+     O usuario relatou os buffers sumindo do arquivo; medido, o botao do painel
+     nao desenhava nada -- nem antes nem depois do recorte. */
+  w3.downloadBlob = () => {};
+  w3.JSZip = function () { this.file = () => {}; this.generateAsync = () => Promise.resolve(new w3.Blob([''])); };
+  ev3('_rasterMeta={gr:__gr,bands:4,mn:0,mx:255,ycc:false,factor:1,orig:{xmin:__gr.xmin,xmax:__gr.xmax,ymin:__gr.ymin,ymax:__gr.ymax}}');
+  const campoPts = el(doc3, 'zonalPts'), campoRaio = el(doc3, 'zonalRadius');
+  if (campoPts) campoPts.value = 'P1 443010 9223990\nP2 443020 9223980';
+  if (campoRaio) campoRaio.value = '5';
+  ev3('zonalCompute()');
+  const nPts = ev3('_zonalResults && _zonalResults.results ? _zonalResults.results.length : 0');
+
+  /* GATE do arreio (r117c): antes de dar valor a um zero, provo que este pincel
+     CONSEGUE ver desenho — pelo botao "Figura PNG (com pontos)", que sempre desenhou. */
+  pincel.zerar(); await w3.exportRasterImage(true);
+  const pincelEnxerga = pincel.arc > 0;
+  console.log('       [captura] pincel no caminho que sempre desenhou: arc=' + pincel.arc + ' fillText=' + pincel.fillText);
+  check('export: o arreio consegue ver desenho no canvas (gate — sem isto os zeros abaixo nao valem)',
+    nPts >= 2 && pincelEnxerga);
+
+  pincel.zerar(); await w3.exportRasterImage(false);
+  check('export: o botao do painel salva os BUFFERS marcados no mapa',
+    pincel.arc >= 2 && pincel.fillText >= 2);
+  check('export: e salva tambem a AREA DESENHADA (AOI) — que nao saia em export nenhum',
+    pincel.moveTo >= 1 && pincel.lineTo >= 2);
+
+  const cxMarks = el(doc3, 'exportMarks');
+  if (cxMarks) cxMarks.checked = false;
+  pincel.zerar(); await w3.exportRasterImage(false);
+  check('export: desmarcar "Incluir as marcacoes" salva o raster LIMPO (o .pgw serve ao QGIS)',
+    pincel.arc === 0 && pincel.moveTo === 0 && pincel.fillText === 0);
+  if (cxMarks) cxMarks.checked = true;
+
+  // e depois de RECORTAR, que foi o caso do relato
+  await w3.performCrop([llCanto(443002, 9223998), llCanto(443038, 9223998), llCanto(443038, 9223962), llCanto(443002, 9223962)], false);
+  pincel.zerar(); await w3.exportRasterImage(false);
+  check('export: depois do RECORTE as marcacoes continuam saindo na imagem salva',
+    pincel.arc >= 2 && pincel.fillText >= 2);
 
   check('cenario 3: nenhuma excecao nao tratada', errs3.length === 0);
   errs3.forEach(e => console.error('       ' + e));

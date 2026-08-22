@@ -311,7 +311,8 @@ footer{
         <div id="indexInfo" class="spec" style="margin-bottom:6px"></div>
         <button class="btn sm block hidden" id="indexClearBtn" onclick="clearIndex()" style="margin-bottom:6px">↺ Voltar à cor real (RGB)</button>
         <p class="hint" style="margin-top:0;margin-bottom:6px">Índices RGB são <b>proxies de vigor</b> da vegetação — <b>não são NDVI</b> (que exige câmera multiespectral com infravermelho).</p>
-        <button class="btn sm block" onclick="exportRasterImage(false)" style="margin-bottom:6px">⬇ Imagem (PNG + worldfile)</button>
+        <button class="btn sm block" onclick="exportRasterImage(false)" style="margin-bottom:2px">⬇ Imagem (PNG + worldfile)</button>
+        <label for="exportMarks" style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);margin:0 0 6px;cursor:pointer"><input type="checkbox" id="exportMarks" checked style="width:auto" /> Incluir as marcações (área desenhada e buffers)</label>
         <button class="btn sm block" onclick="clearRaster()">🗑️ Remover raster</button>
       </div>
       <p class="hint">2D: ortomosaico/DSM (GeoTIFF/COG) no mapa. 3D: nuvem LAS/LAZ/PLY ou malha OBJ/glTF/GLB.</p>
@@ -683,7 +684,7 @@ footer{
 <script src="./vendor/three/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly v1.20.5 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.21.0';
+const APP_VERSION = '1.21.1';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -2126,6 +2127,44 @@ function _renderRasterCanvas(maxPx){
   for(let oy=0;oy<oh;oy++){ const sy=Math.min(H-1,Math.floor(oy/scale)); for(let ox=0;ox<ow;ox++){ const sx=Math.min(W-1,Math.floor(ox/scale)); for(let bd=0;bd<nb;bd++) buf[bd]=vals[bd][sy][sx]; const col=colorFn(nb===1?buf[0]:buf), o=(oy*ow+ox)*4; if(col){ data[o]=col[0]; data[o+1]=col[1]; data[o+2]=col[2]; data[o+3]=255; } } }
   ctx.putImageData(im,0,0); return {cv,ctx,scale,ow,oh};
 }
+/* Desenha sobre o canvas do export o que está MARCADO no mapa: a área desenhada
+   (AOI do voo) e os buffers da estatística zonal, com os nomes dos pontos.
+   Existe porque o botão do painel exportava só os pixels: o usuário via os círculos
+   na tela e não os achava no arquivo salvo — medido, ele não desenhava nada, nem
+   antes nem depois do recorte. FONTE ÚNICA: os dois botões de export passam por
+   aqui, então estilo, cor e posição não têm como divergir entre eles (guia r71b).
+   Devolve QUANTAS marcas desenhou — o nome do arquivo e o LEIA-ME derivam disso, e
+   não da intenção: sem isso o aviso afirmaria "inclui buffers" num arquivo sem
+   nenhum (o raster pode estar recortado longe dos pontos). */
+function _desenharMarcas(ctx,gr,scale,ow){
+  let n=0;
+  const px=x=>((x-gr.xmin)/gr.pixelWidth)*scale, py=y=>((gr.ymax-y)/gr.pixelHeight)*scale;
+  const lw=Math.max(1.5,ow/700);
+  // (a) área desenhada na aba ✈️ Voo — vem em lat/lon, então precisa do CRS do raster
+  if(typeof state==='object' && state.polygon && state.polygon.length>=3){
+    const xy=[]; for(const q of state.polygon){ const c=_llToXY(q[0],q[1]); if(!c){ xy.length=0; break; } xy.push(c); }
+    if(xy.length>=3){
+      ctx.strokeStyle='#36d399'; ctx.lineWidth=lw*1.2; ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(px(xy[0][0]),py(xy[0][1]));
+      for(let i=1;i<xy.length;i++) ctx.lineTo(px(xy[i][0]),py(xy[i][1]));
+      ctx.closePath(); ctx.stroke(); n++;
+    }
+  }
+  // (b) buffers da estatística zonal (X/Y já estão no CRS do raster)
+  if(_zonalResults && _zonalResults.results){
+    const color=($('zonalColor')&&$('zonalColor').value)||'#1a9e4b', style=($('zonalStyle')&&$('zonalStyle').value)||'solido';
+    ctx.font=`${Math.max(11,Math.round(ow/90))}px sans-serif`; ctx.textBaseline='bottom';
+    _zonalResults.results.forEach(r=>{ if(r.area||r.X==null||r.Y==null) return;
+      const cx=px(r.X), cy=py(r.Y), rpx=Math.max(2,((r.radius!=null?r.radius:_zonalResults.radius)/gr.pixelWidth)*scale), col=r.error?'#e0533d':color;
+      ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=lw;
+      ctx.setLineDash(style==='pontilhado'?[lw*3,lw*3]:[]);
+      ctx.beginPath(); ctx.arc(cx,cy,rpx,0,2*Math.PI); ctx.stroke(); ctx.setLineDash([]);
+      if(style==='ponto'){ ctx.beginPath(); ctx.arc(cx,cy,Math.max(1.5,ow/450),0,2*Math.PI); ctx.fill(); }
+      else if(style==='cruz'){ const k=Math.max(4,rpx*0.5); ctx.beginPath(); ctx.moveTo(cx-k,cy); ctx.lineTo(cx+k,cy); ctx.moveTo(cx,cy-k); ctx.lineTo(cx,cy+k); ctx.stroke(); }
+      ctx.fillText(r.name, cx+rpx+3, cy-2); n++; });
+  }
+  return n;
+}
 async function exportRasterImage(withPoints){
   if(!_rasterMeta||!_rasterMeta.gr){ toast('Carregue um raster (GeoTIFF/COG) primeiro','error'); return; }
   const gr=_rasterMeta.gr, vals=gr.values; if(!vals||!vals.length||!vals[0]){ toast('Raster sem pixels em memória','error'); return; }
@@ -2133,23 +2172,17 @@ async function exportRasterImage(withPoints){
   try{
     rasterStatus('Renderizando imagem…');
     const {cv,ctx,scale,ow}=_renderRasterCanvas(2500);
-    if(withPoints){ const color=($('zonalColor')&&$('zonalColor').value)||'#1a9e4b'; const style=($('zonalStyle')&&$('zonalStyle').value)||'solido';
-      const lw=Math.max(1.5,ow/700); ctx.font=`${Math.max(11,Math.round(ow/90))}px sans-serif`; ctx.textBaseline='bottom';
-      _zonalResults.results.forEach(r=>{ if(r.area||r.X==null||r.Y==null) return; const cx=((r.X-gr.xmin)/gr.pixelWidth)*scale, cy=((gr.ymax-r.Y)/gr.pixelHeight)*scale, rpx=Math.max(2,((r.radius!=null?r.radius:_zonalResults.radius)/gr.pixelWidth)*scale), col=r.error?'#e0533d':color;
-        ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=lw;
-        ctx.setLineDash(style==='pontilhado'?[lw*3,lw*3]:[]);
-        ctx.beginPath(); ctx.arc(cx,cy,rpx,0,2*Math.PI); ctx.stroke(); ctx.setLineDash([]);
-        if(style==='ponto'){ ctx.beginPath(); ctx.arc(cx,cy,Math.max(1.5,ow/450),0,2*Math.PI); ctx.fill(); }
-        else if(style==='cruz'){ const k=Math.max(4,rpx*0.5); ctx.beginPath(); ctx.moveTo(cx-k,cy); ctx.lineTo(cx+k,cy); ctx.moveTo(cx,cy-k); ctx.lineTo(cx,cy+k); ctx.stroke(); }
-        ctx.fillText(r.name, cx+rpx+3, cy-2); }); }
+    // a caixa do painel manda; o botão "Figura PNG (com pontos)" força, porque ali
+    // a marcação é o propósito da figura
+    const chk=$('exportMarks'), nMarcas=(withPoints||!!(chk&&chk.checked))?_desenharMarcas(ctx,gr,scale,ow):0;
     const pw=gr.pixelWidth/scale, ph=gr.pixelHeight/scale;
     const wld=[pw,0,0,-ph,gr.xmin+pw/2,gr.ymax-ph/2].map(v=>v.toFixed(10)).join('\n')+'\n';
     const blob=await new Promise(res=>cv.toBlob(res,'image/png'));
-    const base='ortofly_'+(_rasterIndex?_rasterIndex.toLowerCase():'imagem')+(withPoints?'_pontos':'');
+    const base='ortofly_'+(_rasterIndex?_rasterIndex.toLowerCase():'imagem')+(nMarcas?'_marcado':'');
     const sh=_rasterShift&&(_rasterShift.dx||_rasterShift.dy)?`Georreferencia JA INCLUI a correcao por pontos de controle (dx=${_rasterShift.dx.toFixed(2)} m, dy=${_rasterShift.dy.toFixed(2)} m).`:'Sem correcao por pontos de controle aplicada.';
     const idxNote=_rasterIndex?`A imagem esta colorida pelo INDICE DE VEGETACAO ${_rasterIndex} (${VEG_DESC[_rasterIndex]||''}), derivado das bandas RGB — proxy de vigor; NAO e NDVI (que exige infravermelho).\n`:'';
     const zip=new JSZip(); zip.file(base+'.png',blob); zip.file(base+'.pgw',wld);
-    zip.file('LEIAME.txt',`Imagem exportada pelo OrtoFly (v${APP_VERSION}).\n\nO arquivo .pgw (world file) georreferencia o .png. CRS: EPSG:${(+gr.projection||'?')} — defina este CRS ao abrir no QGIS.\n${sh}\n${idxNote}${withPoints?'A figura inclui os buffers (circulos) e os nomes dos pontos para uso em metodologia.\n':''}\nOBSERVACAO: este e um PNG georreferenciado (raster + world file). Ele abre direto no QGIS e e ideal para mapas e figuras. NAO e um GeoTIFF: para um GeoTIFF corrigido "de verdade" (com o cabecalho/CRS reescrito no proprio arquivo), o navegador nao e o ambiente ideal — use o QGIS (ferramenta Georeferencer) se voce precisar do GeoTIFF corrigido.\n`);
+    zip.file('LEIAME.txt',`Imagem exportada pelo OrtoFly (v${APP_VERSION}).\n\nO arquivo .pgw (world file) georreferencia o .png. CRS: EPSG:${(+gr.projection||'?')} — defina este CRS ao abrir no QGIS.\n${sh}\n${idxNote}${nMarcas?'MARCACOES: a imagem traz '+nMarcas+' marcacao(oes) DESENHADAS POR CIMA dos pixels (area desenhada no app e/ou buffers com os nomes dos pontos). Elas fazem parte da FIGURA, nao do dado: os pixels sob elas foram sobrescritos. Para o raster limpo, desmarque "Incluir as marcacoes" antes de baixar.\n':''}\nOBSERVACAO: este e um PNG georreferenciado (raster + world file). Ele abre direto no QGIS e e ideal para mapas e figuras. NAO e um GeoTIFF: para um GeoTIFF corrigido "de verdade" (com o cabecalho/CRS reescrito no proprio arquivo), o navegador nao e o ambiente ideal — use o QGIS (ferramenta Georeferencer) se voce precisar do GeoTIFF corrigido.\n`);
     const out=await zip.generateAsync({type:'blob'}); downloadBlob(out, base+'.zip');
     rasterStatus(''); toast('Imagem exportada (PNG + worldfile) ✅');
   }catch(e){ console.error('[img export]',e); rasterStatus(''); toast('Erro ao exportar imagem: '+e.message,'error'); }
