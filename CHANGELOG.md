@@ -5,6 +5,20 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.23.0] — Setembro 2026
+
+### 🆕 Adicionado
+
+- **DJI Air 2S (Mavic Air 2S) no banco de câmeras** da aba ✈️ Voo. Os números vêm de duas fontes, e não de memória: sensor **1" (13,2 × 8,8 mm)**, imagem **5472 × 3648** e autonomia de **31 min** da **ficha oficial da DJI** (manual do Air 2S, v1.2, apêndice de especificações); e a distância focal **8,38 mm**, que é a que a própria câmera (modelo **FC3411**) grava na EXIF das fotos — a mesma de que o ODM e o Pix4D partem ao processar. A 100 m de altura: **GSD ≈ 2,88 cm/px**.
+  - Como nos outros drones que voam pelo **DJI Fly**, o app avisa ao gerar o plano que o KMZ de waypoints pode não servir e sugere o **KML** ou o **CSV (Litchi)**.
+
+### 🔧 Melhorado
+
+- **O aviso de "área grande demais" agora diz o número.** Antes: *"Área muito grande para esta sobreposição/altura"* — apresentava como fato sobre a área um limite que é **escolha do app**. Agora: *"daria cerca de **N** linhas de voo, e o app monta grades de até **2.500**"*, com as mesmas três saídas (subir a altura, reduzir a sobreposição, dividir a área). O limite vive numa constante só, lida pela guarda **e** pelo aviso — o número dito é sempre o que vale.
+- **Verificação:** smoke 67 → **70 asserções** — a entrada do Air 2S conferida **contra as fontes** (o teste guarda os números da ficha e da EXIF, fora do app, justamente para pegar um dígito trocado), o drone escolhido **pelo seletor da tela** dando o GSD das fontes, e o aviso de área grande dizendo o limite e a contagem. **18/18 confirmadas por mutação** (a campanha inteira rodada de novo, porque o arreio mudou), com rodada limpa antes.
+
+---
+
 ## [1.22.1] — Setembro 2026
 
 ### 🐛 Corrigido

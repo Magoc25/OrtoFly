@@ -701,7 +701,7 @@ footer{
 <script src="./vendor/three/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly — © 2026 MGC Dev (versão: só em APP_VERSION) ═══════════════ */
-const APP_VERSION = '1.22.1';
+const APP_VERSION = '1.23.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -726,6 +726,9 @@ const DRONES = [
   {id:'mini4pro', name:'DJI Mini 4 Pro',         sw:9.6,  sh:7.2,  focal:6.72,  iw:8064, ih:6048, fmin:45, cruise:6},
   {id:'air3',     name:'DJI Air 3 (grande-ang.)',sw:9.6,  sh:7.2,  focal:6.72,  iw:8064, ih:6048, fmin:46, cruise:8},
   {id:'air3s',    name:'DJI Air 3S (1")',         sw:13.2, sh:8.8,  focal:8.8,   iw:8192, ih:6144, fmin:45, cruise:8},
+  // Air 2S (câmera FC3411): sensor 1", 5472×3648 e 31 min da ficha oficial DJI (manual v1.2, apêndice);
+  // focal 8,38 mm = a gravada na EXIF da própria câmera (o Pix4D a nomeia FC3411_8.4_5472x3648)
+  {id:'air2s',    name:'DJI Air 2S / Mavic Air 2S (1")',sw:13.2,sh:8.8, focal:8.38, iw:5472, ih:3648, fmin:31, cruise:7},
   {id:'mavic3',   name:'DJI Mavic 3 / Classic',  sw:17.3, sh:13.0, focal:12.29, iw:5280, ih:3956, fmin:46, cruise:8},
   {id:'mavic3pro',name:'DJI Mavic 3 Pro (Hassel.)',sw:17.3,sh:13.0, focal:12.29, iw:5280, ih:3956, fmin:43, cruise:8},
   {id:'mavic3e',  name:'DJI Mavic 3E (Enterprise)',sw:17.3,sh:13.0, focal:12.29, iw:5280, ih:3956, fmin:45, cruise:9, wpml:{drone:[77,0],payload:[66,0]}},
@@ -824,13 +827,17 @@ function autoBearing(poly){ // direção do lado mais longo (graus, 0=N)
   for(let i=0;i<xy.length;i++){ const j=(i+1)%xy.length; const dx=xy[j][0]-xy[i][0], dy=xy[j][1]-xy[i][1]; const l=Math.hypot(dx,dy); if(l>bl){bl=l; best=(Math.atan2(dx,dy)*180/Math.PI+360)%360;} }
   return best;
 }
+// Teto ESCOLHIDO pelo app (não é limite do drone nem da área): acima disto a grade não é montada.
+// Fonte única — a guarda e o aviso ao usuário leem daqui, então o número dito é sempre o que vale (r71b/r112d).
+const GRADE_MAX_LINHAS=2500;
 function generateGrid(poly, lineSpacing, photoSpacing, bearingDeg){
   if(poly.length<3 || lineSpacing<=0 || photoSpacing<=0) return null;
   const f=localFrame(poly); const P=poly.map(f.toXY);
   const b=bearingDeg*Math.PI/180; const dv=[Math.sin(b),Math.cos(b)]; const av=[Math.cos(b),-Math.sin(b)];
   const dot=(p,v)=>p[0]*v[0]+p[1]*v[1];
   let aMin=Infinity,aMax=-Infinity; P.forEach(p=>{const a=dot(p,av); if(a<aMin)aMin=a; if(a>aMax)aMax=a;});
-  if((aMax-aMin)/lineSpacing > 2500) return {tooBig:true};
+  const nLin=(aMax-aMin)/lineSpacing;
+  if(nLin > GRADE_MAX_LINHAS) return {tooBig:true, nLinhas:Math.ceil(nLin)};
   const segs=[];
   for(let off=aMin+lineSpacing/2; off<aMax; off+=lineSpacing){
     const hits=[];
@@ -926,7 +933,7 @@ function renderOutputs(plan){
   set('oArea', ha>=1?fmt(ha,1):fmt(areaM2,0)); $('oAreaU').textContent= ha>=1?'ha':'m²';
   const g=plan.grid;
   if(!g){ ['oPhotos','oDist','oTime','oBatt'].forEach(i=>set(i,'—')); set('oLines','— linhas'); $('planNote').innerHTML='<p class="empty">Desenhe a área (✏️) para gerar a grade de voo.</p>'; return; }
-  if(g.tooBig){ ['oPhotos','oDist','oTime','oBatt'].forEach(i=>set(i,'—')); set('oLines','— linhas'); $('planNote').innerHTML='<div class="note">Área muito grande para esta sobreposição/altura. Aumente a altura, reduza a sobreposição ou divida a área.</div>'; return; }
+  if(g.tooBig){ ['oPhotos','oDist','oTime','oBatt'].forEach(i=>set(i,'—')); set('oLines','— linhas'); $('planNote').innerHTML='<div class="note">Área grande demais para esta sobreposição/altura: daria cerca de '+fmt(g.nLinhas,0)+' linhas de voo, e o app monta grades de até '+fmt(GRADE_MAX_LINHAS,0)+'. Aumente a altura, reduza a sobreposição ou divida a área.</div>'; return; }
   const nP=g.waypoints.length;   // transições entre linhas já contam no pathLL
   const distKm=g.lengthM/1000;
   const tSec=g.lengthM/plan.speed + g.nLines*9 + nP*0.7 + plan.alt*1.5; // voo + curvas + fotos + subida

@@ -659,6 +659,40 @@ async function main() {
   check('exemplo de GSD: o valor sugerido, pelo botao, leva a uma altura cujo GSD bate com ele (±2%)',
     foiGsd && isFinite(alvoGsd) && alvoGsd > 0 && typeof gsdObtido === 'number' && Math.abs(gsdObtido - alvoGsd) / alvoGsd < 0.02);
 
+  /* (e) Air 2S (câmera FC3411) — o teste do DADO, não do mecanismo (guia r71a).
+     Os números esperados estão aqui DE PROPÓSITO, fora do app: sensor 1" (13,2×8,8 mm),
+     5472×3648 e 31 min da ficha oficial DJI (manual do Air 2S v1.2, apêndice), e a focal
+     8,38 mm que a própria câmera grava na EXIF. Um dígito trocado na tabela muda a altura
+     de voo de toda missão planejada com esse drone, e nenhum teste de mecanismo veria. */
+  const a2Json = ev4("(function(){ var d=DRONES.find(function(x){ return x.id==='air2s'; }); return d ? JSON.stringify(d) : null; })()");
+  const a2 = a2Json ? JSON.parse(a2Json) : null;
+  console.log('       [captura] entrada Air 2S = ' + String(a2Json));
+  check('Air 2S: a tabela bate com a ficha DJI e a EXIF da FC3411 (13,2×8,8 mm · 8,38 mm · 5472×3648 · 31 min · sem WPML)',
+    !!a2 && a2.sw === 13.2 && a2.sh === 8.8 && a2.focal === 8.38 && a2.iw === 5472 && a2.ih === 3648 && a2.fmin === 31 && !a2.wpml);
+  // pela TELA, a partir do seletor (r113): escolhe o drone pelo nome que o usuário procura e voa a 100 m
+  const selDrone = el(doc4, 'drone');
+  const optA2 = selDrone ? [...selDrone.options].find(o => /Air 2S/.test(o.textContent)) : undefined;
+  if (selDrone && optA2) { selDrone.value = optA2.value; selDrone.dispatchEvent(new w4.Event('change')); }
+  const campoAlt = el(doc4, 'altNum');
+  if (campoAlt) { campoAlt.value = '100'; campoAlt.dispatchEvent(new w4.Event('input')); }
+  await new Promise(r => setTimeout(r, 300));   // o campo de altura recalcula com espera de 140 ms
+  const gsdA2 = ev4('state.lastPlan ? state.lastPlan.gsd : null'), notaA2 = String(txt(doc4, 'planNote'));
+  const gsdFonte = 13.2 * 100 * 100 / (8.38 * 5472);   // cm/px a 100 m, direto das fontes
+  console.log('       [captura] Air 2S a 100 m: GSD ' + gsdA2 + ' cm/px (fonte: ' + gsdFonte.toFixed(4) + ') · rótulo "' + (optA2 ? optA2.textContent : '—') + '"');
+  check('Air 2S: escolhido no seletor, a 100 m dá o GSD das fontes (~2,88 cm/px) e é tratado como drone de DJI Fly (KML/CSV)',
+    !!optA2 && typeof gsdA2 === 'number' && Math.abs(gsdA2 - gsdFonte) / gsdFonte < 0.005 && /CSV \(Litchi\)/.test(notaA2));
+
+  /* (f) área grande demais: o aviso diz o LIMITE (escolha do app) e quantas linhas o plano daria (r112d).
+     O limite é lido da constante do app, não escrito aqui: o que se prova é que o aviso usa a fonte única. */
+  if (campoAlt) { campoAlt.value = '5'; campoAlt.dispatchEvent(new w4.Event('input')); }
+  ev4('state.polygon=[[-7.00,-45.55],[-7.00,-45.45],[-7.10,-45.45],[-7.10,-45.55]]');
+  await new Promise(r => setTimeout(r, 300));
+  const notaGrande = String(txt(doc4, 'planNote')), limiteLin = ev4('GRADE_MAX_LINHAS');
+  const nDito = parseInt(((notaGrande.match(/cerca de ([\d.]+) linhas/) || [])[1] || '').replace(/\./g, ''), 10);
+  console.log('       [captura] aviso de área grande = ' + JSON.stringify(notaGrande.slice(0, 170)));
+  check('área grande: o aviso diz o limite do app e quantas linhas o plano daria (r112d)',
+    typeof limiteLin === 'number' && notaGrande.includes(limiteLin.toLocaleString('pt-BR')) && nDito > limiteLin);
+
   await new Promise(r => setTimeout(r, 50));   // deixa uma rejeição do último Testar chegar ao registro
   const rej4 = rejeicoes.slice(rej0);
   check('cenario 4: nenhuma excecao nao tratada (nem promessa rejeitada sem tratamento)', errs4.length === 0 && rej4.length === 0);
