@@ -1,6 +1,6 @@
 # Termos de Uso — OrtoFly
 
-**Versão:** 1.0.0 · **Última atualização:** Maio de 2026
+**Versão:** 1.1.0 · **Última atualização:** Setembro de 2026
 
 Ao usar o **OrtoFly** ("o app"), você concorda com estes Termos. Se não concordar,
 não utilize o aplicativo. O OrtoFly é um projeto pessoal e independente de
@@ -56,8 +56,12 @@ Confira sempre os parâmetros gerados antes de executar qualquer missão.
   (armazenamento local do navegador). O autor não tem acesso a eles.
 - O mapa de satélite/base é carregado de provedores de terceiros (Esri, OpenStreetMap);
   ao visualizar uma região, o provedor de mapas recebe o pedido dos blocos correspondentes.
-- Se você enviar uma **avaliação**, o nome e o comentário informados são armazenados em
-  um banco de dados compartilhado e ficam **visíveis publicamente** para outros usuários.
+- Se você enviar uma **avaliação**, o nome, a nota, o comentário, a data e hora e a caixa
+  **«Já apoiei via PIX ☕»** (vem marcada; desmarque se não for o caso) são armazenados em um
+  banco de dados compartilhado; nome, nota, comentário e data ficam **visíveis publicamente**
+  para outros usuários.
+- Na aba **⚙️ Processar**, suas fotos são enviadas **somente** para o servidor NodeODM cujo
+  endereço você informa (no seu computador ou num servidor seu). O autor não as recebe.
 - O app envia **um ping anônimo por dia** ao Supabase do autor para contagem de
   dispositivos ativos. O ping contém apenas: nome do app, versão, data e um identificador
   aleatório gerado no dispositivo (sem vínculo com dados pessoais). Não é possível

@@ -12,7 +12,7 @@ Desenvolvido por **Marlon Gomes da Costa (MGC Dev)**
 >
 > 💬 **Ajude a validar!** Testou? **Conte como foi** — funcionou no seu fluxo? o ortomosaico/DSM ficou coerente com a realidade medida em campo? Relatos sobre o funcionamento e a **qualidade dos produtos** são muito bem-vindos e orientam a evolução do app. Use a **avaliação dentro do app** ou [abra uma issue no GitHub](https://github.com/Magoc25/OrtoFly/issues).
 
-[![Versão](https://img.shields.io/badge/versão-1.22.0-blue)](./CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/versão-1.22.1-blue)](./CHANGELOG.md)
 [![Status](https://img.shields.io/badge/status-beta%20%C2%B7%20em%20valida%C3%A7%C3%A3o-yellow)](./TERMS.md)
 [![Licença](https://img.shields.io/badge/licença-não%20comercial-orange)](#-licença-e-termos-de-uso)
 [![PIX](https://img.shields.io/badge/apoie-PIX-brightgreen)](#-apoiar-o-projeto)
@@ -26,7 +26,7 @@ O app já está publicado online. Clique e use:
 
 **[▶ Abrir OrtoFly](https://Magoc25.github.io/OrtoFly/ortofly.html)**
 
-Funciona em qualquer navegador moderno (Chrome, Edge, Firefox, Safari) — no celular, tablet ou computador. **Não precisa de cadastro, login, conta GitHub ou download de arquivos.** Após o primeiro acesso, o app funciona **offline**. Seus dados ficam **somente no seu dispositivo** (no armazenamento do próprio navegador).
+Funciona em qualquer navegador moderno (Chrome, Edge, Firefox, Safari) — no celular, tablet ou computador. _(Uma exceção: a aba **⚙️ Processar** com o NodeODM no **próprio computador** pede o **Chrome** ou o **Edge** — o Safari recusa essa conexão; veja o [guia do Mac](./Guia-Local-macOS-NodeODM.md).)_ **Não precisa de cadastro, login, conta GitHub ou download de arquivos.** Após o primeiro acesso, o app funciona **offline**. Seus dados ficam **somente no seu dispositivo** (no armazenamento do próprio navegador).
 
 > 🔎 **Quer entender antes de usar?** A página **[OrtoFly, por dentro](https://Magoc25.github.io/OrtoFly/apresentacao.html)** explica como o app planeja o voo, **onde os seus dados moram** e exatamente o que sai (ou não) do seu aparelho — com um interruptor para ler em linguagem simples ou técnica.
 
@@ -36,7 +36,7 @@ Depois de abrir a URL acima, você pode instalar como aplicativo nativo, com íc
 
 | Plataforma | Como instalar |
 |---|---|
-| **Mac (Safari)** | Menu **Arquivo → "Adicionar ao Dock"** — o app ganha ícone próprio, janela sem barra de endereços e entra no Launchpad |
+| **Mac (Safari)** | Menu **Arquivo → "Adicionar ao Dock"** — o app ganha ícone próprio, janela sem barra de endereços e entra no Launchpad. _Para **processar** no próprio Mac (aba ⚙️ Processar → PC Local), use o Chrome ou o Edge: o Safari não conecta ao NodeODM local, e o app avisa._ |
 | **Mac (Chrome / Edge)** | Ícone de instalação (☐ com seta) na barra de endereços → Instalar |
 | **Windows / Linux (Chrome / Edge)** | Ícone de instalação (☐ com seta) na barra de endereços → Instalar |
 | **Android (Chrome)** | Menu (⋮) → "Instalar app" ou "Adicionar à tela inicial" |
@@ -115,7 +115,7 @@ O OrtoFly **não controla o drone diretamente** — por restrições do SDK da D
 
 ### ⚙️ Processamento (ortomosaico métrico) — opcional
 
-- **Integração com NodeODM (OpenDroneMap)** — conecta a um servidor **local** (seu computador) ou em **VM na nuvem**, processa as suas fotos e gera **ortomosaico**, **DSM/DTM**, **nuvem de pontos** e **malha 3D** — sem enviar nada para serviços de terceiros.
+- **Integração com NodeODM (OpenDroneMap)** — conecta a um servidor **local** (seu computador) ou em **VM na nuvem**, processa as suas fotos e gera **ortomosaico**, **DSM/DTM**, **nuvem de pontos** e **malha 3D** — sem enviar nada para serviços de terceiros. Com o servidor **local**, use o **Chrome** ou o **Edge** (o Safari recusa a conexão de uma página `https://` com o `http://` do próprio computador); se a conexão falhar, a mensagem diz a causa provável no seu navegador.
 - **Fluxo de resultado limpo** — ao concluir, **salve** os produtos dentro do app (abrem offline) ou **descarte**, liberando o disco do servidor.
 
 ---
@@ -152,7 +152,7 @@ Guias passo a passo (bem detalhados, mesmo para quem não usa terminal):
 | Onde rodar | Guia |
 |---|---|
 | 🖥️ **Windows** | [Configurar no Windows (WSL + Docker)](./Guia-Local-Windows-WSL-NodeODM.md) |
-| 🍎 **macOS** | [Configurar no Mac (Docker)](./Guia-Local-macOS-NodeODM.md) |
+| 🍎 **macOS** | [Configurar no Mac (Docker Desktop ou Colima)](./Guia-Local-macOS-NodeODM.md) |
 | ☁️ **Servidor remoto (sua VPS / outro PC)** | Rode o NodeODM nele (os mesmos passos do Docker) e aponte a aba **Processar** para a URL `https://…` dele — o app é só o cliente. |
 
 > 💡 É **opcional** — use só se quiser gerar os produtos de fotogrametria. Tudo roda **localmente**, suas imagens não saem do seu dispositivo.
@@ -214,6 +214,8 @@ Clique em **☕ Apoiar** no rodapé do app para contribuir via PIX.
 
 Apoiando ou não, deixe uma avaliação com **estrelas e comentário** (botão ⭐ Avaliações,
 no rodapé do app). As avaliações são **compartilhadas entre todos os usuários** do app.
+Junto vão o nome que você escolher (pode ser apelido), a data e a caixa **«Já apoiei via PIX ☕»** —
+ela **vem marcada**; desmarque se não for o caso. Detalhes no [Aviso de Privacidade](./PRIVACY.md).
 
 ---
 

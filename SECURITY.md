@@ -1,6 +1,6 @@
 # Política de Segurança — OrtoFly
 
-**Versão:** 1.1 · **Última atualização:** Julho de 2026
+**Versão:** 1.2 · **Última atualização:** Setembro de 2026
 
 Este documento descreve as medidas de segurança do **OrtoFly**, o canal de reporte de
 vulnerabilidades e o plano de resposta a incidentes, em linha com a
@@ -15,7 +15,9 @@ O OrtoFly opera em camadas com responsabilidades distintas:
 
 - **Camada 1 (controlador):** banco de dados compartilhado de avaliações e contagem de
   dispositivos (Supabase), código distribuído e versão hospedada no GitHub Pages.
-- **Camada 2 (usuário):** dados do app no `localStorage` e no dispositivo do usuário.
+- **Camada 2 (usuário):** dados do app no armazenamento do navegador (`localStorage`, IndexedDB)
+  e no dispositivo do usuário; e o servidor NodeODM que ele mesmo roda ou indica, para onde vão
+  as fotos da aba Processar.
 - **Camada 3 (terceiros):** provedores de mapa e o serviço de QR Code, acionados em razão
   do funcionamento técnico. *(Desde a v1.19.0 as bibliotecas do app são servidas pelo
   próprio site — não há mais CDNs de terceiros.)*
@@ -49,8 +51,8 @@ navegador. Esconder um botão é interface, não controle de acesso.
 
 Por isso o app **não possui** login, papel, área restrita nem recurso pago — e não deve
 passar a ter enquanto não houver um backend que revalide o direito a cada operação.
-A única marcação desse gênero é o campo **"sou apoiador"** da avaliação, declarado por quem
-escreve: é **cosmético e de severidade baixa**, e está registrado aqui justamente para que o
+A única marcação desse gênero é a caixa **«Já apoiei via PIX ☕»** da avaliação (vem marcada
+por padrão), declarada por quem escreve: é **cosmético e de severidade baixa**, e está registrado aqui justamente para que o
 padrão não seja reaproveitado num contexto em que passaria a valer algo.
 
 ### 2.2 Varredura de segredos no histórico do repositório

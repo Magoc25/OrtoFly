@@ -123,9 +123,10 @@ Abra no navegador **http://127.0.0.1:3000/info** → JSON com `"version"`. ✅
 ---
 
 ## ▶ Usar no app (vale para os dois caminhos)
-1. Abra o OrtoFly: **https://magoc25.github.io/OrtoFly/ortofly.html**
-2. Aba **⚙️ Processar** → **💻 PC Local**. A URL já vem **`http://127.0.0.1:3000`**.
-3. O app mostra um **indicador 🟢/🔴 ao vivo**: **verde** = NodeODM conectado · **vermelho** = desligado (atualiza sozinho a cada ~10s). Com o NodeODM ligado (atalho abaixo), fica **🟢**.
+1. Abra o OrtoFly **no Chrome ou no Edge**: **https://magoc25.github.io/OrtoFly/ortofly.html**
+2. Aba **⚙️ Processar** → **💻 PC Local**. A URL já vem **`http://127.0.0.1:3000`** → clique em **Testar**.
+   🔔 **Na 1ª vez, o navegador pergunta se o site pode "Acessar outros apps e serviços neste dispositivo"** → clique em **Permitir ao acessar o site**. *(É a permissão para a página falar com o NodeODM no seu próprio PC. Se clicar em **Nunca permitir**, não conecta — veja como reverter na Solução de problemas.)*
+3. Depois do primeiro **Testar** com sucesso, o app mostra um **indicador 🟢/🔴 ao vivo**: **verde** = NodeODM conectado · **vermelho** = desligado (atualiza sozinho a cada ~10s). Com o NodeODM ligado (atalho abaixo), fica **🟢**. *(Antes disso ele mostra "🔌 Clique em Testar para conectar" — o app só se conecta ao seu PC depois que você pede.)*
 4. **📷 Selecionar imagens** (fotos do drone) → **Nome** → marque **Gerar DSM** se quiser o modelo de superfície → **🚀 Enviar e processar**.
 5. Ao concluir, abra os produtos: **🗺️ Ortomosaico (2D)**, **⛰️ DSM (2D)**, **🧊 Nuvem (3D)** (abre o `.laz` direto em 3D, no navegador) ou **⬇ Tudo (.zip)**.
 
@@ -143,7 +144,8 @@ Se o **Testar** der **"Failed to fetch"** / não conectar:
      ```powershell
      wsl -d Ubuntu -u root bash -c "systemctl start docker; docker start nodeodm; docker ps"
      ```
-3. **Abre no navegador, mas o app não conecta?** É cache do app → recarregue com **Ctrl+Shift+R**.
+3. **Abre no navegador, mas o app não conecta?** Quase sempre é a **permissão do navegador**: o site ficou sem acesso a **outros apps e serviços neste dispositivo** (você clicou em **Nunca permitir**, ou fechou o aviso). Clique no **ícone à esquerda do endereço** e libere essa permissão — ou abra `chrome://settings/content/all` (no Edge: `edge://settings/content/all`), busque **`github.io`** e **apague** o item (lixeira), que zera as permissões do site. Recarregue com **Ctrl+Shift+R**, clique em **Testar** e, quando perguntar, **Permitir ao acessar o site**. Se não for isso, é cache do app: o **Ctrl+Shift+R** resolve.
+   > 💡 Em versões anteriores do Chrome o aviso falava em **"rede local"**; no Chrome 154 (set/2026), acessar o próprio computador é **"outros apps e serviços neste dispositivo"**.
 4. **(Caminho B) "timeout":** quase sempre é o **firewall do Hyper-V**. Confirme o `.wslconfig` (passo B.4) com `networkingMode=mirrored` e `firewall=false`, depois 🟦 cole `wsl --shutdown` no PowerShell e reabra.
 5. **Funcionava e "sumiu":** o WSL hibernou. No Caminho B, garanta o **systemd** (passo B.3) e use o atalho abaixo para reerguer.
 

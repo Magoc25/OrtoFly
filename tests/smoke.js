@@ -13,6 +13,12 @@
       (VEG_INDICES × VEG_DESC × opções do seletor), com cada fonte provando que
       não secou — conjunto vazio satisfaz "mesmos conjuntos" de graça (guia r90c);
     - mostra a versão embutida no rodapé e o modal beta da 1ª abertura;
+    - na aba Processar, com a URL que o próprio app sugere, diz a CAUSA de cada
+      falha por navegador — Safari (recusa http:// a partir de https, até no
+      próprio computador) × Chrome (pede permissão) — e o aviso do Safari some
+      se um Testar conectar (guia r112/r113);
+    - e cada EXEMPLO de dado que o app sugere (pontos, GCP, GSD), lido do DOM e
+      usado como aparece na tela, dá o resultado certo (guia r125);
     - e, por regex sobre o HTML FONTE, que nenhum espelho de estado nasce com o
       valor dentro (guia r72a/r74b — a asserção dinâmica não enxerga isso).
 
@@ -40,6 +46,15 @@ const html = fs.readFileSync(file, 'utf8');
 
 const problems = [];
 const check = (name, cond) => { if (cond) console.log('ok     ' + name); else { console.error('FALHA  ' + name); problems.push(name); } };
+
+/* Exceção dentro de um handler ASSÍNCRONO do app (ex.: o catch do odmTest) vira
+   promessa rejeitada sem tratamento — e o Node, por padrão, MATA o processo com
+   código 1: igual a "N asserções falharam", só que tudo o que vinha depois nem
+   roda (guia r74a — pego pela campanha da v1.22.1, que a acusou INCONCLUSIVA).
+   Aqui ela vira registro: o cenário em que ocorre cobra as suas, e a checagem
+   final cobra as de qualquer cenário, para nenhum deles ficar menos sensível. */
+const rejeicoes = [];
+process.on('unhandledRejection', e => rejeicoes.push('unhandledRejection: ' + ((e && e.message) || e)));
 
 // erros que o app lançar dentro do jsdom (ex.: exceção no boot) chegam por aqui
 const consoleErrs = [];
@@ -524,6 +539,133 @@ async function main() {
 
   check('cenario 3: nenhuma excecao nao tratada', errs3.length === 0);
   errs3.forEach(e => console.error('       ' + e));
+
+  /* -- cenario 4: o que o app SUGERE, usado como aparece na tela (guia r125) -----
+     Placeholder, valor padrao e exemplo nao sao borda: sao o caminho que o app
+     recomenda, e a lista deles e finita e mora no HTML. Cada sugestao aqui e LIDA
+     DO DOM, nunca copiada a mao para o teste -- se alguem reescrever o exemplo, o
+     teste passa a exercitar o texto novo sozinho.
+     A URL sugerida do NodeODM e o caso que abriu o cenario: no Safari ela NUNCA
+     conecta (pagina https x NodeODM http -- medido em 2026-09-26, com o NodeODM no
+     ar), e a mensagem antiga afirmava que "https->http so funciona com localhost",
+     mandando o usuario cacar defeito num servidor que estava bom (guia r112). O
+     comportamento do NAVEGADOR nao se reproduz no jsdom: ele foi medido no WebKit e
+     no Chrome de verdade. Aqui se prova o que o APP faz com cada resposta, dirigido
+     a partir do estado inicial -- aba, botao do modo, botao Testar (guia r113). */
+  const rej0 = rejeicoes.length;
+  let vendor4 = 'Apple Computer, Inc.';
+  let resposta4 = () => Promise.reject(new TypeError('Load failed'));
+  const chamadas4 = [];
+  const errs4 = [];
+  const vc4 = new VirtualConsole();
+  vc4.on('jsdomError', e => errs4.push('jsdomError: ' + ((e && e.message) || e)));   // o console.error do "[ODM] test" e esperado aqui
+  const dom4 = new JSDOM(html, {
+    url: 'https://magoc25.github.io/OrtoFly/ortofly.html', runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc4,
+    beforeParse(window) {
+      window.L = chainProxy();
+      // o motor do navegador e escolhido pelo teste: e pelo vendor que o app reconhece o WebKit
+      Object.defineProperty(window.navigator, 'vendor', { configurable: true, get: () => vendor4 });
+      window.fetch = (u, o) => { chamadas4.push(String(u)); return resposta4(String(u), o); };
+      window.URL.createObjectURL = () => 'blob:stub'; window.URL.revokeObjectURL = () => {};
+      window.matchMedia = window.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
+      window.scrollTo = () => {}; window.structuredClone = window.structuredClone || structuredClone;
+    }
+  });
+  const w4 = dom4.window, doc4 = w4.document, ev4 = evOf(w4);
+  await new Promise((res, rej) => {
+    const t = setTimeout(() => rej(new Error('cenario 4: load nao disparou em 5 s')), 5000);
+    if (w4.document.readyState === 'complete') { clearTimeout(t); res(); }
+    else w4.addEventListener('load', () => { clearTimeout(t); res(); });
+  });
+  const clicar = sel => { const b = doc4.querySelector(sel); if (b) b.click(); return !!b; };
+  const status4 = () => String(txt(doc4, 'odmStatus'));
+  const aposTestar = async () => {   // clica Testar e espera a resposta sair do "Conectando..."
+    chamadas4.length = 0;
+    const foi = clicar('button[onclick="odmTest()"]');
+    for (let i = 0; i < 100 && (status4() === '' || /Conectando/.test(status4())); i++) await new Promise(r => setTimeout(r, 20));
+    return foi;
+  };
+
+  // (a) Safari: aba Processar -> PC Local, com a URL que o app SUGERE
+  const foiAba = clicar('button.tab[data-tab="proc"]'), foiLocal = clicar('#odmModeLocal');
+  const campoUrl = el(doc4, 'odmUrl');
+  const urlSugerida = campoUrl ? String(campoUrl.placeholder) : undefined;
+  console.log('       [captura] URL sugerida = ' + JSON.stringify(urlSugerida) + ' · no campo = ' + JSON.stringify(val(doc4, 'odmUrl')));
+  check('processar: aba -> PC Local, e o campo ja vem com a URL que o app sugere (r113/r125)',
+    foiAba && foiLocal && !!urlSugerida && /^http:\/\//.test(urlSugerida) && val(doc4, 'odmUrl') === urlSugerida);
+  const dicaSafari = String(txt(doc4, 'odmModeHint'));
+  check('processar/Safari: ANTES de testar, a dica avisa que o Safari nao conecta e aponta o Chrome/Edge',
+    /Safari/.test(dicaSafari) && /Chrome/.test(dicaSafari) && /Edge/.test(dicaSafari));
+  const foiTestar = await aposTestar();
+  const stSafari = status4();
+  console.log('       [captura] falha no Safari = ' + JSON.stringify(stSafari.slice(0, 150)));
+  check('processar/Safari: o Testar foi de fato ao NodeODM na URL sugerida (o duplo foi exercitado, r91)',
+    foiTestar && chamadas4.includes(urlSugerida + '/info'));
+  check('processar/Safari: a falha diz a CAUSA (o Safari recusa http:// a partir de https) e o caminho (Chrome/Edge)',
+    /Safari/.test(stSafari) && /http:\/\//.test(stSafari) && /Chrome/.test(stSafari));
+
+  // (b) Chrome: a mesma URL, outra causa provavel -- e nada de Safari
+  vendor4 = 'Google Inc.';
+  resposta4 = () => Promise.reject(new TypeError('Failed to fetch'));
+  clicar('#odmModeLocal');
+  const dicaChrome = String(txt(doc4, 'odmModeHint'));
+  check('processar/Chrome: o aviso do Safari NAO aparece fora do Safari', dicaChrome.length > 0 && !/Safari/.test(dicaChrome));
+  await aposTestar();
+  const stChrome = status4();
+  console.log('       [captura] falha no Chrome = ' + JSON.stringify(stChrome.slice(0, 150)));
+  check('processar/Chrome: a falha manda conferir o /info e a permissao do navegador, sem culpar o Safari',
+    /\/info/.test(stChrome) && /permiss/i.test(stChrome) && !/Safari/.test(stChrome));
+
+  // (c) a regra do Safari cede a OBSERVACAO: um Testar que conecta desliga o aviso (r112b)
+  vendor4 = 'Apple Computer, Inc.';
+  resposta4 = () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ version: '2.2.4', taskQueueCount: 0, engine: 'odm' }) });
+  clicar('#odmModeLocal');
+  const avisoVolta = /Safari/.test(String(txt(doc4, 'odmModeHint')));
+  await aposTestar();
+  const stOk = status4();
+  clicar('#odmModeLocal');
+  check('processar/Safari: se um Testar CONECTAR, o aviso some -- a frase nao sobrevive a causa (r112b)',
+    avisoVolta && /✅/.test(stOk) && !/Safari/.test(String(txt(doc4, 'odmModeHint'))));
+
+  // (d) os EXEMPLOS de dado que o app sugere, digitados como aparecem
+  const ph = id => { const n = el(doc4, id); return n ? String(n.placeholder || '') : ''; };
+  const exPts = ph('zonalPts'), exGcp = ph('gcpPairs'), exGsd = ph('gsdTarget');
+  console.log('       [captura] exemplos — pontos: ' + JSON.stringify(exPts) + ' · GCP: ' + JSON.stringify(exGcp) + ' · GSD: ' + JSON.stringify(exGsd));
+  // pontos: cada linha do exemplo e um formato ALTERNATIVO ("ou UTM: ..."), entao cada uma tem de virar
+  // exatamente um ponto, com par coerente, sem raio (o exemplo nao traz raio) e sem a prosa no rotulo
+  const linhasPts = exPts.split('\n').filter(l => l.trim());
+  const ptsEx = linhasPts.map(l => { w4.__l = l; return ev4('parseZonalPoints(__l)'); });
+  const parOk = p => !!p && ((Math.abs(p.v0) <= 90 && Math.abs(p.v1) <= 180) || (Math.abs(p.v0) >= 1000 && Math.abs(p.v1) >= 1000));
+  console.log('       [captura] pontos do exemplo = ' + JSON.stringify(ptsEx));
+  check('exemplo de pontos: cada linha sugerida, digitada como aparece, vira UM ponto coerente, sem raio inventado nem prosa no rotulo',
+    linhasPts.length >= 2 && ptsEx.every(a => Array.isArray(a) && a.length === 1 && parOk(a[0]) && a[0].r === null && !/\b(ou|UTM)\b/i.test(a[0].name)));
+  // a mesma classe de defeito fora do exemplo: nome + ID numerico + E N (arquivo de topografia)
+  w4.__l = 'Poste 21 443162.71 9221928.44';
+  const poste = ev4('parseZonalPoints(__l)');
+  check('pontos: "nome ID E N" nao vira coordenada deslocada com raio de 9.221 km',
+    Array.isArray(poste) && poste.length === 1 && poste[0].v0 === 443162.71 && poste[0].v1 === 9221928.44 && poste[0].r === null && /21/.test(poste[0].name));
+  // GCP: a linha de dado vira UM par; a de instrucao ("ou clique...") e ignorada
+  w4.__g = exGcp;
+  const paresEx = ev4('parseGcpPairs(__g)');
+  check('exemplo de GCP: a linha de dado vira UM par (a de instrucao e ignorada), com o deslocamento curto que um GCP corrige',
+    Array.isArray(paresEx) && paresEx.length === 1 && Math.abs(paresEx[0].t0 - paresEx[0].f0) < 100 && Math.abs(paresEx[0].t1 - paresEx[0].f1) < 100);
+  // GSD: o valor do exemplo, aplicado pelo botao, tem de dar uma altura cujo GSD bate com ele
+  const alvoGsd = parseFloat(exGsd.replace(/[^\d.,]/g, '').replace(',', '.'));
+  const campoGsd = el(doc4, 'gsdTarget');
+  if (campoGsd) campoGsd.value = String(alvoGsd);
+  const foiGsd = clicar('button[onclick="applyTargetGsd()"]');
+  const gsdObtido = ev4('state.lastPlan ? state.lastPlan.gsd : null');
+  console.log('       [captura] GSD sugerido = ' + alvoGsd + ' -> obtido = ' + gsdObtido + ' cm/px (altura ' + val(doc4, 'altNum') + ' m)');
+  check('exemplo de GSD: o valor sugerido, pelo botao, leva a uma altura cujo GSD bate com ele (±2%)',
+    foiGsd && isFinite(alvoGsd) && alvoGsd > 0 && typeof gsdObtido === 'number' && Math.abs(gsdObtido - alvoGsd) / alvoGsd < 0.02);
+
+  await new Promise(r => setTimeout(r, 50));   // deixa uma rejeição do último Testar chegar ao registro
+  const rej4 = rejeicoes.slice(rej0);
+  check('cenario 4: nenhuma excecao nao tratada (nem promessa rejeitada sem tratamento)', errs4.length === 0 && rej4.length === 0);
+  [...errs4, ...rej4].forEach(e => console.error('       ' + e));
+
+  check('harness: nenhuma promessa rejeitada sem tratamento, em cenario algum', rejeicoes.length === 0);
+  rejeicoes.slice(0, rej0).forEach(e => console.error('       ' + e));
 
   console.log(problems.length ? `\n${problems.length} falha(s).` : '\nSmoke OK ✅');
   process.exit(problems.length ? 1 : 0);   // (os timers do app — ping etc. — seguram o processo; saída explícita)

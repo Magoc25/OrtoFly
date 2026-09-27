@@ -499,7 +499,7 @@ footer{
           <span id="odmConnTxt">⏳ Verificando…</span>
         </div>
         <div class="row">
-          <div class="field"><label for="odmUrl">URL do NodeODM</label><input id="odmUrl" type="text" placeholder="http://127.0.0.1:3000" /></div>
+          <div class="field"><label for="odmUrl">URL do NodeODM</label><input id="odmUrl" type="text" placeholder="http://127.0.0.1:3000" oninput="odmRenderHint()" /></div>
           <button class="btn sm" style="align-self:flex-end" onclick="odmTest()">Testar</button>
         </div>
         <p id="odmModeHint" class="hint" style="margin-top:6px"></p>
@@ -700,8 +700,8 @@ footer{
 <script src="./vendor/three/OBJLoader.js"></script>
 <script src="./vendor/three/GLTFLoader.js"></script>
 <script>
-/* ═══════════════ OrtoFly v1.20.5 — © 2026 MGC Dev ═══════════════ */
-const APP_VERSION = '1.22.0';
+/* ═══════════════ OrtoFly — © 2026 MGC Dev (versão: só em APP_VERSION) ═══════════════ */
+const APP_VERSION = '1.22.1';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1832,17 +1832,22 @@ function parseZonalPoints(txt){
   const pts=[];
   // (a,b) parecem um par de coordenadas? lat/lon (≤90,≤180 em qualquer ordem) ou projetadas (ambas grandes)
   const isCoordPair=(a,b)=> (Math.abs(a)<=90&&Math.abs(b)<=180) || (Math.abs(a)<=180&&Math.abs(b)<=90) || (Math.abs(a)>=1000&&Math.abs(b)>=1000);
+  // palavras que o PRÓPRIO exemplo do campo usa como prosa ("ou UTM:  21  443162.71  9221928.44") não são
+  // nome de ponto: digitar o exemplo como ele aparece na tela tem de dar o ponto certo (guia r125)
+  const PROSA=/^(ou|utm:?)$/i;
   (txt||'').split(/\r?\n/).forEach(line=>{
     const raw=line.trim(); if(!raw) return;
     const toks=raw.split(/[\s,;]+/).filter(t=>t!=='');
     const nums=[], name=[];
-    toks.forEach(t=>{ const v=Number(t); if(isFinite(v)) nums.push(v); else name.push(t); });
+    toks.forEach(t=>{ const v=Number(t); if(isFinite(v)) nums.push(v); else if(!PROSA.test(t)) name.push(t); });
     if(nums.length<2) return;
     let v0,v1,r=null,lab=name.join(' ');
-    // rótulo NUMÉRICO no início (ex.: "21" de arquivo de topografia): se o 1º número não forma par
-    // de coordenadas com o 2º, mas o 2º+3º formam, então o 1º é o ID do ponto — não uma coordenada.
-    if(!name.length && nums.length>=3 && !isCoordPair(nums[0],nums[1]) && isCoordPair(nums[1],nums[2])){
-      lab=String(nums[0]); v0=nums[1]; v1=nums[2]; r=(nums.length===4&&nums[3]>0)?nums[3]:null;
+    // rótulo NUMÉRICO (ex.: "21" de arquivo de topografia): se o 1º número não forma par de coordenadas
+    // com o 2º, mas o 2º+3º formam, então o 1º é o ID do ponto — não uma coordenada. Vale também com
+    // nome antes ("Poste 21 443162 9221928"): sem isso o ID virava coordenada e o N virava RAIO
+    // (9.221 km). Um par desalinhado nunca é coordenada de verdade, então nenhuma entrada certa muda.
+    if(nums.length>=3 && !isCoordPair(nums[0],nums[1]) && isCoordPair(nums[1],nums[2])){
+      lab=(lab?lab+' ':'')+String(nums[0]); v0=nums[1]; v1=nums[2]; r=(nums.length===4&&nums[3]>0)?nums[3]:null;
     }else{
       v0=nums[0]; v1=nums[1]; r=(nums.length>=3&&nums[2]>0)?nums[2]:null; // 3º número = raio do ponto (opcional)
     }
@@ -2401,8 +2406,32 @@ async function loadLAS(file){
 let _odmTask=null, _odmFiles=null, _odmPoll=null;
 let _odmSaved=false, _odmSavedMode=false, _odmZipRaw=null, _odmResultProj=null;
 let _odmMode='local';
-let _odmAuto=false; // só conecta sozinho depois que o usuário clica "Testar" (evita o bloqueio de "rede local" do Chrome ao acessar 127.0.0.1)
+let _odmAuto=false; // só conecta sozinho depois que o usuário clica "Testar" (evita o pedido de permissão do Chrome ao acessar 127.0.0.1 sem o usuário ter pedido)
 function odmIsLoopback(u){ return /\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:|$|\/)/i.test(u||''); }
+/* O navegador pode recusar o NodeODM ANTES de o pedido sair — e cada um recusa de um jeito.
+   Esta página é https e o NodeODM local é http. Medido em 2026-09-26 (macOS 27), com o NodeODM
+   no ar respondendo 200 e CORS aberto:
+     · Safari (WebKit — inclusive o app instalado pelo "Adicionar ao Dock"): recusa TODO http://
+       a partir de página https, até 127.0.0.1 e localhost. Falha em ~0 ms com o genérico
+       "Load failed", o mesmo texto de servidor desligado — por isso a mensagem diz a causa.
+     · Chrome 154: deixa passar o próprio computador, mas só depois que o usuário permite
+       ("Acessar outros apps e serviços neste dispositivo"); fora dele, recusa.
+   A frase antiga ("https→http só funciona com localhost") valia para o Chrome e mandava o
+   usuário do Safari caçar defeito num NodeODM que estava bom (guia r112).
+   A regra do Safari cede à OBSERVAÇÃO: se um Testar conectar neste navegador, o aviso some de vez —
+   se o Safari um dia passar a aceitar, a frase não sobrevive à causa que a tornou verdadeira (r112b). */
+function odmIsWebKit(){ return /Apple/.test(navigator.vendor||''); }
+function odmRecusa(u){
+  if(location.protocol!=='https:' || !/^http:/i.test(u||'')) return null;   // página http, ou NodeODM já em https: nada a recusar
+  if(odmIsWebKit() && localStorage.getItem(LS+'_odm_webkit_ok')!=='1') return 'safari';
+  return odmIsLoopback(u) ? 'permissao' : 'http';
+}
+function odmRenderHint(){ const h=$('odmModeHint'); if(!h) return;
+  h.innerHTML = _odmMode==='local'
+    ? '💻 <b>Local:</b> instale o Docker e rode <code>docker run -d -p 3000:3000 opendronemap/nodeodm</code> — depois use <code>http://127.0.0.1:3000</code>.'
+      + (odmRecusa(odmUrlVal())==='safari' ? '<br>⚠️ <b>No Safari o PC Local não conecta:</b> esta página é <b>https</b> e o Safari recusa pedidos a <code>http://</code>, mesmo para o seu próprio computador. Para processar, abra o OrtoFly no <b>Chrome</b> ou no <b>Edge</b> — o resto do app funciona aqui.' : '')
+    : '☁️ <b>Servidor:</b> um NodeODM remoto que você controle (VPS/outro PC) por <b>HTTPS</b> (ex.: via Cloudflare Tunnel). Cole a URL <code>https://…</code>. <i>(Esta página é https: o navegador recusa NodeODM por <code>http://</code>. No Chrome e no Edge, só o próprio computador é exceção; no Safari, nem ele.)</i>';
+}
 function odmAuthKey(u){ return LS+'_odm_auth_'+(u||''); }
 function odmAutoAllowed(){ const u=odmUrlVal(); return !odmIsLoopback(u) || _odmAuto || localStorage.getItem(odmAuthKey(u))==='1'; }
 function odmModeKey(m){ return LS+'_odm_url_'+(m||_odmMode); }
@@ -2420,10 +2449,7 @@ function odmSetMode(m,skipSave){
   if($('odmUrl')){ $('odmUrl').value=(saved!=null?saved:odmDefaultUrl(m)); $('odmUrl').placeholder=odmDefaultUrl(m)||'https://seu-tunel.trycloudflare.com'; }
   if($('odmModeLocal')) $('odmModeLocal').classList.toggle('primary',m==='local');
   if($('odmModeServer')) $('odmModeServer').classList.toggle('primary',m==='server');
-  const h=$('odmModeHint');
-  if(h) h.innerHTML = m==='local'
-    ? '💻 <b>Local:</b> instale o Docker e rode <code>docker run -d -p 3000:3000 opendronemap/nodeodm</code> — depois use <code>http://127.0.0.1:3000</code>.'
-    : '☁️ <b>Servidor:</b> um NodeODM remoto que você controle (VPS/outro PC) por <b>HTTPS</b> (ex.: via Cloudflare Tunnel). Cole a URL <code>https://…</code>. <i>(http simples só funciona em localhost.)</i>';
+  odmRenderHint();
   odmStatus(''); odmPing();
 }
 let _odmPingT=null,_odmPinging=false;
@@ -2431,6 +2457,7 @@ async function odmPing(){
   if(_odmPinging) return; _odmPinging=true;
   const u=odmUrlVal(), txt=$('odmConnTxt');
   if(!u){ if(txt)txt.textContent='Informe a URL do NodeODM'; _odmPinging=false; return; }
+  if(odmRecusa(u)==='safari' && !odmAutoAllowed()){ if(txt)txt.textContent='⚠️ Safari: o PC Local não conecta (veja abaixo)'; _odmPinging=false; return; }
   if(!odmAutoAllowed()){ if(txt)txt.textContent='🔌 Clique em “Testar” para conectar'; _odmPinging=false; return; }
   try{ const c=new AbortController(), t=setTimeout(()=>c.abort(),4500);
     const r=await fetch(u+'/info',{signal:c.signal}); clearTimeout(t); if(!r.ok) throw 0; const j=await r.json(); _odmInfo=j;
@@ -2447,10 +2474,21 @@ async function odmTest(){ const u=odmUrlVal(); if(!u){ toast('Informe a URL do N
   localStorage.setItem(odmModeKey(_odmMode),u); odmStatus('Conectando…');
   try{ const c=new AbortController(), t=setTimeout(()=>c.abort(),8000);
     const r=await fetch(u+'/info',{signal:c.signal}); clearTimeout(t); if(!r.ok) throw new Error('HTTP '+r.status); const j=await r.json(); _odmInfo=j;
+    if(odmRecusa(u)==='safari') localStorage.setItem(LS+'_odm_webkit_ok','1');   // o Safari aceitou: a observação vence a regra (r112b)
     if(odmIsLoopback(u)){ _odmAuto=true; localStorage.setItem(odmAuthKey(u),'1'); } // autorizado: libera o status ao vivo (agora e em recargas futuras)
     odmStatus(`✅ ${j.name||'NodeODM'} v${j.version||'?'} · fila: ${j.taskQueueCount!=null?j.taskQueueCount:'?'} · engine: ${j.engine||'ODM'}`);
-    odmPing();
-  }catch(e){ console.error('[ODM] test',e); const msg=(e&&e.name==='AbortError')?'não respondeu em 8 s':e.message; odmStatus('❌ Não conectou ('+msg+'). NodeODM rodando? URL certa? (https→http só funciona com localhost)',true); } }
+    odmRenderHint(); odmPing();
+  }catch(e){ console.error('[ODM] test',e);
+    // só falha de REDE (TypeError do fetch) pode ser recusa do navegador; resposta com erro ou que não é JSON veio de um servidor
+    const rede=!!e&&e.name==='TypeError', rec=rede?odmRecusa(u):null, msg=(e&&e.message)||String(e);
+    odmStatus(
+      (e&&e.name==='AbortError') ? '❌ Não conectou (não respondeu em 8 s). NodeODM rodando? URL certa?'
+      : !rede ? '❌ Não conectou ('+msg+'): o endereço respondeu, mas não com as informações de um NodeODM. URL certa?'
+      : rec==='safari' ? '❌ Não conectou ('+msg+'): o Safari não deixa esta página (https) falar com um NodeODM em http:// — nem no seu próprio computador —, então o NodeODM pode estar rodando normalmente. Para processar, abra o OrtoFly no Chrome ou no Edge.'
+      : rec==='permissao' ? '❌ Não conectou ('+msg+'). Confira: 1) o NodeODM está rodando? Abra '+u+'/info numa aba — tem de aparecer um texto com "version"; 2) no Chrome e no Edge, o site precisa de permissão para acessar outros apps e serviços neste dispositivo: clique no ícone à esquerda do endereço e permita.'
+      : rec==='http' ? '❌ Não conectou ('+msg+'): esta página é https e o endereço é http:// fora deste computador — o navegador recusa. Use o NodeODM por https (ex.: Cloudflare Tunnel).'
+      : '❌ Não conectou ('+msg+'). NodeODM rodando? URL certa?', true);
+    odmRenderHint(); } }
 async function odmCreate(){ const u=odmUrlVal(); if(!u){ toast('Configure e teste a URL do NodeODM','error'); return; }
   if(!_odmFiles||!_odmFiles.length){ toast('Selecione as imagens','error'); return; }
   if(_odmFiles.length<5 && !confirm('Poucas imagens ('+_odmFiles.length+'). O ODM costuma precisar de dezenas. Continuar?')) return;

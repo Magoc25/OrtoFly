@@ -1,6 +1,6 @@
 # Aviso de Privacidade — OrtoFly
 
-**Versão:** 1.1 · **Última atualização:** Julho de 2026
+**Versão:** 1.2 · **Última atualização:** Setembro de 2026
 
 Este Aviso explica como o **OrtoFly** trata dados pessoais, em conformidade com a
 **Lei nº 13.709/2018 (LGPD)**. O OrtoFly é um aplicativo web (PWA) de planejamento de
@@ -26,15 +26,24 @@ dos dados que você gera **nunca sai do seu navegador**:
 - **Projetos de voo** (áreas desenhadas/coordenadas, parâmetros de câmera e voo, nomes
   de projetos) e **preferências** são salvos no **armazenamento local do navegador**
   (`localStorage`). **O controlador não tem acesso a esses dados.**
+- **Fotos do voo** (que trazem a localização gravada pela câmera): na aba 📷 Imagens elas são
+  **lidas no próprio navegador** e não são guardadas nem enviadas. Na aba ⚙️ Processar, são
+  enviadas **somente** para o servidor NodeODM cujo endereço **você** informa — no seu próprio
+  computador ou num servidor seu —, **nunca ao controlador**. Se você usar um servidor remoto ou
+  um túnel (ex.: Cloudflare Tunnel), as fotos passam por esse provedor, escolhido por você.
+- **Resultados do processamento** que você salva (💾) ficam no armazenamento do próprio navegador
+  (IndexedDB); o endereço do seu NodeODM e os identificadores das tarefas, no `localStorage`.
+  **O controlador não tem acesso a eles.**
 
 ## 3. Quais dados são efetivamente tratados pelo controlador
 
 | Dado | Quando | Visibilidade |
 |---|---|---|
-| **Nome e comentário de avaliação** + nota (estrelas) + data | Apenas se você **optar por enviar uma avaliação** | **Público** (visível a outros usuários do app) |
+| **Nome e comentário de avaliação** + nota (estrelas) + data e hora do envio + a caixa **«Já apoiei via PIX ☕»** (vem **marcada**; você pode desmarcar) | Apenas se você **optar por enviar uma avaliação** | **Público**: nome, nota, comentário e data aparecem para outros usuários do app. A caixa «Já apoiei» não é exibida no app, mas fica na **mesma tabela pública** das avaliações |
 | **Identificador aleatório de dispositivo** (gerado no aparelho) + nome do app + versão + data | Envio automático de **1 ping anônimo por dia** | Apenas estatística agregada |
 
 > O nome de avaliação pode ser um pseudônimo — você não é obrigado a usar seu nome real.
+> A caixa «Já apoiei via PIX ☕» é uma **autodeclaração**: o app não verifica pagamento nenhum.
 > O identificador de dispositivo é gerado aleatoriamente e **não está vinculado** a você,
 > à sua conta ou aos seus projetos; serve apenas para contar dispositivos ativos.
 
@@ -56,7 +65,7 @@ terceiros, **sem que o controlador os armazene**:
 | Tratamento | Finalidade | Base legal |
 |---|---|---|
 | Armazenamento local de projetos | Permitir que o app funcione e guarde seu trabalho | Não há coleta pelo controlador (dado permanece no dispositivo) |
-| Envio de avaliação (nome, comentário) | Exibir avaliações compartilhadas do app | **Consentimento** (Art. 7º, I) — você decide enviar |
+| Envio de avaliação (nome, comentário, nota, «Já apoiei») | Exibir avaliações compartilhadas do app | **Consentimento** (Art. 7º, I) — você decide enviar |
 | Ping anônimo de dispositivo | Métrica agregada de uso (dispositivos ativos) | **Legítimo interesse** (Art. 7º, IX), com impacto mínimo ao titular |
 | Carregamento de mapas, bibliotecas e hospedagem | Viabilizar o funcionamento técnico do app | **Legítimo interesse** (Art. 7º, IX) |
 
@@ -77,7 +86,7 @@ projetos de voo, pois estes permanecem no seu dispositivo.
 
 ## 8. Por quanto tempo guardamos
 
-- **Projetos e preferências:** enquanto você mantiver no dispositivo — você pode apagá-los
+- **Projetos, preferências e resultados salvos:** enquanto você mantiver no dispositivo — você pode apagá-los
   a qualquer momento limpando os dados do site ou pela função de exclusão do app.
 - **Avaliações:** por prazo indeterminado, enquanto forem úteis ao app, ou até solicitação de remoção.
 - **Ping anônimo:** mantido de forma agregada; registros individuais não identificam o titular.
@@ -114,8 +123,10 @@ identifiquemos uso por menor, removeremos os dados associados mediante contato.
 ## 13. Cookies e tecnologias similares
 
 O OrtoFly **não usa cookies de rastreamento ou publicidade**. Utiliza apenas o
-`localStorage` do navegador — equiparado a cookies sob a LGPD — para guardar seus projetos
-e preferências **no próprio dispositivo**. Você pode limpá-lo pelas configurações do navegador.
+armazenamento do próprio navegador — equiparado a cookies sob a LGPD —, **no próprio
+dispositivo**: o `localStorage` (projetos, preferências, endereço do NodeODM), o IndexedDB
+(resultados de processamento que você salva) e uma pasta temporária do navegador usada
+durante o download do pacote de resultados. Você pode limpá-los pelas configurações do navegador.
 
 ## 14. Alterações neste Aviso
 

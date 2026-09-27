@@ -5,6 +5,29 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.22.1] — Setembro 2026
+
+### 🐛 Corrigido
+
+- **No Safari, a aba ⚙️ Processar mandava conferir o NodeODM que estava funcionando.** O OrtoFly aberto no Safari — inclusive o instalado pelo **Adicionar ao Dock** — não consegue falar com o NodeODM do próprio computador: a página é `https://`, o NodeODM local é `http://`, e o Safari recusa essa mistura até para `127.0.0.1`. Medido em 26/09, no WebKit do macOS 27 (o motor do Safari), com o NodeODM no ar e respondendo normalmente: o pedido falha em ~0 ms, antes de sair do navegador, com o genérico *"Load failed"*. A mensagem antiga dizia *"NodeODM rodando? URL certa? (https→http só funciona com localhost)"* — verdade no Chrome, **falsa no Safari**, e apontava para o lugar errado. Agora:
+  - **antes de você testar**, o modo 💻 PC Local avisa, no Safari, que ali ele não conecta e que o processamento vai pelo **Chrome** ou pelo **Edge** — o resto do app segue funcionando no Safari;
+  - **se o Testar falhar**, a mensagem diz a causa provável **no seu navegador**: no Safari, o bloqueio; no Chrome e no Edge, conferir o `/info` e a permissão *"Acessar outros apps e serviços neste dispositivo"*; e endereço `http://` fora do computador, que precisa de `https://`;
+  - o aviso do Safari **se desliga sozinho** se um Testar conectar nesse navegador: se o Safari um dia passar a aceitar, o app não fica repetindo uma frase que deixou de ser verdade.
+- **Estatística por pontos: a 3ª linha do exemplo do próprio campo, digitada como aparece** (`ou UTM:  21  443162.71  9221928.44`), **virava um ponto errado** — o "21" como coordenada e o N (9.221.928) como **raio de 9.221 km**. Agora "ou" e "UTM:" não entram no nome do ponto, e um número de ponto depois de um nome (`Poste 21 443162 9221928`, formato comum de arquivo de topografia) passa a ser **rótulo**, não coordenada. Nenhuma entrada que já dava certo muda de resultado.
+
+### 📄 Documentação
+
+- **Guias do Mac e do Windows:** o nome atual do aviso do Chrome — *"Acessar outros apps e serviços neste dispositivo"* → **Permitir ao acessar o site** (em versões anteriores ele falava em "rede local") —, como reverter quem clicou em **Nunca permitir**, e, no Mac, que o app do Dock segue útil para planejar e visualizar, com dados **separados** dos do Chrome.
+- **README:** a exceção do Safari na frase "funciona em qualquer navegador" e na linha **Mac (Safari)** da tabela de instalação.
+- **Aviso de Privacidade, Inventário de dados, Termos, Política de Segurança e a página "OrtoFly, por dentro"** passam a descrever o que o app de fato faz: a avaliação grava também a caixa **«Já apoiei via PIX ☕»** (que vem marcada) e a data e hora; o ping diário leva a versão do app; as fotos da aba Processar vão **só** para o NodeODM que você indica; e o que você salva fica no armazenamento do navegador — não só no `localStorage`. A página "por dentro" chamava de "credencial" o que é apenas a lembrança de que você já clicou em Testar.
+
+### 🔧 Melhorado
+
+- **Verificação:** smoke 54 → **67 asserções** — um cenário novo dirige a aba Processar **a partir da tela inicial**, com a URL que o próprio app sugere, no Safari e no Chrome simulados, e usa cada **exemplo** que o app sugere (pontos, GCP, GSD) **lido da tela, como aparece** — e o degrau estático ganhou duas: nenhum `id` repetido no arquivo inteiro, e nenhuma frase "só funciona com localhost". **15/15 confirmadas por mutação**, com rodada limpa antes. O comportamento dos navegadores não se reproduz no jsdom: foi medido à parte, no WebKit e no Chrome 154 de verdade, com o NodeODM no ar.
+- O smoke deixou de **morrer em silêncio** quando o app lança erro dentro de uma função assíncrona: a rejeição agora vira um ✗ localizado, em vez de derrubar o processo com o mesmo código de saída de "asserções falharam".
+
+---
+
 ## [1.22.0] — Agosto 2026
 
 ### 🆕 Adicionado
@@ -676,6 +699,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 - CSP liberou `https:` no `connect-src` para o app falar com o NodeODM da VM por **HTTPS** (o local continua via `http://localhost`).
 
 > Lembrete: `http://` simples só funciona com `localhost` (regra do navegador). Para um servidor remoto, use **HTTPS** (ex.: Cloudflare Tunnel). Guia de VM grátis em `docs/`.
+>
+> ⚠️ **Nota de correção (v1.22.1):** esse lembrete vale para o **Chrome** e o **Edge**. No **Safari**, nem o `localhost` passa: ele recusa todo `http://` a partir de página `https://`, inclusive o `127.0.0.1` — medido em set/2026, com o NodeODM no ar. Ver a entrada **[1.22.1]**.
 
 ---
 

@@ -377,10 +377,11 @@ figcaption{font-size:.85rem;color:var(--faint);margin-top:.55rem;line-height:1.5
           é o mapa de fundo</td></tr>
           <tr><td>O arquivo do app</td><td>Na primeira visita e nas atualizações</td>
           <td>Hospedagem da página</td><td>Não — é o carregamento</td></tr>
-          <tr><td>Nome (ou apelido), comentário e nota</td><td>Só se você enviar uma
+          <tr><td>Nome (ou apelido), comentário, nota, data e hora, e a caixa "Já apoiei via PIX"
+          (que vem marcada)</td><td>Só se você enviar uma
           avaliação</td><td>Servidor de avaliações</td><td><strong>Sim</strong> — você
           escreve e envia</td></tr>
-          <tr><td>Identificador aleatório, nome do app e data</td><td>Uma vez por dia,
+          <tr><td>Identificador aleatório, nome e versão do app, e a data</td><td>Uma vez por dia,
           automaticamente</td><td>Servidor de avaliações</td><td>Não — mas é anônimo</td></tr>
           <tr><td>Consulta "qual a versão publicada?"</td><td>No máximo uma vez por dia</td>
           <td>Servidor de avaliações</td><td>Não — alimenta o aviso de atualização</td></tr>
@@ -392,7 +393,9 @@ figcaption{font-size:.85rem;color:var(--faint);margin-top:.55rem;line-height:1.5
     </div>
 
     <p>Repare no que <em>não</em> está na tabela: área desenhada, fotos, coordenadas de
-    projeto, resultados de processamento, estatísticas. Nenhum desses trafega.</p>
+    projeto, resultados de processamento, estatísticas. Nenhum desses vai para o autor nem
+    para terceiros. As fotos só saem do aparelho quando você manda processar, e aí vão para
+    a máquina que você mesmo indicar (seção cinco).</p>
 
     <div class="destaque">
       <p><strong>A alternativa que não sai.</strong> Na tela de apoio, o código de pagamento
@@ -437,7 +440,9 @@ figcaption{font-size:.85rem;color:var(--faint);margin-top:.55rem;line-height:1.5
     <div class="aviso">
       <p><strong>O custo honesto:</strong> essa configuração é a parte menos confortável do
       app. Exige instalar o motor de processamento uma vez, seguindo um guia passo a passo.
-      Quem só quer planejar o voo e conferir a cobertura das fotos não precisa dela.</p>
+      Quem só quer planejar o voo e conferir a cobertura das fotos não precisa dela. E, com o
+      motor no próprio computador, essa etapa pede o Chrome ou o Edge: o Safari recusa a
+      conexão (veja as limitações, na seção oito).</p>
     </div>
 
     <div class="tech">
@@ -445,7 +450,8 @@ figcaption{font-size:.85rem;color:var(--faint);margin-top:.55rem;line-height:1.5
       <ul>
         <li><strong>Comunicação</strong> direta do navegador com o motor de processamento,
         por endereço que você informa. O app guarda endereços distintos para o modo local e
-        para o modo servidor, e uma credencial opcional por endereço.</li>
+        para o modo servidor e, para o endereço local, a lembrança de que você já autorizou a
+        conexão clicando em Testar — não é senha nem token.</li>
         <li><strong>Retomada:</strong> a tarefa em andamento é registrada localmente, então
         fechar a aba não perde o trabalho — ao reabrir, o app volta a acompanhar a mesma
         tarefa.</li>
@@ -566,6 +572,11 @@ figcaption{font-size:.85rem;color:var(--faint);margin-top:.55rem;line-height:1.5
       <li><strong>Abrir a cópia local por duplo clique</strong> limita a visualização de
       nuvem de pontos comprimida — restrição do navegador para arquivos abertos fora de um
       site, não do app.</li>
+      <li><strong>No Safari, o processamento no próprio computador não conecta.</strong> A
+      página chega por conexão segura e o motor instalado no computador responde sem
+      criptografia; o Safari recusa essa mistura mesmo quando os dois estão na mesma máquina,
+      e não há ajuste que libere. Para essa etapa, use o Chrome ou o Edge — o resto do app
+      funciona no Safari, e o próprio app avisa quando é aberto nele.</li>
       <li><strong>Limpar os dados do navegador apaga os projetos.</strong> Não há cópia no
       servidor para restaurar. Exporte o que importa.</li>
     </ul>

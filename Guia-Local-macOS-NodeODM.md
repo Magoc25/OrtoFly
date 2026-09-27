@@ -3,7 +3,7 @@
 Guia para rodar o **NodeODM** (motor de fotogrametria do OpenDroneMap) no **macOS** e usá-lo na aba
 **⚙️ Processar** do OrtoFly para gerar **ortomosaico, DSM, nuvem de pontos e malha 3D** — tudo no seu Mac, **de graça**.
 
-> 🌐 **Use o Chrome ou o Edge** para abrir o OrtoFly. O **Safari não funciona** com o NodeODM local (ele bloqueia a conexão da página `https://` para o `http://127.0.0.1`, mesmo sendo no seu próprio Mac).
+> 🌐 **Para processar, abra o OrtoFly no Chrome ou no Edge.** O **Safari não conecta** ao NodeODM do seu próprio Mac: a página do app é `https://` e o NodeODM responde em `http://127.0.0.1`, e o Safari recusa essa mistura — **mesmo com o NodeODM funcionando** — e não tem ajuste que libere. Vale também para o OrtoFly instalado pelo Safari (**Arquivo → Adicionar ao Dock**): o resto do app funciona nele; só a aba ⚙️ Processar com o PC Local é que pede o Chrome ou o Edge. *(Desde a v1.22.1 o próprio app avisa isso quando é aberto no Safari.)*
 
 > ## 🧑‍💻 Nunca usou o Terminal? Leia esta caixa uma vez
 >
@@ -93,25 +93,26 @@ Agora siga **a opção que você escolheu**:
 ---
 
 ## ▶ Configurar no app
-1. Abra o OrtoFly **no Chrome ou Edge** (não no Safari): **https://magoc25.github.io/OrtoFly/ortofly.html**
-2. Aba **⚙️ Processar** → **💻 PC Local** → URL **`http://127.0.0.1:3000`** → **Testar**.
-3. 🔔 **O Chrome vai perguntar se o site pode acessar a sua rede local** → clique em **Permitir**. *(É a permissão para a página falar com o NodeODM no `127.0.0.1`. Se clicar em Bloquear, não conecta — veja como reverter na Solução de problemas.)*
+1. Abra o OrtoFly **no Chrome ou no Edge** (não no Safari): **https://magoc25.github.io/OrtoFly/ortofly.html**
+2. Aba **⚙️ Processar** → **💻 PC Local** → a URL já vem **`http://127.0.0.1:3000`** → **Testar**.
+3. 🔔 **Na 1ª vez, o Chrome pergunta se o site pode "Acessar outros apps e serviços neste dispositivo"** → clique em **Permitir ao acessar o site**. *(É a permissão para a página falar com o NodeODM no próprio Mac. "Permitir desta vez" também funciona, mas pergunta de novo depois. Se clicar em **Nunca permitir**, não conecta — veja como reverter na Solução de problemas.)*
 4. **✅ NodeODM vX.Y.Z** → **📷 Selecionar imagens** → **Nome** → deixe **☑ Rápido** → **🚀 Enviar e processar**.
 5. Ao concluir, **🗺️ Ortomosaico (2D)** abre no visualizador georreferenciado.
+
+> 💡 **Usa o OrtoFly do Dock (Safari) no dia a dia?** Pode seguir com ele para planejar e visualizar — só o processamento vai pelo Chrome. Os dois guardam dados **separados**: o que você salvar com **💾** no Chrome fica no Chrome. Para abrir o resultado no app do Dock, baixe o produto (**⬇ Tudo (.zip)** ou o próprio ortomosaico) e abra-o por lá.
 
 ---
 
 ## 🔧 Solução de problemas
-- **Estou no Safari e não conecta:** o Safari **bloqueia** a conexão `https://` → `http://127.0.0.1` (mesmo sendo local) e **não tem como liberar**. **Use o Chrome ou o Edge.**
+- **Estou no Safari e aparece "❌ Não conectou (Load failed): o Safari não deixa esta página (https) falar com um NodeODM em http://…":** é exatamente isso — o NodeODM pode estar funcionando, quem recusa é o Safari, e **não tem como liberar**. **Use o Chrome ou o Edge.** *(Antes da v1.22.1 a mensagem era "Load failed… NodeODM rodando? URL certa?", que mandava procurar defeito no lugar errado.)*
 - **"Failed to fetch" / não conecta (Chrome/Edge):**
   1. Confirme o Docker rodando: 🟢 no Terminal, **cole** `docker ps` e Enter — deve listar **nodeodm**. Se não: `docker start nodeodm` (no Colima, antes: `colima start`).
-  2. Abra **http://127.0.0.1:3000/info** no navegador. **Apareceu o JSON?** Então o servidor está ok e o problema é a **permissão de rede local** (próximo item).
+  2. Abra **http://127.0.0.1:3000/info** no navegador. **Apareceu o JSON?** Então o servidor está ok e o problema é a **permissão do navegador** (próximo item).
   3. Use `127.0.0.1` (o app já usa por padrão) e recarregue com **⌘+Shift+R**.
-- **"Permission was denied... loopback address space" (Chrome/Edge):** você clicou em **Bloquear** no aviso de acesso à rede local. Para reverter:
-  1. Abra `chrome://settings/content/all` (no Edge: `edge://settings/content/all`).
-  2. Busque **`github.io`**, clique no item e **apague-o** (ícone de lixeira) — isso zera a permissão.
-  3. Volte ao OrtoFly, recarregue com **⌘+Shift+R** e clique em **Testar**. Quando o Chrome perguntar sobre a **rede local**, clique em **Permitir**. ✅
-  > 💡 Esse aviso de "rede local" é um recurso novo do Chrome/Edge, liberado aos poucos. Por isso pode aparecer num computador e não em outro, mesmo com a mesma URL.
+- **"Permission was denied… `loopback` address space" (no console do Chrome/Edge):** o site ficou **sem permissão** para acessar outros apps e serviços neste dispositivo (você clicou em **Nunca permitir**, ou fechou o aviso). Para reverter:
+  1. Clique no **ícone à esquerda do endereço** e libere a permissão de acesso a **outros apps e serviços neste dispositivo**. Se não achar ali: abra `chrome://settings/content/all` (no Edge: `edge://settings/content/all`), busque **`github.io`**, clique no item e **apague-o** (ícone de lixeira) — isso zera as permissões do site.
+  2. Volte ao OrtoFly, recarregue com **⌘+Shift+R** e clique em **Testar**. Quando o Chrome perguntar se o site pode **acessar outros apps e serviços neste dispositivo**, clique em **Permitir ao acessar o site**. ✅
+  > 💡 O nome dessa permissão mudou ao longo das versões do Chrome: em versões anteriores o aviso falava em **"rede local"**; no Chrome 154 (set/2026), acessar o próprio computador é **"outros apps e serviços neste dispositivo"**, e "rede local" ficou para os **outros** aparelhos da sua rede.
 - **Apple Silicon (M1/M2/M3...):** a imagem `opendronemap/nodeodm` tem versão **ARM nativa** — roda direto. Se algum dia reclamar de arquitetura, force `--platform linux/amd64` (emulação, mais lenta).
 
 ## 🔁 Dia a dia — ligar, desligar e conferir
@@ -195,4 +196,4 @@ docker system prune -f
 - Tudo roda **no seu Mac** — as fotos **não** vão para servidores externos.
 - Comece com **algumas dezenas** de fotos + opção **Rápido (fast-orthophoto)**.
 
-*Guia para macOS (Docker Desktop ou Colima). A configuração do app (URL `127.0.0.1:3000`) é idêntica à do Windows. © MGC Dev.*
+*Guia para macOS (Docker Desktop ou Colima). A configuração do app (URL `127.0.0.1:3000`) é idêntica à do Windows. Comportamento dos navegadores conferido em set/2026: Safari no macOS 27 e Chrome 154. © MGC Dev.*

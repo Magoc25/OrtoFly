@@ -95,6 +95,25 @@ let orfIds = 0;
 for (const r of new Set(refs)) if (!ids.has(r)) { fail(`id órfão: $('${r}') / getElementById('${r}') — nenhum id="${r}" no HTML`); orfIds++; }
 if (!orfIds) ok(`ids: ${new Set(refs).size} referências literais — todas existem no HTML`);
 
+/* ── 3b) ids ÚNICOS no arquivo inteiro (guia r124) ──────────────────────────
+   Id repetido não quebra nada à vista: getElementById devolve o PRIMEIRO, e o
+   handler, o texto ou o valor passam a ir para o elemento errado, em silêncio.
+   A propriedade é do CONJUNTO, não de item nenhum — o id novo pode estar certo e
+   ainda assim colidir com um antigo que ninguém tocou, fora do diff. Por isso a
+   contagem roda sobre o arquivo INTEIRO a cada push (HTML estático + HTML montado
+   em strings JS + el.id='…'), nunca sobre o que mudou. O lookbehind tira data-id=
+   e o `.id=` (contado à parte, senão o mesmo id entraria duas vezes). */
+const idN = new Map();
+const contaId = id => idN.set(id, (idN.get(id) || 0) + 1);
+for (const m of html.matchAll(/(?<![\w.$-])id\s*=\s*"([\w-]+)"/g)) contaId(m[1]);
+for (const m of html.matchAll(/(?<![\w.$-])id\s*=\s*'([\w-]+)'/g)) contaId(m[1]);
+for (const m of html.matchAll(/\.id\s*=\s*['"]([\w-]+)['"]/g)) contaId(m[1]);
+const idsRep = [...idN].filter(([, n]) => n > 1);
+console.log('       [captura] ids declarados no arquivo = ' + idN.size);
+if (!idN.size) fail('ids: nenhuma declaração de id encontrada — a extração secou e a unicidade passaria de graça');
+else if (idsRep.length) fail(`ids DUPLICADOS (getElementById devolve só o primeiro): ${idsRep.map(([k, n]) => k + ' ×' + n).join(', ')}`);
+else ok(`ids: ${idN.size} declarados no arquivo inteiro — nenhum repetido`);
+
 /* ── 4) arquivos locais referenciados existem ──
    COMPANHEIRO COM FALLBACK PARA A RAIZ (guia r105d): resolver `sw.js`, `vendor/…` e
    `apresentacao.html` só ao lado do ARQUIVO SOB TESTE quebra assim que alguém aponta
@@ -213,6 +232,18 @@ else {
     fail('nuvem: LAS e LAZ não compartilham o núcleo _lasNuvem — a lógica de decimação/cor se duplica e diverge');
   else ok('nuvem: LAS e LAZ pelo mesmo núcleo (_lasNuvem)');
 }
+
+/* ── 4f) nenhuma alegação de plataforma que o Safari desmente (v1.22.1 · guia r112) ──
+   A falha do Processar dizia "https→http só funciona com localhost" — verdade no
+   Chrome, FALSA no Safari (medido em 2026-09-26: o WebKit recusa até 127.0.0.1 a
+   partir de página https, com o NodeODM no ar). No app instalado pelo Safari a frase
+   mandava o usuário caçar defeito num servidor que estava bom. Asserção de AUSÊNCIA:
+   lê a fonte SEM comentários — a prosa que explica o defeito cita a frase — e se
+   valida INSERINDO a frase de volta, nunca apagando (r84b). */
+const textoUI = jsCode + '\n' + html.replace(/<script[\s\S]*?<\/script>/g, ' ').replace(/<!--[\s\S]*?-->/g, ' ');
+const alegacao = (textoUI.match(/[^'"<>]{0,40}só funciona (?:com|em) localhost[^'"<>]{0,10}/i) || [])[0];
+if (alegacao) fail(`alegação de plataforma falsa no Safari: "${alegacao.trim()}" — no Safari nem o localhost passa de página https`);
+else ok('processar: nenhuma frase afirma que https→http "só funciona com localhost" (falso no Safari)');
 
 /* ── 5) apresentacao.html — a página pública do §37 ────────────────────────
    Estas asserções existem porque NENHUM passo do release toca este arquivo:
