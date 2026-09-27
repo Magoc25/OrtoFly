@@ -701,7 +701,7 @@ footer{
 <script src="./vendor/three/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly — © 2026 MGC Dev (versão: só em APP_VERSION) ═══════════════ */
-const APP_VERSION = '1.23.0';
+const APP_VERSION = '1.24.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -724,8 +724,19 @@ const slug = s => String(s||'voo').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-
 const DRONES = [
   {id:'mini3pro', name:'DJI Mini 3 Pro',         sw:9.6,  sh:7.2,  focal:6.72,  iw:8064, ih:6048, fmin:34, cruise:6},
   {id:'mini4pro', name:'DJI Mini 4 Pro',         sw:9.6,  sh:7.2,  focal:6.72,  iw:8064, ih:6048, fmin:45, cruise:6},
+  // Mini 5 Pro (câmera FC9313 — a mesma óptica do Air 3S): 8192×6144 em 50 MP e 4096×3072 em 12 MP (pixel 2×2,
+  // GSD dobra), FOV 84°, 24 mm eq., 36 min com a bateria padrão e 52 com a Plus — ficha DJI (dji.com/mini-5-pro/specs).
+  // Focal 8,67 mm = a EXIF da própria câmera (109 de 109 fotos no Wikimedia Commons). Sensor 12,5×9,38 mm: a diagonal
+  // que a DJI declara DUAS vezes — pela EXIF (8,67 mm ↔ 24 mm eq.) e pelo FOV de 84° —, não o 13,2×8,8 do 1" em 3:2.
+  // Foto temporizada: a partir de 2 s em 12 MP, mas só a partir de 5 s em 50 MP.
+  {id:'mini5pro50',  name:'DJI Mini 5 Pro · 50 MP · bateria padrão', sw:12.5, sh:9.38, focal:8.67, iw:8192, ih:6144, fmin:36, cruise:6},
+  {id:'mini5pro50p', name:'DJI Mini 5 Pro · 50 MP · bateria Plus',   sw:12.5, sh:9.38, focal:8.67, iw:8192, ih:6144, fmin:52, cruise:6},
+  {id:'mini5pro12',  name:'DJI Mini 5 Pro · 12 MP · bateria padrão', sw:12.5, sh:9.38, focal:8.67, iw:4096, ih:3072, fmin:36, cruise:6},
+  {id:'mini5pro12p', name:'DJI Mini 5 Pro · 12 MP · bateria Plus',   sw:12.5, sh:9.38, focal:8.67, iw:4096, ih:3072, fmin:52, cruise:6},
   {id:'air3',     name:'DJI Air 3 (grande-ang.)',sw:9.6,  sh:7.2,  focal:6.72,  iw:8064, ih:6048, fmin:46, cruise:8},
-  {id:'air3s',    name:'DJI Air 3S (1")',         sw:13.2, sh:8.8,  focal:8.8,   iw:8192, ih:6144, fmin:45, cruise:8},
+  // Air 3S (câmera grande-angular FC9113): corrigido na v1.24.0 — era sw 13,2 · sh 8,8 · focal 8,8, o que dava GSD ~4% alto.
+  // A EXIF grava 8,67 mm (40 de 40 fotos no Commons) e 24 mm eq.; com o FOV de 84° da DJI, o sensor é 12,5×9,38 mm (4:3).
+  {id:'air3s',    name:'DJI Air 3S (1")',         sw:12.5, sh:9.38, focal:8.67,  iw:8192, ih:6144, fmin:45, cruise:8},
   // Air 2S (câmera FC3411): sensor 1", 5472×3648 e 31 min da ficha oficial DJI (manual v1.2, apêndice);
   // focal 8,38 mm = a gravada na EXIF da própria câmera (o Pix4D a nomeia FC3411_8.4_5472x3648)
   {id:'air2s',    name:'DJI Air 2S / Mavic Air 2S (1")',sw:13.2,sh:8.8, focal:8.38, iw:5472, ih:3648, fmin:31, cruise:7},

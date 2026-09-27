@@ -659,16 +659,26 @@ async function main() {
   check('exemplo de GSD: o valor sugerido, pelo botao, leva a uma altura cujo GSD bate com ele (±2%)',
     foiGsd && isFinite(alvoGsd) && alvoGsd > 0 && typeof gsdObtido === 'number' && Math.abs(gsdObtido - alvoGsd) / alvoGsd < 0.02);
 
-  /* (e) Air 2S (câmera FC3411) — o teste do DADO, não do mecanismo (guia r71a).
-     Os números esperados estão aqui DE PROPÓSITO, fora do app: sensor 1" (13,2×8,8 mm),
-     5472×3648 e 31 min da ficha oficial DJI (manual do Air 2S v1.2, apêndice), e a focal
-     8,38 mm que a própria câmera grava na EXIF. Um dígito trocado na tabela muda a altura
-     de voo de toda missão planejada com esse drone, e nenhum teste de mecanismo veria. */
-  const a2Json = ev4("(function(){ var d=DRONES.find(function(x){ return x.id==='air2s'; }); return d ? JSON.stringify(d) : null; })()");
-  const a2 = a2Json ? JSON.parse(a2Json) : null;
-  console.log('       [captura] entrada Air 2S = ' + String(a2Json));
-  check('Air 2S: a tabela bate com a ficha DJI e a EXIF da FC3411 (13,2×8,8 mm · 8,38 mm · 5472×3648 · 31 min · sem WPML)',
-    !!a2 && a2.sw === 13.2 && a2.sh === 8.8 && a2.focal === 8.38 && a2.iw === 5472 && a2.ih === 3648 && a2.fmin === 31 && !a2.wpml);
+  /* (e) tabela de câmeras — o teste do DADO, não do mecanismo (guia r71a).
+     Os números esperados estão aqui DE PROPÓSITO, fora do app, com a fonte ao lado: um dígito
+     trocado na tabela muda a altura de voo de toda missão planejada com aquele drone, e nenhum
+     teste de mecanismo veria. Focal = a que a própria câmera grava na EXIF (a que o ODM/Pix4D
+     usam de partida); sensor dos 1" de 50 MP em 4:3 = a diagonal que a DJI declara duas vezes
+     (EXIF 8,67 mm ↔ 24 mm eq., e FOV de 84°) — não o 13,2×8,8 do 1" em 3:2. */
+  const FONTES = {
+    air2s:       { sw: 13.2, sh: 8.8,  focal: 8.38, iw: 5472, ih: 3648, fmin: 31, fonte: 'manual DJI v1.2 + EXIF FC3411' },
+    air3s:       { sw: 12.5, sh: 9.38, focal: 8.67, iw: 8192, ih: 6144, fmin: 45, fonte: 'EXIF FC9113 (40/40) + FOV 84°' },
+    mini5pro50:  { sw: 12.5, sh: 9.38, focal: 8.67, iw: 8192, ih: 6144, fmin: 36, fonte: 'ficha DJI Mini 5 Pro + EXIF FC9313' },
+    mini5pro50p: { sw: 12.5, sh: 9.38, focal: 8.67, iw: 8192, ih: 6144, fmin: 52, fonte: 'idem, bateria Plus' },
+    mini5pro12:  { sw: 12.5, sh: 9.38, focal: 8.67, iw: 4096, ih: 3072, fmin: 36, fonte: 'idem, 12 MP (pixel 2×2)' },
+    mini5pro12p: { sw: 12.5, sh: 9.38, focal: 8.67, iw: 4096, ih: 3072, fmin: 52, fonte: 'idem, 12 MP + bateria Plus' },
+  };
+  for (const [id, e] of Object.entries(FONTES)) {
+    const j = ev4("(function(){ var d=DRONES.find(function(x){ return x.id==='" + id + "'; }); return d ? JSON.stringify(d) : null; })()");
+    const d = j ? JSON.parse(j) : null;
+    check('câmeras: ' + id + ' bate com a fonte (' + e.fonte + ')',
+      !!d && ['sw', 'sh', 'focal', 'iw', 'ih', 'fmin'].every(k => d[k] === e[k]) && !d.wpml);
+  }
   // pela TELA, a partir do seletor (r113): escolhe o drone pelo nome que o usuário procura e voa a 100 m
   const selDrone = el(doc4, 'drone');
   const optA2 = selDrone ? [...selDrone.options].find(o => /Air 2S/.test(o.textContent)) : undefined;
@@ -681,6 +691,17 @@ async function main() {
   console.log('       [captura] Air 2S a 100 m: GSD ' + gsdA2 + ' cm/px (fonte: ' + gsdFonte.toFixed(4) + ') · rótulo "' + (optA2 ? optA2.textContent : '—') + '"');
   check('Air 2S: escolhido no seletor, a 100 m dá o GSD das fontes (~2,88 cm/px) e é tratado como drone de DJI Fly (KML/CSV)',
     !!optA2 && typeof gsdA2 === 'number' && Math.abs(gsdA2 - gsdFonte) / gsdFonte < 0.005 && /CSV \(Litchi\)/.test(notaA2));
+  // Mini 5 Pro em 12 MP pela tela: é o modo em que o GSD DOBRA — quem fotografa em 12 MP e planeja
+  // com a entrada de 50 MP voaria com metade da altura necessária para o GSD que pediu
+  const optM12 = selDrone ? [...selDrone.options].find(o => /Mini 5 Pro/.test(o.textContent) && /12 MP/.test(o.textContent) && /padrão/.test(o.textContent)) : undefined;
+  if (selDrone && optM12) { selDrone.value = optM12.value; selDrone.dispatchEvent(new w4.Event('change')); }
+  if (campoAlt) { campoAlt.value = '100'; campoAlt.dispatchEvent(new w4.Event('input')); }
+  await new Promise(r => setTimeout(r, 300));
+  const gsdM12 = ev4('state.lastPlan ? state.lastPlan.gsd : null');
+  const gsdM12Fonte = 12.5 * 100 * 100 / (8.67 * 4096);   // ~3,52 cm/px — o dobro do modo 50 MP
+  console.log('       [captura] Mini 5 Pro 12 MP a 100 m: GSD ' + gsdM12 + ' cm/px (fonte: ' + gsdM12Fonte.toFixed(4) + ') · rótulo "' + (optM12 ? optM12.textContent : '—') + '"');
+  check('Mini 5 Pro 12 MP: escolhido no seletor, a 100 m dá o GSD das fontes (~3,52 cm/px, o dobro do 50 MP)',
+    !!optM12 && typeof gsdM12 === 'number' && Math.abs(gsdM12 - gsdM12Fonte) / gsdM12Fonte < 0.005);
 
   /* (f) área grande demais: o aviso diz o LIMITE (escolha do app) e quantas linhas o plano daria (r112d).
      O limite é lido da constante do app, não escrito aqui: o que se prova é que o aviso usa a fonte única. */

@@ -5,6 +5,27 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.24.0] — Setembro 2026
+
+### 🆕 Adicionado
+
+- **DJI Mini 5 Pro no banco de câmeras, em quatro entradas** — o modo de foto e a bateria mudam o plano:
+  - **50 MP** (8192 × 6144) ou **12 MP** (4096 × 3072, pixels agrupados 2 × 2). **No modo 12 MP o GSD é o dobro:** a 100 m, **3,52 cm/px** contra **1,76 cm/px** em 50 MP. Quem fotografa em 12 MP e planeja com a entrada de 50 MP voaria com metade da altura necessária para o GSD que pediu — por isso as duas existem.
+  - **bateria padrão** (36 min) ou **Plus** (52 min) — muda a estimativa de baterias da missão.
+  - A linha Mini 5 tem, até agora, **um** modelo: o Mini 5 Pro (lançado em 17/09/2025).
+- **De onde vêm os números:** sensor, FOV (84°), 24 mm equivalente, resoluções e autonomias da **ficha oficial da DJI**; a distância focal **8,67 mm** é a que a própria câmera (modelo **FC9313**) grava na EXIF — conferida em **109 de 109** fotos publicadas no Wikimedia Commons. O sensor entra como **12,5 × 9,38 mm**: é a diagonal que a DJI declara **duas vezes** — pela EXIF (8,67 mm ↔ 24 mm equivalente) e pelo FOV de 84° —, e as duas contas concordam em 0,1%. (Não é o 13,2 × 8,8 mm dos sensores de 1" em 3:2: este é 4:3.)
+- 💡 Para mapear em **50 MP**, repare que a foto temporizada do Mini 5 Pro só vai de **5 s** em diante (em 12 MP, a partir de 2 s) — com sobreposição alta, isso limita a velocidade.
+
+### 🐛 Corrigido
+
+- **DJI Air 3S: o GSD saía ~4% maior que o real.** A entrada usava focal **8,8 mm** e sensor **13,2 × 8,8 mm**; a câmera grande-angular do Air 3S (modelo **FC9113**) grava **8,67 mm** na EXIF (40 de 40 fotos no Commons) e é a **mesma óptica do Mini 5 Pro** — sensor 4:3 de 12,5 × 9,38 mm pelas mesmas duas contas da DJI. A 100 m, o GSD passa de **1,83** para **1,76 cm/px**. **Planos salvos com o Air 3S passam a mostrar o GSD corrigido na mesma altura** (e o "GSD desejado → altura" sobe ~4%). A altura da imagem (8,8 mm) nem era de um sensor 4:3.
+
+### 🔧 Melhorado
+
+- **Verificação:** smoke 70 → **76 asserções** — a conferência "contra a fonte" virou uma **tabela**: Air 2S, Air 3S e as quatro entradas do Mini 5 Pro, cada uma com a sua fonte ao lado e os números esperados **fora do app**; e o Mini 5 Pro em 12 MP, escolhido pelo seletor da tela, dando o GSD das fontes. **24/24 confirmadas por mutação** (campanha inteira de novo), com rodada limpa antes.
+
+---
+
 ## [1.23.0] — Setembro 2026
 
 ### 🆕 Adicionado

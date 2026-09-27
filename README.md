@@ -12,7 +12,7 @@ Desenvolvido por **Marlon Gomes da Costa (MGC Dev)**
 >
 > 💬 **Ajude a validar!** Testou? **Conte como foi** — funcionou no seu fluxo? o ortomosaico/DSM ficou coerente com a realidade medida em campo? Relatos sobre o funcionamento e a **qualidade dos produtos** são muito bem-vindos e orientam a evolução do app. Use a **avaliação dentro do app** ou [abra uma issue no GitHub](https://github.com/Magoc25/OrtoFly/issues).
 
-[![Versão](https://img.shields.io/badge/versão-1.23.0-blue)](./CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/versão-1.24.0-blue)](./CHANGELOG.md)
 [![Status](https://img.shields.io/badge/status-beta%20%C2%B7%20em%20valida%C3%A7%C3%A3o-yellow)](./TERMS.md)
 [![Licença](https://img.shields.io/badge/licença-não%20comercial-orange)](#-licença-e-termos-de-uso)
 [![PIX](https://img.shields.io/badge/apoie-PIX-brightgreen)](#-apoiar-o-projeto)
@@ -94,7 +94,7 @@ O OrtoFly **não controla o drone diretamente** — por restrições do SDK da D
 
 - **Desenho da área (AOI)** — desenhe o polígono da área a mapear sobre imagem de satélite (Esri) ou OpenStreetMap.
   Ao marcar no mapa — área, recorte ou coleta de pontos — um **fio-cruz** (uma linha vertical e uma horizontal) acompanha o cursor, para alinhar o traço com feições fora do ponto do clique.
-- **Banco de câmeras DJI** — Mini 3/4 Pro, Air 2S (Mavic Air 2S), Air 3 / 3S, Mavic 3 / 3 Classic / 3E, Phantom 4 Pro/RTK e mais, com specs de sensor para o cálculo de GSD (ou câmera personalizada).
+- **Banco de câmeras DJI** — Mini 3/4 Pro, **Mini 5 Pro** (50 ou 12 MP, bateria padrão ou Plus), Air 2S (Mavic Air 2S), Air 3 / 3S, Mavic 3 / 3 Classic / 3E, Phantom 4 Pro/RTK e mais, com specs de sensor para o cálculo de GSD (ou câmera personalizada).
 - **Calculadora fotogramétrica** — GSD (cm/px), altura de voo, pegada da imagem no solo, espaçamento entre fotos e entre linhas a partir das sobreposições longitudinal e lateral. Informe um **GSD desejado** e o app calcula a **altura de voo** correspondente.
 - **Geração da grade** — padrão "vai e volta" (lawnmower) recortado na área, com opção de grade cruzada (cross-grid) para melhor reconstrução 3D, direção das linhas automática ou manual.
 - **Estimativas operacionais** — número de fotos, número de linhas, distância total, tempo de voo estimado e número de baterias.
@@ -198,7 +198,7 @@ O app **não substitui** a checagem dessas autorizações nem garante a viabilid
 ## 🤝 Compatibilidade DJI
 
 - **DJI Pilot 2 / drones Enterprise** (Mavic 3E/3T, M30, M300, M350): importam o **KMZ (WPML)** gerado, com modelo de aeronave e payload declarados.
-- **DJI Fly / drones consumer** (Mini 3/4 Pro, Air 3): a compatibilidade do KMZ de waypoints varia conforme o modelo e a versão do app. Para esses casos, os formatos **KML** e **CSV (Litchi)** costumam ser o caminho mais confiável.
+- **DJI Fly / drones consumer** (Mini 3/4/5 Pro, Air 2S, Air 3/3S): a compatibilidade do KMZ de waypoints varia conforme o modelo e a versão do app. Para esses casos, os formatos **KML** e **CSV (Litchi)** costumam ser o caminho mais confiável.
 
 ---
 
