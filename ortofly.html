@@ -538,7 +538,7 @@ footer{
       <div class="card">
         <h2>🧹 Disco / manutenção</h2>
         <button class="btn sm block" onclick="odmCleanAll()">🧹 Limpar tudo do NodeODM (liberar disco)</button>
-        <p class="hint" style="margin-top:6px">Remove do servidor <b>todas</b> as tarefas que o app criou (concluídas, falhas ou abandonadas). Use quando o disco do NodeODM encher.</p>
+        <p class="hint" style="margin-top:6px">Remove do servidor <b>todas</b> as tarefas que o app criou (concluídas, falhas ou abandonadas). No <b>PC Local</b>, também oferece apagar as que estão no servidor e este navegador não registrou — sempre com uma confirmação à parte. Use quando o disco do NodeODM encher.</p>
         <p class="hint" style="margin-top:4px">⚠️ <b>Windows/WSL:</b> isso libera o disco <i>dentro</i> do servidor, mas o espaço só volta ao <b>C:</b> depois de <b>compactar o disco virtual do WSL</b> — veja a seção “Limpeza de disco” no guia do Windows.</p>
       </div>
     </div>
@@ -701,7 +701,7 @@ footer{
 <script src="./vendor/three/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly — © 2026 MGC Dev (versão: só em APP_VERSION) ═══════════════ */
-const APP_VERSION = '1.24.0';
+const APP_VERSION = '1.24.1';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -2523,8 +2523,25 @@ async function odmCreate(){ const u=odmUrlVal(); if(!u){ toast('Configure e test
   }catch(e){ console.error('[ODM] create',e); odmStatus('❌ Falha ao criar tarefa: '+e.message,true); toast('Falha: '+e.message,'error'); } }
 function odmStartPoll(){ if(_odmPoll) clearInterval(_odmPoll); odmRefresh(); _odmPoll=setInterval(odmRefresh,5000); }
 function odmClearCard(){ if(_odmPoll) clearInterval(_odmPoll); _opfsLimpar(); _odmTask=null; _odmZip=null; _odmZipFor=null; _odmZipRaw=null; _odmSavedMode=false; _odmResultProj=null; _odmSaved=false; localStorage.removeItem(LS+'_odm_task'); $('odmTaskCard').classList.add('hidden'); $('odmOutputs').classList.add('hidden'); odmStatus(''); }
-async function odmRefresh(){ const u=odmUrlVal(); if(!u||!_odmTask) return;
-  try{ const r=await fetch(u+'/task/'+_odmTask+'/info'); const j=await r.json();
+/* O NodeODM responde HTTP 200 com {"error":"<uuid> not found"} quando a tarefa não existe mais
+   (apagada pelo terminal, container recriado). Sem tratar isso o card mostrava "status
+   desconhecido", consultava o servidor a cada 5 s para sempre e o aviso de saída da página
+   nunca desligava (medido no NodeODM 2.2.4 em 2026-11-15). */
+function odmTaskErro(msg){
+  if(_odmPoll){ clearInterval(_odmPoll); _odmPoll=null; }
+  const ob=$('odmBar'); if(ob) ob.style.display='none';
+  if(!/not found/i.test(msg||'')){ $('odmTaskStatus').textContent='O NodeODM respondeu com erro: '+msg; return; }
+  odmUntrack(_odmTask); _odmSaved=true;   // não há nada a perder: desliga o aviso de saída da página
+  $('odmTaskStatus').textContent='Esta tarefa não existe mais no NodeODM — foi apagada por fora do app ou o servidor foi recriado.';
+  const box=$('odmOutputs'); if(!box) return;
+  box.classList.remove('hidden');
+  box.innerHTML='<p class="hint">O servidor não tem mais nada registrado para ela.</p><button class="btn sm block" onclick="odmClearCard()">✕ Fechar</button>';
+}
+async function odmRefresh(){ const u=odmUrlVal(), uuid=_odmTask; if(!u||!uuid) return;
+  try{ const r=await fetch(u+'/task/'+uuid+'/info'); const j=await r.json().catch(()=>({}));
+    if(uuid!==_odmTask) return;   // o card mudou de tarefa (ou fechou) enquanto a resposta vinha
+    if(j&&j.error){ odmTaskErro(String(j.error)); return; }
+    if(!r.ok) throw new Error('HTTP '+r.status);
     const codes={10:'na fila',20:'processando',30:'falhou',40:'concluído',50:'cancelado'}; const st=j.status&&j.status.code;
     const pct=(st===20&&j.progress!=null)?Math.round(j.progress):null;
     $('odmTaskStatus').textContent=`${j.name||_odmTask} · ${codes[st]||(st!=null?'código '+st:'status desconhecido')}${pct!=null?' · '+pct+'%':''}${j.imagesCount?' · '+j.imagesCount+' img':''}`;
@@ -2652,8 +2669,24 @@ async function odmOpenZip(kind,viewer){ if(!_odmSavedMode && (!odmUrlVal()||!_od
   }catch(e){ console.error('[ODM] openZip',e); toast('Falha ao abrir: '+e.message,'error'); odmStatus('❌ '+e.message,true); } }
 async function odmDownload(asset){ if(!_odmSavedMode && (!odmUrlVal()||!_odmTask)) return; toast('Baixando '+asset+'…');
   try{ let blob; if(_odmSavedMode && asset==='all.zip' && _odmZipRaw){ blob=_odmZipRaw; } else { blob=await odmFetch(asset); } downloadBlob(blob,'ortofly_'+asset); }catch(e){ console.error('[ODM] download',e); toast('Falha: '+e.message,'error'); } }
-async function odmCancel(){ const u=odmUrlVal(); if(!u||!_odmTask) return; if(!confirm('Cancelar a tarefa?')) return;
-  try{ const fd=new FormData(); fd.append('uuid',_odmTask); await fetch(u+'/task/cancel',{method:'POST',body:fd}); odmRefresh(); }catch(e){ console.error('[ODM] cancel',e); toast('Falha ao cancelar: '+e.message,'error'); } }
+/* /task/cancel e /task/remove só leem o corpo em urlencoded ou JSON. Até a v1.24.0 o app mandava
+   multipart e o NodeODM respondia HTTP 200 com {"error":"uuid param missing."}: Cancelar, Descartar
+   e Limpar tudo nunca chegaram ao servidor (medido no NodeODM 2.2.4 em 2026-11-15). O corpo certo é
+   URLSearchParams — urlencoded, que também dispensa o preflight de CORS que o JSON exigiria. */
+async function odmCancel(){
+  const u=odmUrlVal(), uuid=_odmTask; if(!u||!uuid) return;
+  if(!confirm('Cancelar a tarefa?')) return;
+  try{
+    const r=await fetch(u+'/task/cancel',{method:'POST',body:new URLSearchParams({uuid})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j||!j.success) throw new Error((j&&j.error)||('HTTP '+r.status));
+    toast('Cancelamento pedido ✅');
+  }catch(e){
+    console.error('[ODM] cancel',e);
+    odmStatus('❌ Não consegui cancelar: '+e.message,true); toast('Falha ao cancelar: '+e.message,'error');
+  }
+  odmRefresh();
+}
 
 /* ───── Ciclo de vida limpo: salvar no app (IndexedDB) + apagar do NodeODM ───── */
 const IDB_NAME='ortofly_db', IDB_STORE='results';
@@ -2661,23 +2694,70 @@ function _idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open(IDB_NAME
 async function idbPut(k,v){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).put(v,k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
 async function idbGet(k){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readonly'); const q=tx.objectStore(IDB_STORE).get(k); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); }); }
 async function idbDel(k){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).delete(k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
-async function odmRemoveServer(uuid){ const u=odmUrlVal(); if(!u||!uuid) return false; try{ const fd=new FormData(); fd.append('uuid',uuid); const r=await fetch(u+'/task/remove',{method:'POST',body:fd}); if(!r.ok) return false; const j=await r.json().catch(()=>({}));
-  if(j&&j.success) return true;
-  return !!(j&&j.error&&/not found|invalid uuid|no such/i.test(j.error));   // tarefa que já não existe no servidor conta como removida (senão o uuid fica preso em _odm_tasks p/ sempre)
-}catch(e){ console.warn('[ODM] remove',e); return false; } }
-// rastreia TODAS as tarefas criadas (NodeODM não lista tarefas; sem isso, ao criar uma nova a anterior vira órfã no disco)
+// Remove a tarefa do servidor. Devolve {ok, motivo}: o motivo é o que o NodeODM respondeu (ou a falha
+// de rede), para a tela dizer a causa real em vez de chutar "servidor offline".
+async function odmRemoveServer(uuid){
+  const u=odmUrlVal(); if(!u||!uuid) return {ok:false, motivo:'sem URL do NodeODM ou sem tarefa'};
+  try{
+    const r=await fetch(u+'/task/remove',{method:'POST',body:new URLSearchParams({uuid})});
+    const j=await r.json().catch(()=>({}));
+    if(r.ok&&j&&j.success) return {ok:true};
+    // tarefa que já não existe no servidor conta como removida (senão o uuid fica preso em _odm_tasks p/ sempre)
+    if(j&&j.error&&/not found|invalid uuid|no such/i.test(j.error)) return {ok:true, jaNaoExistia:true};
+    return {ok:false, motivo:(j&&j.error)||('HTTP '+r.status)};
+  }catch(e){
+    console.warn('[ODM] remove',e);
+    return {ok:false, motivo:'o servidor não respondeu ('+((e&&e.message)||e)+')'};
+  }
+}
+// Registro das tarefas que ESTE navegador criou. Ele mora no localStorage, então tarefa criada em outro
+// navegador (ou antes de os dados do site serem apagados) não aparece aqui — por isso o Limpar tudo
+// também consulta o servidor (odmServerTasks).
 function odmTracked(){ try{ return JSON.parse(localStorage.getItem(LS+'_odm_tasks')||'[]'); }catch(e){ return []; } }
 function odmTrack(uuid){ if(!uuid) return; const a=odmTracked(); if(!a.includes(uuid)){ a.push(uuid); localStorage.setItem(LS+'_odm_tasks',JSON.stringify(a)); } }
 function odmUntrack(uuid){ localStorage.setItem(LS+'_odm_tasks',JSON.stringify(odmTracked().filter(x=>x!==uuid))); }
+// O que o SERVIDOR tem (GET /task/list devolve [{uuid}]). null = não deu para listar.
+async function odmServerTasks(){
+  const u=odmUrlVal(); if(!u) return null;
+  try{
+    const r=await fetch(u+'/task/list'); if(!r.ok) return null;
+    const j=await r.json();
+    return Array.isArray(j) ? j.map(t=>t&&t.uuid).filter(Boolean) : null;
+  }catch(e){ console.warn('[ODM] list',e); return null; }
+}
 async function odmCleanAll(){
   const u=odmUrlVal(); if(!u){ toast('Conecte ao NodeODM primeiro','error'); return; }
-  const list=odmTracked(); if(!list.length){ toast('Nenhuma tarefa registrada para limpar'); return; }
-  if(!confirm('Remover TODAS as '+list.length+' tarefa(s) que o app criou no NodeODM?\n\nLibera o disco do servidor. Não dá pra desfazer.')) return;
-  odmStatus('Limpando '+list.length+' tarefa(s) do NodeODM…'); let ok=0;
-  for(const uuid of list.slice()){ if(await odmRemoveServer(uuid)){ ok++; odmUntrack(uuid); } }
-  if(_odmTask && !odmTracked().includes(_odmTask)) odmClearCard();
-  odmStatus(`🧹 ${ok}/${list.length} tarefa(s) removida(s) do NodeODM.`+(ok<list.length?' Algumas falharam (servidor offline?).':'')+' No Windows/WSL, compacte o disco virtual p/ devolver o espaço ao C: (veja o guia).');
-  if(ok) toast('Limpou '+ok+' tarefa(s) do NodeODM ✅'); else toast('Nada removido (servidor offline?)','error');
+  odmStatus('Consultando as tarefas do NodeODM…');
+  const meus=odmTracked(), noServidor=await odmServerTasks();
+  const outras=noServidor ? noServidor.filter(x=>!meus.includes(x)) : [];
+  const local=_odmMode==='local';
+  if(!meus.length && !(local&&outras.length)){
+    odmStatus(outras.length ? 'ℹ️ Este app não criou nenhuma tarefa neste servidor. Há '+outras.length+' tarefa(s) de outra origem, que não foram tocadas.' : '');
+    toast('Nenhuma tarefa deste app para limpar'); return;
+  }
+  let alvo=[];
+  if(meus.length){
+    if(!confirm('Remover as '+meus.length+' tarefa(s) que este app criou no NodeODM?\n\nLibera o disco do servidor. Não dá pra desfazer.')){ odmStatus(''); return; }
+    alvo=meus.slice();
+  }
+  // PC Local: o servidor é do próprio usuário, então dá para oferecer também o que este navegador não
+  // registrou. No modo Servidor essas tarefas podem ser de outra pessoa: o app só informa quantas são.
+  if(local && outras.length && confirm('O NodeODM tem mais '+outras.length+' tarefa(s) que este navegador não registrou (criadas em outro navegador, por outro programa, ou antes de os dados do site serem apagados).\n\nRemover essas também? Não dá pra desfazer.')) alvo=alvo.concat(outras);
+  if(!alvo.length){ odmStatus(''); return; }
+  odmStatus('Limpando '+alvo.length+' tarefa(s) do NodeODM…');
+  let ok=0; const motivos=[];
+  for(const uuid of alvo){
+    const r=await odmRemoveServer(uuid);
+    if(r.ok){ ok++; odmUntrack(uuid); if(uuid===_odmTask) odmClearCard(); }
+    else if(!motivos.includes(r.motivo)) motivos.push(r.motivo);
+  }
+  const ficaram=outras.filter(x=>!alvo.includes(x)).length;
+  odmStatus('🧹 '+ok+'/'+alvo.length+' tarefa(s) removida(s) do NodeODM.'
+    +(motivos.length ? ' Falha: '+motivos.join(' · ')+'.' : '')
+    +(ficaram ? ' Outras '+ficaram+' tarefa(s) continuam no servidor: não foram registradas por este navegador e não foram tocadas.' : '')
+    +(noServidor ? '' : ' Não consegui listar as tarefas do servidor: limpei só as que este app registrou.')
+    +' No Windows/WSL, compacte o disco virtual p/ devolver o espaço ao C: (veja o guia).', ok<alvo.length);
+  if(ok) toast('Limpou '+ok+' tarefa(s) do NodeODM ✅'); else toast('Nada removido — o motivo está na aba Processar','error');
 }
 async function odmSaveResult(){
   if(_odmSavedMode){ toast('Este resultado já está salvo'); return; }
@@ -2696,11 +2776,11 @@ async function odmSaveResult(){
     await idbPut('result_'+rec.id, _odmZipRaw);
     storeProjects(arr); state.name=name; if($('projName')) $('projName').value=name;
     const uuid=_odmTask; _odmSaved=true;
-    const removed=await odmRemoveServer(uuid); if(removed) odmUntrack(uuid);
+    const rem=await odmRemoveServer(uuid), removed=rem.ok; if(removed) odmUntrack(uuid);
     if(_odmPoll) clearInterval(_odmPoll);
     _odmTask=null; localStorage.removeItem(LS+'_odm_task'); _odmSavedMode=true; _odmResultProj=rec.id;
     odmShowOutputs();
-    odmStatus('✅ Salvo no projeto "'+name+'"'+(removed?' e removido do NodeODM (disco liberado).':' (não removeu do NodeODM — apague depois).'));
+    odmStatus('✅ Salvo no projeto "'+name+'"'+(removed?' e removido do NodeODM (disco liberado).':' — mas não removi do NodeODM ('+rem.motivo+'). Apague depois pelo 🧹 Limpar tudo.'));
     toast('Salvo no projeto ✅');
   }catch(e){ console.error('[ODM] save',e); _odmSaved=false; toast('Falha ao salvar: '+e.message,'error'); odmStatus('❌ '+e.message,true); }
 }
@@ -2709,9 +2789,9 @@ async function odmDiscard(){
   if(!uuid){ odmClearCard(); return; }   // modo salvo / sem tarefa no servidor: só fecha o card
   if(!confirm('Descartar este processamento?\n\nAs fotos e os produtos serão APAGADOS do NodeODM (libera o disco). Não dá pra desfazer.')) return;
   odmStatus('Descartando e liberando o disco do NodeODM…');
-  const ok=await odmRemoveServer(uuid);
-  if(ok){ odmUntrack(uuid); odmClearCard(); toast('Descartado ✅ (disco do servidor liberado)'); }
-  else { odmStatus('❌ Não removi do NodeODM (servidor offline/ocupado?). A tarefa AINDA ocupa disco — ligue o NodeODM e tente de novo, ou use 🧹 Limpar tudo.',true); toast('Falha ao remover do NodeODM','error'); }  // mantém o card p/ retry (não some silenciosamente)
+  const r=await odmRemoveServer(uuid);
+  if(r.ok){ odmUntrack(uuid); odmClearCard(); toast(r.jaNaoExistia?'Fechado — a tarefa já não existia no servidor':'Descartado ✅ (disco do servidor liberado)'); }
+  else { odmStatus('❌ Não removi do NodeODM: '+r.motivo+'. A tarefa AINDA ocupa disco — confira o servidor e tente de novo.',true); toast('Falha ao remover do NodeODM','error'); }  // mantém o card p/ retry (não some silenciosamente)
 }
 async function odmLoadSavedResult(id){
   try{ odmClearCard(); odmStatus('Carregando resultado salvo…');

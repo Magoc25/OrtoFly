@@ -19,6 +19,10 @@
       se um Testar conectar (guia r112/r113);
     - e cada EXEMPLO de dado que o app sugere (pontos, GCP, GSD), lido do DOM e
       usado como aparece na tela, dá o resultado certo (guia r125);
+    - no ciclo de vida da tarefa do NodeODM — Descartar, Cancelar, Limpar tudo e
+      a tarefa que sumiu do servidor —, manda o uuid num formato que o servidor
+      LÊ e reage a cada resposta dele, contra um duplo que imita o contrato
+      medido no NodeODM 2.2.4 (cenário 5, v1.24.1);
     - e, por regex sobre o HTML FONTE, que nenhum espelho de estado nasce com o
       valor dentro (guia r72a/r74b — a asserção dinâmica não enxerga isso).
 
@@ -718,6 +722,178 @@ async function main() {
   const rej4 = rejeicoes.slice(rej0);
   check('cenario 4: nenhuma excecao nao tratada (nem promessa rejeitada sem tratamento)', errs4.length === 0 && rej4.length === 0);
   [...errs4, ...rej4].forEach(e => console.error('       ' + e));
+
+  /* -- cenario 5: ciclo de vida da tarefa no NodeODM (descartar, cancelar, limpar, tarefa que sumiu) --
+     Existe porque Descartar, Limpar tudo e Cancelar NUNCA chegaram ao servidor, da v1.18.0 a
+     v1.24.0, e nenhum teste viu: o app mandava o uuid em multipart/form-data (FormData) e o
+     NodeODM so le urlencoded ou JSON nessas rotas -- responde HTTP 200 com
+     {"error":"uuid param missing."}, que o app lia como "servidor offline".
+     O duplo abaixo imita o CONTRATO MEDIDO no NodeODM 2.2.4 em 2026-11-15 (curl contra o
+     servidor real, com uuid inexistente):
+       POST /task/remove | /task/cancel  multipart   -> 200 {"error":"uuid param missing."}
+       idem, urlencoded ou JSON, uuid desconhecido   -> 200 {"success":false,"error":"<uuid> not found"}
+       GET  /task/<uuid>/info, uuid desconhecido     -> 200 {"error":"<uuid> not found"}
+       GET  /task/list                               -> 200 [{"uuid":"..."}]
+     Se o NodeODM mudar, quem acusa e tests/contrato-nodeodm.sh (manual, contra o servidor de
+     verdade) -- este cenario prova o que o APP faz com cada resposta.
+     O duplo devolve copia a cada resposta (r85a) e conta as chamadas: cada bloco cobra que
+     ele foi EXERCITADO (r91), senao "nao chamou" e "chamou e falhou" dao o mesmo vermelho.
+     setInterval/clearInterval sao capturados para dar para afirmar que a consulta periodica
+     PAROU sem esperar 5 s de relogio. */
+  const rej5 = rejeicoes.length;
+  const T_VIVA = '11111111-1111-4111-8111-111111111111', T_SUMIU = '22222222-2222-4222-8222-222222222222';
+  const X1 = '33333333-3333-4333-8333-333333333333', X2 = '44444444-4444-4444-8444-444444444444';
+  const errs5 = [];
+  async function subir5(cfg) {
+    const fake = { tarefas: new Map((cfg.tarefas || []).map(([u, t]) => [u, { ...t }])), cont: { info: 0, remove: 0, cancel: 0, list: 0 }, corpos: [], cancelFalha: cfg.cancelFalha || null };
+    const intervalos = new Map(); let nInt = 0;
+    const confirms = [];
+    const vc5 = new VirtualConsole();
+    vc5.on('jsdomError', e => errs5.push((cfg.nome || '?') + ' jsdomError: ' + ((e && e.message) || e)));
+    const json = o => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(JSON.parse(JSON.stringify(o))) });
+    // o que o NodeODM consegue ler do corpo: urlencoded (URLSearchParams ou string) e JSON; multipart (FormData), nao
+    const lerCorpo = b => {
+      const nome = Object.prototype.toString.call(b);
+      if (nome === '[object URLSearchParams]') return { tipo: 'urlencoded', uuid: b.get('uuid') };
+      if (nome === '[object FormData]') return { tipo: 'multipart', uuid: null };
+      if (typeof b === 'string') { try { return { tipo: 'json', uuid: JSON.parse(b).uuid || null }; } catch (_) { return { tipo: 'urlencoded', uuid: new URLSearchParams(b).get('uuid') }; } }
+      return { tipo: 'vazio', uuid: null };
+    };
+    const responder = (u, o) => {
+      const p = (String(u).match(/^https?:\/\/[^/]+(\/.*)$/) || [])[1] || String(u);
+      if (p === '/info') return json({ version: '2.2.4', taskQueueCount: 0, engine: 'odm', engineVersion: '3.5.6' });
+      if (p === '/task/list') { fake.cont.list++; return json([...fake.tarefas.keys()].map(uuid => ({ uuid }))); }
+      const mi = p.match(/^\/task\/([^/]+)\/info$/);
+      if (mi) { fake.cont.info++; const t = fake.tarefas.get(mi[1]); return json(t ? { uuid: mi[1], name: 'voo', status: { code: t.code }, progress: 0, imagesCount: 34, options: [] } : { error: mi[1] + ' not found' }); }
+      if (p === '/task/remove' || p === '/task/cancel') {
+        const acao = p.slice(6); fake.cont[acao]++;
+        const { tipo, uuid } = lerCorpo(o && o.body); fake.corpos.push(acao + ':' + tipo);
+        if (!uuid) return json({ error: 'uuid param missing.' });
+        if (!fake.tarefas.has(uuid)) return json({ success: false, error: uuid + ' not found' });
+        if (acao === 'cancel') { if (fake.cancelFalha) return json({ success: false, error: fake.cancelFalha }); fake.tarefas.get(uuid).code = 50; return json({ success: true }); }
+        fake.tarefas.delete(uuid); return json({ success: true });
+      }
+      return Promise.reject(new TypeError('rota nao simulada no duplo: ' + p));
+    };
+    const dom5 = new JSDOM(html, {
+      url: 'https://magoc25.github.io/OrtoFly/ortofly.html', runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc5,
+      beforeParse(window) {
+        window.L = chainProxy();
+        Object.defineProperty(window.navigator, 'vendor', { configurable: true, get: () => 'Google Inc.' });
+        window.fetch = (u, o) => responder(u, o);
+        window.confirm = msg => { confirms.push(String(msg)); return cfg.confirmar ? !!cfg.confirmar(String(msg), confirms.length - 1) : true; };
+        window.setInterval = (fn, ms) => { const id = ++nInt; intervalos.set(id, { fn, ms }); return id; };
+        window.clearInterval = id => { intervalos.delete(id); };
+        window.URL.createObjectURL = () => 'blob:stub'; window.URL.revokeObjectURL = () => {};
+        window.matchMedia = window.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
+        window.scrollTo = () => {}; window.structuredClone = window.structuredClone || structuredClone;
+        // estado de um app que ja foi usado: e por aqui (wire) que a tarefa volta ao card ao reabrir
+        const ls = { ortofly_beta_ack: '1', 'ortofly_odm_auth_http://127.0.0.1:3000': '1', ...(cfg.ls || {}) };
+        for (const [k, v] of Object.entries(ls)) window.localStorage.setItem(k, v);
+      }
+    });
+    const w5 = dom5.window, doc5 = w5.document;
+    await new Promise((res, rej) => {
+      const t = setTimeout(() => rej(new Error('cenario 5 (' + (cfg.nome || '?') + '): load nao disparou em 5 s')), 5000);
+      if (w5.document.readyState === 'complete') { clearTimeout(t); res(); }
+      else w5.addEventListener('load', () => { clearTimeout(t); res(); });
+    });
+    const esperar = async (cond, ms = 2000) => { for (let i = 0; i < ms / 10; i++) { let ok = false; try { ok = !!cond(); } catch (e) { ok = false; } if (ok) return true; await new Promise(r => setTimeout(r, 10)); } return false; };
+    return { fake, confirms, w: w5, doc: doc5, esperar,
+      clicar: sel => { const b = doc5.querySelector(sel); if (b) b.click(); return !!b; },
+      ls: k => { try { return w5.localStorage.getItem(k); } catch (e) { return undefined; } },
+      pollVivo: () => [...intervalos.values()].some(i => i.ms === 5000),
+      status: () => String(txt(doc5, 'odmStatus')), toast: () => { const n = el(doc5, 'toast'); return n ? { texto: String(n.textContent), erro: n.classList.contains('error') } : { texto: '', erro: false }; },
+      fechar: () => { try { w5.close(); } catch (e) {} } };
+  }
+  const lsTarefa = (atual, lista) => ({ ...(atual ? { ortofly_odm_task: atual } : {}), ortofly_odm_tasks: JSON.stringify(lista) });
+
+  { // (a) Descartar uma tarefa que existe no servidor
+    const c = await subir5({ nome: '5a', tarefas: [[T_VIVA, { code: 40 }]], ls: lsTarefa(T_VIVA, [T_VIVA]) });
+    await c.esperar(() => c.fake.cont.info > 0);
+    const foi = c.clicar('button[onclick="odmDiscard()"]');
+    await c.esperar(() => c.fake.cont.remove > 0 && (has(c.doc, 'odmTaskCard', 'hidden') === true || /❌/.test(c.status())));
+    console.log('       [captura] descartar: corpos recebidos pelo duplo = ' + JSON.stringify(c.fake.corpos) + ' · status = ' + JSON.stringify(c.status().slice(0, 120)));
+    check('tarefa/descartar: o pedido chegou ao NodeODM (o duplo foi exercitado, r91)', foi && c.fake.cont.remove === 1 && c.confirms.length === 1);
+    check('tarefa/descartar: o servidor LEU o uuid e apagou a tarefa (multipart ele nao le)', c.fake.cont.remove === 1 && !c.fake.tarefas.has(T_VIVA));
+    check('tarefa/descartar: o card fecha e a tarefa sai do registro do app',
+      has(c.doc, 'odmTaskCard', 'hidden') === true && c.ls('ortofly_odm_task') === null && c.ls('ortofly_odm_tasks') === '[]');
+    c.fechar();
+  }
+  { // (b) app reaberto com uma tarefa que ja nao existe no servidor (apagada pelo terminal, container recriado)
+    const c = await subir5({ nome: '5b', tarefas: [], ls: lsTarefa(T_SUMIU, [T_SUMIU]) });
+    await c.esperar(() => c.fake.cont.info > 0 && /existe|desconhecido/.test(String(txt(c.doc, 'odmTaskStatus'))));
+    const st = String(txt(c.doc, 'odmTaskStatus'));
+    console.log('       [captura] tarefa que sumiu: card = ' + JSON.stringify(st.slice(0, 130)));
+    check('tarefa que sumiu: o card foi ao servidor perguntar por ela (o duplo foi exercitado, r91)', c.fake.cont.info >= 1 && has(c.doc, 'odmTaskCard', 'hidden') === false);
+    check('tarefa que sumiu: o card DIZ que ela nao existe mais no servidor (antes: "status desconhecido")', /não existe mais/i.test(st) && !/desconhecido/.test(st));
+    check('tarefa que sumiu: a consulta periodica PARA (antes: a cada 5 s, para sempre)', c.fake.cont.info >= 1 && c.pollVivo() === false);
+    let evSaida; try { evSaida = new c.w.Event('beforeunload', { cancelable: true }); c.w.dispatchEvent(evSaida); } catch (e) { evSaida = undefined; }
+    check('tarefa que sumiu: fechar a aba nao pede mais confirmacao (nao ha nada a perder)', !!evSaida && evSaida.defaultPrevented === false);
+    const btnFechar = qsa(c.doc, '#odmOutputs button').find(b => /Fechar/.test(b.textContent));
+    if (btnFechar) btnFechar.click();
+    check('tarefa que sumiu: o botao Fechar some com o card e limpa o registro',
+      !!btnFechar && has(c.doc, 'odmTaskCard', 'hidden') === true && c.ls('ortofly_odm_task') === null && c.ls('ortofly_odm_tasks') === '[]');
+    c.fechar();
+  }
+  { // (c) o mesmo estado, pelo botao Descartar: tarefa que ja nao existe conta como removida e o card fecha
+    const c = await subir5({ nome: '5c', tarefas: [], ls: lsTarefa(T_SUMIU, [T_SUMIU]) });
+    await c.esperar(() => c.fake.cont.info > 0);
+    const foi = c.clicar('button[onclick="odmDiscard()"]');
+    await c.esperar(() => c.fake.cont.remove > 0 && (has(c.doc, 'odmTaskCard', 'hidden') === true || /❌/.test(c.status())));
+    check('tarefa que sumiu: Descartar fecha o card em vez de falhar para sempre',
+      foi && c.fake.cont.remove === 1 && has(c.doc, 'odmTaskCard', 'hidden') === true && c.ls('ortofly_odm_task') === null);
+    c.fechar();
+  }
+  { // (d) Cancelar: o servidor tem de ler o uuid; e, se recusar, o app tem de dizer por que
+    const c = await subir5({ nome: '5d', tarefas: [[T_VIVA, { code: 20 }]], ls: lsTarefa(T_VIVA, [T_VIVA]) });
+    await c.esperar(() => c.fake.cont.info > 0);
+    check('tarefa em processamento: a consulta periodica esta LIGADA (controle: o arreio enxerga o timer)', c.pollVivo() === true);
+    const foi = c.clicar('button[onclick="odmCancel()"]');
+    await c.esperar(() => c.fake.cont.cancel > 0); await new Promise(r => setTimeout(r, 40));
+    console.log('       [captura] cancelar: corpos recebidos pelo duplo = ' + JSON.stringify(c.fake.corpos));
+    check('tarefa/cancelar: o servidor LEU o uuid e cancelou a tarefa', foi && c.fake.cont.cancel === 1 && (c.fake.tarefas.get(T_VIVA) || {}).code === 50);
+    c.fechar();
+    const c2 = await subir5({ nome: '5d2', tarefas: [[T_VIVA, { code: 20 }]], ls: lsTarefa(T_VIVA, [T_VIVA]), cancelFalha: 'Task is not running' });
+    await c2.esperar(() => c2.fake.cont.info > 0);
+    c2.clicar('button[onclick="odmCancel()"]');
+    await c2.esperar(() => c2.fake.cont.cancel > 0 && c2.toast().erro);
+    console.log('       [captura] cancelar recusado: toast = ' + JSON.stringify(c2.toast()));
+    check('tarefa/cancelar: se o servidor recusa, o app AVISA com o motivo dele (antes: resposta ignorada)',
+      c2.fake.cont.cancel === 1 && c2.toast().erro === true && /Task is not running/.test(c2.toast().texto));
+    c2.fechar();
+  }
+  { // (e) Limpar tudo, PC Local: enxerga tambem as tarefas que este navegador nao criou (GET /task/list)
+    const tarefas = [[T_VIVA, { code: 40 }], [X1, { code: 40 }], [X2, { code: 30 }]];
+    const c = await subir5({ nome: '5e', tarefas, ls: lsTarefa(null, [T_VIVA]) });
+    const foi = c.clicar('button[onclick="odmCleanAll()"]');
+    await c.esperar(() => /🧹/.test(c.status()));
+    console.log('       [captura] limpar tudo (local): confirmacoes = ' + JSON.stringify(c.confirms.map(m => m.split('\n')[0].slice(0, 110))) + ' · status = ' + JSON.stringify(c.status().slice(0, 110)));
+    check('limpar tudo/local: consulta a lista do servidor (o duplo foi exercitado, r91)', foi && c.fake.cont.list >= 1 && c.fake.cont.remove >= 1);
+    check('limpar tudo/local: avisa quantas tarefas de FORA do registro vai apagar, antes de apagar', c.confirms.length === 2 && /\b2\b/.test(c.confirms[1]));
+    check('limpar tudo/local: com as duas confirmacoes, o servidor fica vazio', c.fake.tarefas.size === 0 && c.ls('ortofly_odm_tasks') === '[]');
+    c.fechar();
+    // recusando a 2a confirmacao, so saem as que o app criou
+    const c2 = await subir5({ nome: '5e2', tarefas, ls: lsTarefa(null, [T_VIVA]), confirmar: (m, i) => i === 0 });
+    c2.clicar('button[onclick="odmCleanAll()"]');
+    await c2.esperar(() => /🧹/.test(c2.status()));
+    check('limpar tudo/local: recusar a 2a confirmacao preserva as tarefas que o app nao criou',
+      c2.fake.cont.remove === 1 && !c2.fake.tarefas.has(T_VIVA) && c2.fake.tarefas.has(X1) && c2.fake.tarefas.has(X2));
+    c2.fechar();
+    // modo Servidor: as outras podem ser de terceiros -- nem pergunta, so informa
+    const c3 = await subir5({ nome: '5e3', tarefas, ls: { ...lsTarefa(null, [T_VIVA]), ortofly_odm_mode: 'server', ortofly_odm_url_server: 'https://odm.exemplo.test' } });
+    c3.clicar('button[onclick="odmCleanAll()"]');
+    await c3.esperar(() => /🧹/.test(c3.status()));
+    console.log('       [captura] limpar tudo (servidor): status = ' + JSON.stringify(c3.status().slice(0, 170)));
+    check('limpar tudo/servidor: remove so as tarefas do app e NAO toca nas outras (podem ser de terceiros)',
+      c3.confirms.length === 1 && !c3.fake.tarefas.has(T_VIVA) && c3.fake.tarefas.has(X1) && c3.fake.tarefas.has(X2));
+    check('limpar tudo/servidor: diz quantas tarefas ficaram no servidor', /\b2\b/.test(c3.status()) && /outra/i.test(c3.status()));
+    c3.fechar();
+  }
+  await new Promise(r => setTimeout(r, 50));
+  const rejC5 = rejeicoes.slice(rej5);
+  check('cenario 5: nenhuma excecao nao tratada (nem promessa rejeitada sem tratamento)', errs5.length === 0 && rejC5.length === 0);
+  [...errs5, ...rejC5].forEach(e => console.error('       ' + e));
 
   check('harness: nenhuma promessa rejeitada sem tratamento, em cenario algum', rejeicoes.length === 0);
   rejeicoes.slice(0, rej0).forEach(e => console.error('       ' + e));

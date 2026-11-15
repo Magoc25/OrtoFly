@@ -165,7 +165,7 @@ colima start --cpu 6 --memory 16
 ## 🧹 Limpeza de disco (importante!)
 O NodeODM guarda **todas as tarefas** (fotos + intermediários + resultados) até você apagá-las. Cada processamento — em especial **DSM/modo completo** — pode ocupar **dezenas de GB**. Sem limpar, o disco enche e **novos processamentos falham**.
 
-**No dia a dia, pelo app** (igual ao Windows): **💾 Salvar** ou **🗑️ Descartar** cada tarefa; tarefa que **falhou também ocupa disco**; aba **⚙️ Processar → 🧹 Limpar tudo do NodeODM** remove todas de uma vez.
+**No dia a dia, pelo app** (igual ao Windows): **💾 Salvar** ou **🗑️ Descartar** cada tarefa; tarefa que **falhou também ocupa disco**; aba **⚙️ Processar → 🧹 Limpar tudo do NodeODM** remove todas de uma vez — inclusive, com uma confirmação à parte, as que estão no servidor e este navegador não registrou (criadas em outro navegador, por exemplo). _(Até a v1.24.0 esses botões mostravam erro e não apagavam nada; corrigido na v1.24.1.)_
 
 **Recuperar o espaço no Mac** (de vez em quando):
 

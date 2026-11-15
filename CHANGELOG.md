@@ -5,6 +5,23 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.24.1] — Novembro 2026
+
+### 🐛 Corrigido
+
+- **🗑️ Descartar, 🧹 Limpar tudo e ✖ Cancelar nunca chegavam ao NodeODM.** Os botões mostravam erro e só a limpeza pelo terminal liberava o disco. A causa: o app enviava o identificador da tarefa em `multipart/form-data`, e o NodeODM só lê o corpo dessas duas rotas (`/task/remove` e `/task/cancel`) em `urlencoded` ou JSON — respondia `{"error":"uuid param missing."}` com HTTP 200, que o app lia como "servidor offline/ocupado". **Medido no NodeODM 2.2.4** com uma tarefa inexistente: em multipart, `uuid param missing.`; em urlencoded, o servidor lê o identificador. O defeito existia desde a v1.18.0, quando esses botões passaram a conferir a resposta. Efeitos da correção:
+  - **Descartar** apaga a tarefa e fecha o card; **Limpar tudo** remove de fato; **Cancelar** cancela — e, se o servidor recusar, **avisa com o motivo** (antes a resposta era ignorada).
+  - **💾 Salvar no projeto** volta a **liberar o disco do servidor** depois de guardar o resultado no app (salvava, mas nunca removia).
+  - As falhas passam a mostrar **o que o NodeODM respondeu**, em vez do palpite "servidor offline?".
+- **Tarefa apagada por fora do app virava um card que não fechava.** Depois de limpar pelo terminal (ou de recriar o container), o card mostrava "status desconhecido", consultava o servidor **a cada 5 s para sempre** e o navegador pedia confirmação **toda vez** que a aba era fechada. Agora o card diz que **a tarefa não existe mais no NodeODM**, para de consultar, desliga o aviso de saída e oferece **✕ Fechar**; o Descartar, nesse estado, fecha o card em vez de falhar.
+
+### 🔧 Melhorado
+
+- **🧹 Limpar tudo enxerga o que está no servidor, não só o que este navegador registrou.** A lista de tarefas do app mora no navegador em que cada uma foi criada: tarefa enviada pelo Chrome não aparecia no Safari, nem depois de limpar os dados do site, e ficava órfã no disco. O Limpar tudo passa a consultar a lista do próprio NodeODM. No **PC Local** ele oferece apagar também as tarefas que o navegador não registrou, **com uma confirmação à parte** que diz quantas são; no **Servidor (VM)** elas podem ser de outra pessoa, então o app **não toca** nelas e só informa quantas ficaram.
+- **Verificação:** smoke 76 → **95 asserções** — cenário novo com o ciclo de vida da tarefa (descartar, cancelar, limpar, tarefa que sumiu), contra um duplo que imita o contrato **medido** no NodeODM; e um bloco no `check.js` que barra a volta do `FormData` nessas rotas. Contra a v1.24.0 o cenário dá **15 vermelhas**, e 3 mutações derrubam exatamente as asserções que deviam. Conferido também num **Chrome de verdade** contra o NodeODM, com tarefas descartáveis: a v1.24.0 reproduz os três sintomas e esta versão resolve os três — o roteiro ficou em `tests/e2e-chrome-nodeodm.mjs` (manual, fora do CI: 16 conferências, 13 vermelhas na v1.24.0; só remove as tarefas que ele mesmo cria). `tests/contrato-nodeodm.sh` repete as medições contra um NodeODM real, para quando a versão dele mudar.
+
+---
+
 ## [1.24.0] — Setembro 2026
 
 ### 🆕 Adicionado

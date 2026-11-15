@@ -245,6 +245,27 @@ const alegacao = (textoUI.match(/[^'"<>]{0,40}só funciona (?:com|em) localhost[
 if (alegacao) fail(`alegação de plataforma falsa no Safari: "${alegacao.trim()}" — no Safari nem o localhost passa de página https`);
 else ok('processar: nenhuma frase afirma que https→http "só funciona com localhost" (falso no Safari)');
 
+/* ── 4g) cancelar/remover tarefa: o uuid vai em urlencoded, nunca em multipart (v1.24.1) ──
+   Da v1.18.0 à v1.24.0, Descartar, Limpar tudo e Cancelar nunca chegaram ao NodeODM:
+   o app montava `new FormData()` e o servidor só lê urlencoded/JSON em /task/remove e
+   /task/cancel — respondia HTTP 200 com {"error":"uuid param missing."} (medido no
+   NodeODM 2.2.4 em 2026-11-15). Quem prova o COMPORTAMENTO é o cenário 5 do smoke, com
+   um duplo que imita esse contrato; aqui fica só o lint barato, que roda sem jsdom.
+   Asserção de AUSÊNCIA sobre a fonte sem comentários (a prosa cita o padrão proibido) —
+   valida-se INSERINDO o `new FormData` de volta (r84b). A extração tem de fechar no `}`
+   da própria função: o tamanho e o fim capturados saem no "ok" para o truncamento saltar
+   aos olhos (r98). */
+const fnRemover = (jsCode.match(/async function odmRemoveServer\s*\([\s\S]*?\n}/) || [])[0];
+const fnCancelar = (jsCode.match(/async function odmCancel\s*\([\s\S]*?\n}/) || [])[0];
+if (!fnRemover || !fnCancelar) fail('tarefa NodeODM: odmRemoveServer/odmCancel não encontradas — a extração secou ou as funções foram renomeadas');
+else {
+  const comForm = [['odmRemoveServer', fnRemover], ['odmCancel', fnCancelar]].filter(([, f]) => /new\s+FormData\b/.test(f)).map(([n]) => n);
+  const semUrl = [['odmRemoveServer', fnRemover], ['odmCancel', fnCancelar]].filter(([, f]) => !/new\s+URLSearchParams\s*\(/.test(f)).map(([n]) => n);
+  if (comForm.length) fail(`tarefa NodeODM: ${comForm.join(' e ')} envia(m) o uuid em FormData (multipart) — o NodeODM não lê e responde "uuid param missing."`);
+  else if (semUrl.length) fail(`tarefa NodeODM: ${semUrl.join(' e ')} não envia(m) o uuid em URLSearchParams — confira o corpo do pedido`);
+  else ok(`tarefa NodeODM: cancelar e remover mandam o uuid em urlencoded (capturado: ${fnRemover.length} e ${fnCancelar.length} caracteres, fim "${fnRemover.slice(-14).replace(/\s+/g, ' ')}" / "${fnCancelar.slice(-14).replace(/\s+/g, ' ')}")`);
+}
+
 /* ── 5) apresentacao.html — a página pública do §37 ────────────────────────
    Estas asserções existem porque NENHUM passo do release toca este arquivo:
    ele não é recompilado, não entra no smoke do app e ninguém o reabre. Sem

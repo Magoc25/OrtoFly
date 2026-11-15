@@ -247,7 +247,8 @@ O NodeODM guarda **todas as tarefas** (fotos + resultados + intermediários) em 
 **No dia a dia, pelo app:**
 - Ao concluir: **💾 Salvar no projeto** (guarda no app e apaga do servidor) ou **🗑️ Descartar** (apaga do servidor).
 - Tarefa que **falhou/cancelou** **também ocupa disco** → use **🗑️ Descartar**.
-- Aba **⚙️ Processar → 🧹 Limpar tudo do NodeODM**: remove de uma vez todas as tarefas que o app criou.
+- Aba **⚙️ Processar → 🧹 Limpar tudo do NodeODM**: remove de uma vez todas as tarefas que o app criou — e, com uma confirmação à parte, as que estão no servidor e este navegador não registrou (criadas em outro navegador, por exemplo).
+- _(Até a v1.24.0 esses três botões mostravam erro e não apagavam nada; corrigido na v1.24.1.)_
 
 **⚠️ No Windows (WSL) há um detalhe:** apagar as tarefas libera o espaço **dentro** do disco virtual do WSL (`ext4.vhdx`), mas esse arquivo **não encolhe sozinho** — o **C:** só recupera o espaço depois de **compactar** o disco virtual.
 
