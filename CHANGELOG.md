@@ -5,6 +5,32 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.25.0] — Novembro 2026
+
+### 🐛 Corrigido
+
+- **O ortomosaico saía sempre a 5 cm/px, qualquer que fosse o GSD das fotos.** O ODM usa 5 cm/px quando ninguém pede outra resolução, e o app nunca pedia. **Medido** com 34 fotos de um Air 2S a 60 m (GSD de 1,78 cm/px): o produto saía com **3159 × 3638 px a 5,00 cm/px** — cerca de 1/8 dos pixels que as fotos sustentam; com a opção `orthophoto-resolution`, as mesmas fotos dão **8875 × 10268 px a 1,78 cm/px**. Agora, ao escolher as imagens, o app **lê a altura de voo gravada nas próprias fotos** (e a câmera, da EXIF), mostra o **GSD estimado** e pede essa resolução. Novo seletor **Resolução do ortomosaico**:
+  - **Nativa das fotos (GSD)** — o padrão; **Equilibrada (2× o GSD)** — ¼ dos pixels; **Leve — 5 cm/px** — o comportamento antigo.
+  - O app **diz o custo antes de enviar** (ex.: "cerca de 7,8× os pixels de 5 cm/px"): o arquivo do ortomosaico de teste foi de 34 MB para 209 MB.
+  - Nos modos com DSM, o **DSM sai a 2× a resolução do ortomosaico** (na resolução das fotos ele seria ruído e quadruplicaria o arquivo).
+  - Fotos **sem a altura de voo** (não-DJI ou editadas): o app avisa, pede 1 cm/px e o ODM limita pelo GSD que ele mesmo estima — o ODM nunca entrega mais fino que as fotos.
+- **"Economizar RAM" enviava uma opção que o ODM não tem.** A opção mandava `resize-to=2048`, que **não existe** no ODM 3.5.6 — e o NodeODM descarta em silêncio o que não conhece. Sobrava só `pc-quality=low`, que no modo **Rápido não faz nada** (não há nuvem densa); a dica ainda afirmava que a opção "reduz a resolução de todos os produtos". Agora ela envia `feature-quality=medium` (alinhamento com as fotos a ¼), `pc-quality=low` (só nos modos com DSM) e `max-concurrency` = metade dos núcleos do servidor — e o texto diz o que de fato muda: **a resolução do ortomosaico não é afetada**.
+- **O texto de Material e Métodos afirmava o que não tinha sido feito.** Ele dizia sempre "ortomosaico, DSM e nuvem de pontos por Structure from Motion + Multi-View Stereo" — falso no modo **Rápido**, que não tem MVS, nem DSM, nem nuvem densa — e, sem conexão, citava a versão **3.5.6** do ODM mesmo que outra tivesse rodado. Agora o texto é montado do **registro de cada tarefa**: o modo usado, o número de fotos, a resolução pedida, a correção de obturador e a versão do ODM **daquela** tarefa; só afirma as opções que o servidor aceitou; e, sem versão conhecida, diz que ela não foi registrada em vez de inventar. O registro acompanha o resultado salvo no projeto.
+
+### 🆕 Adicionado
+
+- **Corrigir obturador de rolagem (voo contínuo).** Quase todo drone lê o sensor linha a linha; foto tirada com o drone andando sai levemente distorcida e, sem correção, o ODM compensa com uma calibração de câmera irreal. **Medido** no mesmo voo (contínuo, ~6,4 m/s): com `rolling-shutter`, o **erro de reprojeção cai de 1,35 para 1,02 px** e o centro óptico calibrado passa de **107 px para 31 px** fora do lugar. O app **sugere sozinho**: estima a velocidade pela distância e pelo intervalo entre fotos vizinhas e, acima de ~2 m/s, já deixa a opção marcada (com drone parado em cada foto, desmarcada). Não use com obturador mecânico (ex.: Phantom 4 Pro/RTK, Mavic 3E).
+- **O card da tarefa mostra as opções que o servidor aceitou** — o que o NodeODM registrou, não o que o app acha que mandou.
+- **Aviso sobre a borda do levantamento** na aba Processar: o que fica no limite das fotos sai deformado (poucas fotos, todas de um lado só), e nenhuma opção de processamento corrige — é preciso voar uma faixa além da área que interessa.
+
+### 🔧 Melhorado
+
+- **Opções conferidas contra o servidor antes do envio.** O app consulta a lista de opções do próprio NodeODM (`GET /options`) e, se a versão do ODM não tiver alguma, **não envia e avisa qual ficou de fora** — o servidor a descartaria sem dizer nada.
+- **Documentação:** `Boas-Praticas-e-Qualidade.md` ganhou as seções de resolução, obturador de rolagem e borda do levantamento, e a de "Economizar RAM" foi reescrita; o guia do Windows ainda mandava marcar "Gerar DSM", opção que não existe desde que a saída virou três modos.
+- **Verificação:** smoke 95 → **119 asserções** — as opções que saem do app em cada combinação de modo, resolução, obturador e "Economizar RAM", contra um NodeODM falso que só guarda as opções que conhece, com um leitor de EXIF falso alimentado pela EXIF de uma foto real do voo. Contra a v1.24.1, **21 vermelhas**; 5 mutações derrubam o que deviam. `check.js` barra a volta do `resize-to` e de versão do ODM chumbada. E o roteiro do **Chrome de verdade** (`tests/e2e-chrome-nodeodm.mjs`, 16 → 21 conferências) passou a criar a tarefa **pelo app**, escolhendo as fotos no campo de arquivo: com 10 fotos reais, o app leu **1,79 cm/px**, detectou voo contínuo a ~6 m/s e as opções chegaram ao servidor como mostradas na tela. Com as **34 fotos inteiras enviadas pelo app**, o ortomosaico saiu a **1,79 cm/px** (8992 × 10260 px, 203 MB), com erro de reprojeção de **1,02 px** — a 6 cm, em posição, do reprocessamento de referência feito à mão com as mesmas opções.
+
+---
+
 ## [1.24.1] — Novembro 2026
 
 ### 🐛 Corrigido

@@ -127,7 +127,7 @@ Abra no navegador **http://127.0.0.1:3000/info** → JSON com `"version"`. ✅
 2. Aba **⚙️ Processar** → **💻 PC Local**. A URL já vem **`http://127.0.0.1:3000`** → clique em **Testar**.
    🔔 **Na 1ª vez, o navegador pergunta se o site pode "Acessar outros apps e serviços neste dispositivo"** → clique em **Permitir ao acessar o site**. *(É a permissão para a página falar com o NodeODM no seu próprio PC. Se clicar em **Nunca permitir**, não conecta — veja como reverter na Solução de problemas.)*
 3. Depois do primeiro **Testar** com sucesso, o app mostra um **indicador 🟢/🔴 ao vivo**: **verde** = NodeODM conectado · **vermelho** = desligado (atualiza sozinho a cada ~10s). Com o NodeODM ligado (atalho abaixo), fica **🟢**. *(Antes disso ele mostra "🔌 Clique em Testar para conectar" — o app só se conecta ao seu PC depois que você pede.)*
-4. **📷 Selecionar imagens** (fotos do drone) → **Nome** → marque **Gerar DSM** se quiser o modelo de superfície → **🚀 Enviar e processar**.
+4. **📷 Selecionar imagens** (fotos do drone) → **Nome** → escolha a **Saída** (*Rápido* para só o ortomosaico; *DSM + ortomosaico* se quiser o modelo de superfície) → confira a **Resolução do ortomosaico** (já vem em *Nativa das fotos*, com o GSD que o app leu delas) → **🚀 Enviar e processar**.
 5. Ao concluir, abra os produtos: **🗺️ Ortomosaico (2D)**, **⛰️ DSM (2D)**, **🧊 Nuvem (3D)** (abre o `.laz` direto em 3D, no navegador) ou **⬇ Tudo (.zip)**.
 
 > 🔌 **Ligar/desligar o NodeODM é pelos atalhos** (abaixo). Por ser uma página de navegador, o app **não pode** ligar/desligar o servidor (segurança do navegador) — mas o **indicador 🟢/🔴** mostra o estado o tempo todo.
@@ -324,5 +324,7 @@ O número `AllocatedBaseSize` é em **MB**. Se estiver muito acima do normal (ex
 - A imagem `opendronemap/nodeodm` é **multiarquitetura** (Intel/AMD e ARM).
 - Tudo roda **localmente** — suas fotos **não** vão para servidores externos.
 - Datasets grandes (centenas de fotos) pedem mais RAM/tempo; comece com **algumas dezenas** + **Rápido**.
+- **Resolução:** o ortomosaico sai no GSD das suas fotos (*Nativa*). Se faltar memória ou disco, troque para *Equilibrada (2× o GSD)*. Se o voo foi contínuo, deixe marcada a **correção de obturador de rolagem** que o app sugere. Detalhes em [Boas práticas e qualidade](./Boas-Praticas-e-Qualidade.md).
+- **Bordas:** o que fica no limite das fotos sai deformado — voe uma faixa além da área que interessa.
 
 *Validado em Windows 11 + WSL2 (Ubuntu 22.04) + Docker Engine. © MGC Dev.*

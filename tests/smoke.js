@@ -745,7 +745,10 @@ async function main() {
   const X1 = '33333333-3333-4333-8333-333333333333', X2 = '44444444-4444-4444-8444-444444444444';
   const errs5 = [];
   async function subir5(cfg) {
-    const fake = { tarefas: new Map((cfg.tarefas || []).map(([u, t]) => [u, { ...t }])), cont: { info: 0, remove: 0, cancel: 0, list: 0 }, corpos: [], cancelFalha: cfg.cancelFalha || null };
+    const fake = { tarefas: new Map((cfg.tarefas || []).map(([u, t]) => [u, { ...t }])), cont: { info: 0, remove: 0, cancel: 0, list: 0, options: 0 }, corpos: [], cancelFalha: cfg.cancelFalha || null, criadas: [] };
+    // opcoes que o servidor falso conhece (GET /options). O de verdade (ODM 3.5.6, medido em 2026-11-15) NAO tem
+    // `resize-to`, e o NodeODM descarta em silencio o que nao conhece -- por isso o duplo tambem descarta.
+    const OPCOES = cfg.opcoes || ['fast-orthophoto', 'dsm', 'skip-3dmodel', 'orthophoto-resolution', 'dem-resolution', 'rolling-shutter', 'feature-quality', 'pc-quality', 'max-concurrency'];
     const intervalos = new Map(); let nInt = 0;
     const confirms = [];
     const vc5 = new VirtualConsole();
@@ -761,10 +764,20 @@ async function main() {
     };
     const responder = (u, o) => {
       const p = (String(u).match(/^https?:\/\/[^/]+(\/.*)$/) || [])[1] || String(u);
-      if (p === '/info') return json({ version: '2.2.4', taskQueueCount: 0, engine: 'odm', engineVersion: '3.5.6' });
+      if (p === '/info') return cfg.semInfo ? Promise.reject(new TypeError('Failed to fetch')) : json({ version: '2.2.4', taskQueueCount: 0, engine: 'odm', engineVersion: '3.5.6', cpuCores: 8 });
+      if (p === '/options') { fake.cont.options++; return json(OPCOES.map(name => ({ name, type: 'x', value: '', domain: '', help: '' }))); }
+      if (p === '/task/new') {   // multipart, como o servidor real espera NESTA rota
+        const b = o && o.body; let pedidas = null, nImg = 0, nome = '';
+        try { pedidas = JSON.parse(b.get('options')); nImg = b.getAll('images').length; nome = String(b.get('name')); } catch (e) { pedidas = null; }
+        if (!Array.isArray(pedidas)) return json({ error: 'options invalidas' });
+        const uuid = '55555555-5555-4555-8555-' + String(fake.criadas.length + 1).padStart(12, '0');
+        const aceitas = pedidas.filter(x => OPCOES.includes(x.name));   // o NodeODM guarda so o que conhece
+        fake.tarefas.set(uuid, { code: 20, options: aceitas }); fake.criadas.push({ uuid, pedidas, aceitas, nImg, nome });
+        return json({ uuid });
+      }
       if (p === '/task/list') { fake.cont.list++; return json([...fake.tarefas.keys()].map(uuid => ({ uuid }))); }
       const mi = p.match(/^\/task\/([^/]+)\/info$/);
-      if (mi) { fake.cont.info++; const t = fake.tarefas.get(mi[1]); return json(t ? { uuid: mi[1], name: 'voo', status: { code: t.code }, progress: 0, imagesCount: 34, options: [] } : { error: mi[1] + ' not found' }); }
+      if (mi) { fake.cont.info++; const t = fake.tarefas.get(mi[1]); return json(t ? { uuid: mi[1], name: 'voo', status: { code: t.code }, progress: 0, imagesCount: 34, options: t.options || [] } : { error: mi[1] + ' not found' }); }
       if (p === '/task/remove' || p === '/task/cancel') {
         const acao = p.slice(6); fake.cont[acao]++;
         const { tipo, uuid } = lerCorpo(o && o.body); fake.corpos.push(acao + ':' + tipo);
@@ -788,6 +801,8 @@ async function main() {
         window.matchMedia = window.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
         window.scrollTo = () => {}; window.structuredClone = window.structuredClone || structuredClone;
         // estado de um app que ja foi usado: e por aqui (wire) que a tarefa volta ao card ao reabrir
+        // leitor de EXIF falso (a lib de verdade nao e carregada no smoke): devolve o que o cenario mandar, por nome de arquivo
+        if (cfg.exif) window.exifr = { parse: async f => cfg.exif(String(f && f.name)) };
         const ls = { ortofly_beta_ack: '1', 'ortofly_odm_auth_http://127.0.0.1:3000': '1', ...(cfg.ls || {}) };
         for (const [k, v] of Object.entries(ls)) window.localStorage.setItem(k, v);
       }
@@ -804,6 +819,15 @@ async function main() {
       ls: k => { try { return w5.localStorage.getItem(k); } catch (e) { return undefined; } },
       pollVivo: () => [...intervalos.values()].some(i => i.ms === 5000),
       status: () => String(txt(doc5, 'odmStatus')), toast: () => { const n = el(doc5, 'toast'); return n ? { texto: String(n.textContent), erro: n.classList.contains('error') } : { texto: '', erro: false }; },
+      ev: evOf(w5),
+      // escolhe N fotos pelo campo de arquivo de verdade (dispara o mesmo `change` que o usuario dispara)
+      selecionar: n => { try { const inp = doc5.getElementById('odmImages'); const fs = Array.from({ length: n }, (_, i) => new w5.File(['x'], 'DJI_' + String(i + 1).padStart(4, '0') + '.JPG', { type: 'image/jpeg' }));
+        Object.defineProperty(inp, 'files', { configurable: true, value: fs }); inp.dispatchEvent(new w5.Event('change')); return true; } catch (e) { return false; } },
+      marcar: (sel, v) => { const n = doc5.querySelector(sel); if (!n) return false; n.checked = v; n.dispatchEvent(new w5.Event('change')); return true; },
+      escolher: (id, v) => { const n = doc5.getElementById(id); if (!n) return false; n.value = v; n.dispatchEvent(new w5.Event('change')); return n.value === v; },
+      // envia a tarefa e devolve as opcoes que SAIRAM do app (ou null se nada chegou ao duplo)
+      enviar: async () => { const antes = fake.criadas.length; const b = doc5.querySelector('button[onclick="odmCreate()"]'); if (b) b.click();
+        await esperar(() => fake.criadas.length > antes || /❌/.test(String(txt(doc5, 'odmStatus'))), 3000); return fake.criadas.length > antes ? fake.criadas[fake.criadas.length - 1] : null; },
       fechar: () => { try { w5.close(); } catch (e) {} } };
   }
   const lsTarefa = (atual, lista) => ({ ...(atual ? { ortofly_odm_task: atual } : {}), ortofly_odm_tasks: JSON.stringify(lista) });
@@ -890,6 +914,101 @@ async function main() {
     check('limpar tudo/servidor: diz quantas tarefas ficaram no servidor', /\b2\b/.test(c3.status()) && /outra/i.test(c3.status()));
     c3.fechar();
   }
+  /* -- cenario 5, 2a parte: o que o app PEDE ao ODM em cada tarefa (v1.25.0) ----------------------
+     Ate a v1.24.1 o app nunca mandava `orthophoto-resolution` (o ODM usa 5 cm/px por padrao: um voo
+     de 1,78 cm/px saia com 1/8 dos pixels), mandava `resize-to` (que o ODM 3.5.6 nao tem e o NodeODM
+     descarta calado) e o texto de Material e Metodos afirmava SfM + Multi-View Stereo ate no modo
+     Rapido. A EXIF abaixo e a de uma foto real do voo de teste (DJI Air 2S, FC3411, 60,1 m): a conta
+     do app tem de dar 1,80 cm/px -- o ODM estimou 1,785 para o mesmo voo. */
+  const exifVoo = (dtSeg, passoM) => nome => { const i = (parseInt((nome.match(/(\d+)/) || [])[1], 10) || 1) - 1;
+    return { latitude: -7.0378815 + i * passoM / 110540, longitude: -45.5176857, RelativeAltitude: '+60.10', FocalLength: 8.38, FocalLengthIn35mmFormat: 22,
+      ExifImageWidth: 5472, ExifImageHeight: 3648, Model: 'FC3411', DateTimeOriginal: new Date(Date.UTC(2026, 10, 14, 12, 43, 28) + i * dtSeg * 1000) }; };
+  const op = (t, nome) => { const x = t && Array.isArray(t.pedidas) ? t.pedidas.find(o => o.name === nome) : undefined; return x ? x.value : undefined; };
+  const nomes = t => (t && Array.isArray(t.pedidas)) ? t.pedidas.map(o => o.name) : [];
+  const gsdLido = c => c.esperar(() => /GSD estimado|Não consegui/.test(String(txt(c.doc, 'odmGsdInfo'))));
+
+  { // (f) padrao da tela (Rapido + resolucao nativa), fotos de um voo CONTINUO: 13 m e 2 s entre fotos
+    const c = await subir5({ nome: '5f', exif: exifVoo(2, 13) });
+    const sel = c.selecionar(6); await gsdLido(c);
+    const infoGsd = String(txt(c.doc, 'odmGsdInfo')), infoRS = String(txt(c.doc, 'odmRSInfo')), rsMarcado = (el(c.doc, 'odmRS') || {}).checked;
+    console.log('       [captura] nativa: ' + JSON.stringify(infoGsd.slice(0, 150)) + ' · obturador: ' + JSON.stringify(infoRS.slice(0, 90)));
+    check('resolucao: o app le a altura das fotos e mostra o GSD delas (1,80 cm/px para a EXIF do voo de teste)', sel && /1,80 cm\/px/.test(infoGsd));
+    check('obturador: voo continuo (13 m a cada 2 s) deixa a correcao MARCADA e diz por que', rsMarcado === true && /contínuo/.test(infoRS) && /m\/s/.test(infoRS));
+    const t = await c.enviar();
+    console.log('       [captura] opcoes enviadas (Rapido, nativa) = ' + JSON.stringify(t && t.pedidas));
+    check('tarefa nova: o pedido chegou ao NodeODM com as 6 fotos (o duplo foi exercitado, r91)', !!t && t.nImg === 6 && c.fake.cont.options >= 1);
+    check('resolucao: a tarefa pede orthophoto-resolution = GSD das fotos (antes: nada, e saia a 5 cm/px)', Math.abs(op(t, 'orthophoto-resolution') - 1.80) <= 0.02);
+    check('resolucao: no modo Rapido nao vai dem-resolution (nao ha DSM)', !!t && op(t, 'fast-orthophoto') === true && op(t, 'dem-resolution') === undefined);
+    check('obturador: rolling-shutter vai junto quando a correcao esta marcada', op(t, 'rolling-shutter') === true);
+    check('opcoes: nunca mais `resize-to` (o ODM 3.5.6 nao tem essa opcao)', !!t && !nomes(t).includes('resize-to'));
+    await c.esperar(() => /orthophoto-resolution/.test(String(txt(c.doc, 'odmTaskOpts'))));
+    console.log('       [captura] card da tarefa = ' + JSON.stringify(String(txt(c.doc, 'odmTaskOpts')).slice(0, 160)));
+    check('card: mostra as opcoes que o SERVIDOR aceitou', /orthophoto-resolution 1\.8/.test(String(txt(c.doc, 'odmTaskOpts'))) && /rolling-shutter/.test(String(txt(c.doc, 'odmTaskOpts'))));
+    const mmRapido = String(c.ev('citeText().mm'));
+    console.log('       [captura] M&M (Rapido) = ' + JSON.stringify(mmRapido.slice(0, 260)));
+    check('M&M: no modo Rapido NAO afirma Multi-View Stereo nem DSM (antes afirmava sempre)', mmRapido.length > 60 && !/Multi-View/.test(mmRapido) && !/DSM/.test(mmRapido) && /esparsa/.test(mmRapido));
+    check('M&M: diz a resolucao pedida e a correcao de obturador, porque foram usadas', /1,80 cm\/px/.test(mmRapido) && /obturador de rolagem/.test(mmRapido));
+    c.fechar();
+  }
+  { // (g) DSM + ortomosaico, Economizar RAM, fotos de missao que PARA em cada ponto: 13 m e 20 s entre fotos
+    const c = await subir5({ nome: '5g', exif: exifVoo(20, 13), ls: { ortofly_odm_rs: '1' } });   // a escolha antiga era "marcado": a deteccao tem de vencer
+    c.selecionar(6); await gsdLido(c);
+    const infoRS = String(txt(c.doc, 'odmRSInfo'));
+    check('obturador: drone parado em cada foto (13 m a cada 20 s) deixa a correcao DESMARCADA', (el(c.doc, 'odmRS') || {}).checked === false && /parado|lento/.test(infoRS));
+    const foiModo = c.marcar('input[name="odmOut"][value="dsm"]', true), foiLite = c.marcar('#odmLite', true);
+    const t = await c.enviar();
+    console.log('       [captura] opcoes enviadas (DSM, nativa, Economizar RAM) = ' + JSON.stringify(t && t.pedidas));
+    check('resolucao: nos modos com DSM vai dem-resolution = 2x a do ortomosaico', foiModo && op(t, 'dsm') === true && op(t, 'skip-3dmodel') === true && Math.abs(op(t, 'dem-resolution') - 3.60) <= 0.04);
+    check('obturador: sem a correcao marcada, rolling-shutter NAO vai', !!t && op(t, 'rolling-shutter') === undefined);
+    check('Economizar RAM: manda feature-quality, pc-quality e metade dos nucleos do servidor (8 -> 4)',
+      foiLite && op(t, 'feature-quality') === 'medium' && op(t, 'pc-quality') === 'low' && op(t, 'max-concurrency') === 4);
+    // o filtro pelo /options ja impediria o `resize-to` de SAIR; o que denuncia a volta dele e o aviso de opcao ignorada
+    // (com o ODM 3.5.6 simulado, nada do que o app monta pode ser desconhecido do servidor)
+    check('Economizar RAM: nao monta mais `resize-to` nem outra opcao que o ODM 3.5.6 nao tenha (nenhum aviso de opcao ignorada)',
+      foiLite && !!t && !nomes(t).includes('resize-to') && /Tarefa criada/.test(c.status()) && !/ignorad/.test(c.status()));
+    const mmDenso = String(c.ev('citeText().mm'));
+    check('M&M: no modo com DSM afirma SfM + Multi-View Stereo e DSM, e nao cita correcao que nao foi usada', /Multi-View/.test(mmDenso) && /DSM/.test(mmDenso) && !/obturador/.test(mmDenso));
+    c.fechar();
+  }
+  { // (h) "Leve — 5 cm/px": nao pede resolucao nenhuma (fica o padrao do ODM)
+    const c = await subir5({ nome: '5h', exif: exifVoo(2, 13) });
+    c.selecionar(6); await gsdLido(c);
+    const foiRes = c.escolher('odmRes', 'odm5'); c.marcar('input[name="odmOut"][value="dsm"]', true);
+    const t = await c.enviar();
+    check('resolucao: a opcao de 5 cm/px nao manda orthophoto-resolution nem dem-resolution', foiRes && !!t && op(t, 'orthophoto-resolution') === undefined && op(t, 'dem-resolution') === undefined);
+    check('resolucao: a escolha fica guardada para a proxima vez', c.ls('ortofly_odm_res') === 'odm5');
+    c.fechar();
+  }
+  { // (i) fotos sem altura de voo na EXIF: pede 1 cm/px e deixa o ODM limitar pelo GSD que ele estima
+    const c = await subir5({ nome: '5i', exif: () => ({}) });
+    c.selecionar(6); await gsdLido(c);
+    const info = String(txt(c.doc, 'odmGsdInfo'));
+    const t = await c.enviar();
+    console.log('       [captura] sem altura nas fotos: ' + JSON.stringify(info.slice(0, 140)));
+    check('resolucao: sem a altura nas fotos, o app DIZ isso e pede 1 cm/px (o ODM limita sozinho)', /Não consegui ler a altura/.test(info) && op(t, 'orthophoto-resolution') === 1);
+    c.fechar();
+  }
+  { // (j) servidor que NAO conhece `rolling-shutter` (ODM antigo): o app nao manda e avisa
+    const c = await subir5({ nome: '5j', exif: exifVoo(2, 13), opcoes: ['fast-orthophoto', 'dsm', 'skip-3dmodel', 'orthophoto-resolution', 'dem-resolution'] });
+    c.selecionar(6); await gsdLido(c);
+    const t = await c.enviar();
+    console.log('       [captura] servidor sem rolling-shutter: status = ' + JSON.stringify(c.status().slice(0, 170)));
+    check('opcoes: o app consulta GET /options e nao manda o que o servidor nao conhece', !!t && c.fake.cont.options >= 1 && !nomes(t).includes('rolling-shutter') && nomes(t).includes('orthophoto-resolution'));
+    check('opcoes: e AVISA qual opcao ficou de fora (o NodeODM descartaria calado)', /rolling-shutter/.test(c.status()) && /ignorada/.test(c.status()));
+    const mm = String(c.ev('citeText().mm'));
+    check('M&M: nao afirma a correcao de obturador que o servidor nao aceitou', mm.length > 60 && !/obturador/.test(mm));
+    c.fechar();
+  }
+  { // (k) sem tarefa e sem conexao: o texto nao inventa versao do ODM
+    const c = await subir5({ nome: '5k', semInfo: true });
+    await new Promise(r => setTimeout(r, 60));
+    const mm = String(c.ev('citeText().mm')), abnt = String(c.ev('citeText().abnt'));
+    console.log('       [captura] M&M sem tarefa nem conexao = ' + JSON.stringify(mm.slice(0, 200)));
+    check('M&M: sem tarefa e sem conexao NAO cita versao fixa do ODM (antes: "3.5.6" chumbado)', mm.length > 60 && !/3\.5\.6/.test(mm) && !/3\.5\.6/.test(abnt) && /não registrada/.test(mm));
+    check('M&M: sem tarefa, nao afirma modo de processamento nenhum', !/Multi-View/.test(mm) && !/DSM/.test(mm));
+    c.fechar();
+  }
+
   await new Promise(r => setTimeout(r, 50));
   const rejC5 = rejeicoes.slice(rej5);
   check('cenario 5: nenhuma excecao nao tratada (nem promessa rejeitada sem tratamento)', errs5.length === 0 && rejC5.length === 0);

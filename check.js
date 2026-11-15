@@ -266,6 +266,20 @@ else {
   else ok(`tarefa NodeODM: cancelar e remover mandam o uuid em urlencoded (capturado: ${fnRemover.length} e ${fnCancelar.length} caracteres, fim "${fnRemover.slice(-14).replace(/\s+/g, ' ')}" / "${fnCancelar.slice(-14).replace(/\s+/g, ' ')}")`);
 }
 
+/* ── 4h) opções da tarefa: nada que o servidor não tenha, nada que o app não saiba (v1.25.0) ──
+   Duas asserções de AUSÊNCIA sobre a fonte sem comentários (validam-se INSERINDO o padrão de
+   volta, r84b); o comportamento é provado pelo cenário 5 do smoke.
+   (1) `resize-to`: o ODM 3.5.6 não tem essa opção e o NodeODM descarta em silêncio o que não
+       conhece — o "Economizar RAM" a enviou por meses sem efeito nenhum.
+   (2) versão do ODM chumbada: o texto de Material e Métodos caía num '3.5.6' fixo quando o app
+       não estava conectado, e podia citar uma versão que não rodou. */
+if (/['"]resize-to['"]/.test(jsCode)) fail('opções da tarefa: o código volta a enviar `resize-to` — o ODM 3.5.6 não tem essa opção e o NodeODM a descarta calado');
+else ok('opções da tarefa: nenhum `resize-to` no código');
+const versaoFixa = (jsCode.match(/engineVersion\)\s*\|\|\s*['"]\d[^'"]*['"]/) || [])[0];
+if (versaoFixa) fail(`Material e Métodos: versão do ODM chumbada como reserva (${versaoFixa}) — sem versão conhecida o texto tem de dizer que ela não foi registrada`);
+else if (!/function odmVersaoConhecida\s*\(/.test(jsCode)) fail('Material e Métodos: odmVersaoConhecida não encontrada — a asserção de versão chumbada passaria de graça');
+else ok('Material e Métodos: nenhuma versão do ODM chumbada como reserva');
+
 /* ── 5) apresentacao.html — a página pública do §37 ────────────────────────
    Estas asserções existem porque NENHUM passo do release toca este arquivo:
    ele não é recompilado, não entra no smoke do app e ninguém o reabre. Sem

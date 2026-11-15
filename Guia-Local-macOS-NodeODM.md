@@ -96,7 +96,7 @@ Agora siga **a opção que você escolheu**:
 1. Abra o OrtoFly **no Chrome ou no Edge** (não no Safari): **https://magoc25.github.io/OrtoFly/ortofly.html**
 2. Aba **⚙️ Processar** → **💻 PC Local** → a URL já vem **`http://127.0.0.1:3000`** → **Testar**.
 3. 🔔 **Na 1ª vez, o Chrome pergunta se o site pode "Acessar outros apps e serviços neste dispositivo"** → clique em **Permitir ao acessar o site**. *(É a permissão para a página falar com o NodeODM no próprio Mac. "Permitir desta vez" também funciona, mas pergunta de novo depois. Se clicar em **Nunca permitir**, não conecta — veja como reverter na Solução de problemas.)*
-4. **✅ NodeODM vX.Y.Z** → **📷 Selecionar imagens** → **Nome** → deixe **☑ Rápido** → **🚀 Enviar e processar**.
+4. **✅ NodeODM vX.Y.Z** → **📷 Selecionar imagens** → **Nome** → deixe **☑ Rápido** → confira a **Resolução do ortomosaico** (já vem em *Nativa das fotos*, com o GSD que o app leu delas) → **🚀 Enviar e processar**.
 5. Ao concluir, **🗺️ Ortomosaico (2D)** abre no visualizador georreferenciado.
 
 > 💡 **Usa o OrtoFly do Dock (Safari) no dia a dia?** Pode seguir com ele para planejar e visualizar — só o processamento vai pelo Chrome. Os dois guardam dados **separados**: o que você salvar com **💾** no Chrome fica no Chrome. Para abrir o resultado no app do Dock, baixe o produto (**⬇ Tudo (.zip)** ou o próprio ortomosaico) e abra-o por lá.
@@ -195,5 +195,7 @@ docker system prune -f
 ## 📝 Notas
 - Tudo roda **no seu Mac** — as fotos **não** vão para servidores externos.
 - Comece com **algumas dezenas** de fotos + opção **Rápido (fast-orthophoto)**.
+- **Resolução:** o ortomosaico sai no GSD das suas fotos (*Nativa*). Se faltar memória ou disco, troque para *Equilibrada (2× o GSD)*. Se o voo foi contínuo, deixe marcada a **correção de obturador de rolagem** que o app sugere. Detalhes em [Boas práticas e qualidade](./Boas-Praticas-e-Qualidade.md).
+- **Bordas:** o que fica no limite das fotos sai deformado — voe uma faixa além da área que interessa.
 
 *Guia para macOS (Docker Desktop ou Colima). A configuração do app (URL `127.0.0.1:3000`) é idêntica à do Windows. Comportamento dos navegadores conferido em set/2026: Safari no macOS 27 e Chrome 154. © MGC Dev.*

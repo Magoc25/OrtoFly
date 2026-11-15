@@ -12,15 +12,28 @@
     1. serve a pasta do app em http://localhost:<porta> e abre a página num Chrome headless,
        com perfil temporário e sem acesso a nada fora deste computador (a sonda não vira
        "aparelho novo" na contagem de uso);
-    2. cria DUAS tarefas descartáveis no NodeODM (10 fotos cada) e dirige a aba Processar:
-       reabrir o app com a tarefa em andamento · Cancelar · Descartar · reabrir com uma
-       tarefa que não existe mais no servidor · Limpar tudo;
+    2. cria uma tarefa PELO APP — escolhe 10 fotos no campo de arquivo, como o usuário, e
+       clica em Enviar — e confere NO SERVIDOR as opções que chegaram (resolução do
+       ortomosaico lida da altura de voo das fotos, correção de obturador de rolagem);
+       cria uma segunda direto no servidor; e dirige o resto da aba Processar: reabrir o
+       app com a tarefa em andamento · Cancelar · Descartar · reabrir com uma tarefa que
+       não existe mais no servidor · Limpar tudo;
     3. confere o resultado NO SERVIDOR (/task/<uuid>/info e /task/list), não só na tela.
 
   O QUE ELE NUNCA FAZ: apagar tarefa que não criou. No Limpar tudo, ele RECUSA a segunda
   confirmação (a das tarefas que o navegador não registrou) e depois confere que todas as
   tarefas que já estavam no servidor continuam lá. As duas descartáveis são removidas ao
   final, mesmo se o roteiro falhar no meio.
+
+  MODO --completo (demorado): envia TODAS as fotos da pasta pelo app, espera o
+  processamento terminar e para aí, DEIXANDO a tarefa no servidor para o produto ser medido
+  (o uuid sai no fim, com o comando para removê-la). Serve para conferir que o que o app
+  manda produz o ortomosaico esperado — não só que as opções chegam.
+
+      node tests/e2e-chrome-nodeodm.mjs --fotos "/caminho/das/fotos" --completo
+
+  As fotos precisam ser de drone DJI com a altura relativa gravada (XMP); sem ela o app
+  não tem como estimar o GSD e as conferências de resolução ficam vermelhas.
 
   Por que existe: o jsdom do tests/smoke.js não tem CORS, nem o corpo de verdade de um
   fetch, nem o relógio de um setInterval. Foi num Chrome real que se viu, na v1.24.0, o
@@ -43,7 +56,8 @@ const arg = (nome, padrao) => { const i = process.argv.indexOf('--' + nome); ret
 const PASTA_FOTOS = arg('fotos', '');
 const ODM = String(arg('odm', 'http://127.0.0.1:3000')).replace(/\/+$/, '');
 const HTML = path.resolve(arg('html', path.join(aqui, '..', 'ortofly.html')));
-const N_FOTOS = 10;
+const COMPLETO = process.argv.includes('--completo');
+const N_FOTOS = COMPLETO ? Infinity : 10;
 const FANTASMA = '00000000-0000-4000-8000-000000000000';   // uuid que não existe em servidor nenhum
 
 const dorme = ms => new Promise(r => setTimeout(r, ms));
@@ -52,12 +66,13 @@ const confere = (nome, cond) => { if (cond) console.log('ok     ' + nome); else 
 const nota = (k, v) => console.log('       ' + k + ': ' + (typeof v === 'string' ? v : JSON.stringify(v)));
 
 const criadas = [];          // só o que ESTE roteiro criou — é a única coisa que ele remove
+const deixar = [];           // no modo --completo, a tarefa processada fica no servidor para ser medida
 let chrome = null, perfil = null, servidor = null;
 
 async function odm(caminho) { try { return await (await fetch(ODM + caminho)).json(); } catch (e) { return { erroDeRede: String(e) }; } }
 async function removerNoServidor(uuid) { try { await fetch(ODM + '/task/remove', { method: 'POST', body: new URLSearchParams({ uuid }) }); } catch (e) {} }
 async function limpar() {
-  for (const u of criadas) await removerNoServidor(u);
+  for (const u of criadas) if (!deixar.includes(u)) await removerNoServidor(u);
   if (chrome) { try { chrome.kill(); } catch (e) {} }
   if (servidor) { try { servidor.close(); } catch (e) {} }
   if (perfil) { await dorme(400); try { rmSync(perfil, { recursive: true, force: true }); } catch (e) {} }
@@ -134,7 +149,43 @@ async function main() {
     if (!j.uuid) throw new Error('o NodeODM não criou a tarefa de teste: ' + JSON.stringify(j));
     criadas.push(j.uuid); return j.uuid;
   };
-  const T1 = await criar('ortofly-e2e-descartavel-1'), T2 = await criar('ortofly-e2e-descartavel-2');
+
+  /* 0) tarefa criada PELO APP: as fotos entram pelo campo de arquivo, como o usuário faz */
+  await semear(null, []); await abrir();
+  const raizDom = await cmd('DOM.getDocument', {});
+  const campo = await cmd('DOM.querySelector', { nodeId: raizDom.result.root.nodeId, selector: '#odmImages' });
+  await cmd('DOM.setFileInputFiles', { files: fotos, nodeId: campo.result.nodeId });
+  const leu = await esperar(async () => /GSD estimado|Não consegui/.test(await texto('#odmGsdInfo')), 90000);
+  const infoGsd = await texto('#odmGsdInfo'), pedido = parseFloat(((infoGsd.match(/pedido a ([\d,]+) cm\/px/) || [])[1] || '').replace(',', '.'));
+  const rsMarcado = await ev(`!!(document.getElementById('odmRS')||{}).checked`);
+  nota('fotos escolhidas', fotos.length); nota('GSD lido das fotos', infoGsd.slice(0, 160));
+  nota('obturador de rolagem', ((await texto('#odmRSInfo')).slice(0, 100) || '(sem leitura de velocidade)') + ' · marcado: ' + rsMarcado);
+  confere('tarefa nova: o app lê a altura de voo das fotos de verdade e diz a resolução que vai pedir', leu && /GSD estimado/.test(infoGsd) && pedido > 0);
+  await ev(`(()=>{ const r=document.querySelector('input[name="odmOut"][value="dsm"]'); if(r) r.checked=true; const n=document.getElementById('odmName'); if(n) n.value='ortofly-e2e-pelo-app'; return !!r; })()`);
+  await clicar('button[onclick="odmCreate()"]');
+  for (let i = 0; i < 1800 && !(await ev('_odmTask')) && !/❌/.test(await texto('#odmStatus')); i++) await dorme(500);   // o envio das fotos pode levar minutos
+  const T1 = await ev('_odmTask');
+  if (!T1) throw new Error('o app não criou a tarefa: ' + ((await texto('#odmStatus')) || 'sem mensagem na tela'));
+  criadas.push(T1);
+  const chegou = (await odm('/task/' + T1 + '/info')).options || [], val = n => (chegou.find(o => o.name === n) || {}).value;
+  nota('opções que chegaram ao servidor', chegou.filter(o => !['pc-ept', 'cog', 'gltf'].includes(o.name)));
+  confere('tarefa nova: orthophoto-resolution chega ao servidor com o valor mostrado na tela', pedido > 0 && Math.abs(val('orthophoto-resolution') - pedido) < 0.011);
+  confere('tarefa nova: dem-resolution chega como 2× a do ortomosaico (modo com DSM)', pedido > 0 && Math.abs(val('dem-resolution') - 2 * pedido) < 0.021);
+  confere('tarefa nova: rolling-shutter chega ao servidor se, e só se, a correção está marcada', (val('rolling-shutter') === true) === (rsMarcado === true));
+  confere('tarefa nova: o card mostra as opções que o servidor aceitou', await esperar(async () => /orthophoto-resolution/.test(await texto('#odmTaskOpts')), 12000));
+
+  if (COMPLETO) {
+    nota('modo --completo', 'tarefa ' + T1 + ' — aguardando o processamento terminar (pode levar muitos minutos)…');
+    let st = {};
+    for (let i = 0; i < 720; i++) { st = (await odm('/task/' + T1 + '/info')).status || {}; if ([30, 40, 50].includes(st.code)) break; await dorme(5000); }
+    const info2 = await odm('/task/' + T1 + '/info');
+    nota('fim do processamento', { status: st, minutos: Math.round((info2.processingTime || 0) / 6000) / 10, imagens: info2.imagesCount });
+    confere('--completo: a tarefa criada pelo app termina com sucesso', st.code === 40);
+    deixar.push(T1);
+    return;
+  }
+
+  const T2 = await criar('ortofly-e2e-descartavel-2');
   nota('tarefas descartáveis', [T1, T2]);
 
   /* 1) app reaberto com a tarefa em andamento */
@@ -190,7 +241,8 @@ async function main() {
 
 main().then(async () => {
   await limpar();
-  console.log(falhas.length ? `\n${falhas.length} conferência(s) falharam.` : '\nE2E OK ✅ — tarefas de teste removidas do NodeODM.');
+  if (deixar.length) console.log(`\nTarefa deixada no servidor para medir o produto: ${deixar.join(', ')}\n  remover depois: curl -s --data-urlencode "uuid=${deixar[0]}" ${ODM}/task/remove`);
+  console.log(falhas.length ? `\n${falhas.length} conferência(s) falharam.` : (deixar.length ? '\nE2E OK ✅' : '\nE2E OK ✅ — tarefas de teste removidas do NodeODM.'));
   process.exit(falhas.length ? 1 : 0);
 }).catch(async e => {
   await limpar();

@@ -41,7 +41,7 @@ Na aba **⚙️ Processar** você escolhe **um modo** (rádio) e, opcionalmente,
 > O **DSM** vem em **dois** modos (DSM+orto **e** Completo), não só no Completo. A única diferença entre eles é o **modelo 3D texturizado** — que só o Completo gera.
 
 ### ❓ O ortomosaico cai de qualidade no Rápido? — **depende do relevo**
-- **Posição no mapa (horizontal)** e **resolução (GSD):** **iguais** nos três modos — mesmas fotos, mesmo GPS/GCP, mesma resolução de ortho. O Rápido **não** deixa o mapa mais torto nem o ortho mais "borrado".
+- **Posição no mapa (horizontal)** e **resolução (GSD):** **iguais** nos três modos — mesmas fotos, mesmo GPS/GCP, mesma resolução de ortho (a que você escolher em **Resolução do ortomosaico**, abaixo). O Rápido **não** deixa o mapa mais torto nem o ortho mais "borrado".
 - **Fidelidade geométrica (ortorretificação):** aí **sim** muda. O ortho do Rápido é projetado sobre uma superfície **grosseira** (da nuvem **esparsa**):
   - **Terreno plano** (lavoura, campo): diferença **mínima** — o ortho do Rápido já serve.
   - **Relevo / objetos altos** (prédios, árvores, barrancos): o Rápido mostra **distorção/arrasto** nas bordas; **DSM+orto** e **Completo** projetam sobre a superfície **densa** → ortho **mais limpo e reto**.
@@ -49,16 +49,44 @@ Na aba **⚙️ Processar** você escolhe **um modo** (rádio) e, opcionalmente,
 
 > 💡 **Regra prática:** **área plana + você só quer o ortomosaico** → use o **🟢 Rápido**. Ele entrega o ortho com **praticamente a mesma qualidade** dos modos densos, porém **mais rápido e mais leve**. Reserve **DSM+orto** ou **Completo** para quando precisar de **DSM/altimetria, nuvem densa ou modelo 3D**, ou quando o terreno tem **relevo/estruturas altas** (aí o ortho denso fica mais limpo).
 
-### Economizar RAM (`resize-to=2048` + `pc-quality=low`) — soma a qualquer modo
-Troca **detalhe por leveza**:
+### Resolução do ortomosaico — o app pede a das suas fotos (desde a v1.25.0)
+O ODM gera o ortomosaico a **5 cm/px** se ninguém pedir outra coisa — mesmo que as fotos tenham 2 cm/px. Até a v1.24.1 o app não pedia nada, e um voo de **1,78 cm/px** saía a **5 cm/px**: cerca de **1/8 dos pixels** que as fotos sustentam.
 
-| Combinação | Efeito |
+Agora, ao escolher as imagens, o app **lê a altura de voo gravada nas próprias fotos** (e a câmera, da EXIF), mostra o **GSD estimado** e pede essa resolução ao ODM:
+
+| Opção | O que pede | Quando usar |
+|---|---|---|
+| **Nativa das fotos (GSD)** — padrão | o GSD lido das fotos | quase sempre: é o detalhe que você voou para ter |
+| **Equilibrada (2× o GSD)** | o dobro do GSD (¼ dos pixels) | área grande, máquina modesta, ou mapa de visão geral |
+| **Leve — 5 cm/px** | nada (fica o padrão do ODM) | só conferir a cobertura do voo |
+
+- **O preço é o tamanho:** os pixels crescem com o quadrado. Medido com 34 fotos de um Air 2S a 60 m: **3159 × 3638 px (34 MB)** a 5 cm → **8875 × 10268 px (209 MB)** a 1,78 cm. O app mostra essa conta antes de enviar.
+- **Não dá para "inventar" resolução:** o ODM limita o que foi pedido ao GSD que ele mesmo estima na reconstrução. Pedir mais fino que as fotos não melhora nada.
+- **O DSM sai a 2× a resolução do ortomosaico** (nos modos com DSM): na resolução das fotos ele seria ruído e quadruplicaria o arquivo.
+- **Sem a altura nas fotos** (fotos que não são DJI, ou editadas), o app avisa, pede 1 cm/px e deixa o ODM limitar.
+- No **visualizador do app**, um ortomosaico grande pode abrir a ½ da resolução, com aviso e botão de resolução cheia — o **arquivo** baixado está sempre inteiro.
+
+### Corrigir obturador de rolagem — para voo contínuo (desde a v1.25.0)
+Quase todo drone lê o sensor **linha a linha** (obturador eletrônico). Se a foto é tirada com o drone **andando**, a imagem sai levemente distorcida. Sem correção, o ODM "absorve" essa distorção numa **calibração de câmera irreal**.
+
+- **Medido** (mesmas 34 fotos, voo contínuo a ~6,4 m/s, Air 2S): com a correção, o **erro de reprojeção cai de 1,35 para 1,02 px**, o centro óptico calibrado deixa de ficar **107 px** fora do lugar (passa a 31 px) e beirais de telhado saem retos.
+- **O app sugere sozinho:** pela distância e pelo intervalo entre fotos vizinhas ele estima a velocidade; acima de ~2 m/s a opção já vem **marcada**. Você pode mudar.
+- **Não use** com câmera de **obturador mecânico** (ex.: Phantom 4 Pro/RTK, Mavic 3E) nem em missão que **para em cada foto** (o KMZ exportado por este app para em cada ponto).
+
+### O que o processamento NÃO resolve: a borda do levantamento
+- **A borda sai deformada** quando a área de interesse encosta no limite das fotos: ali cada ponto do terreno aparece em poucas fotos, todas de um lado só. No mesmo voo de teste, um prédio que ficou **fora da grade de voo** saiu com os painéis solares rasgados — e um programa comercial, com as mesmas fotos, deixou **buracos** no mesmo lugar. Nenhuma opção de processamento corrige isso. **Voe uma faixa além da área que você quer.**
+- **Ortomosaico não é "ortofoto verdadeira":** fachadas e beirais de objetos altos podem aparecer levemente inclinados, mesmo nos modos densos.
+
+### Economizar RAM (`feature-quality=medium` + `pc-quality=low` + menos threads) — soma a qualquer modo
+Reduz o **pico de memória**, trocando **precisão e detalhe por leveza**:
+
+| O que envia | Efeito |
 |---|---|
-| **Rápido + EconRAM** | só o `resize-to=2048` age (fotos menores → ortho mais grosseiro). `pc-quality` **não faz nada** (não há nuvem densa no Rápido). |
-| **DSM+orto + EconRAM** | DSM, ortho e nuvem densa **mais grosseiros**, bem mais leves. |
-| **Completo + EconRAM** | o "**completo leve**": tudo, com menos detalhe — alivia a texturização que estoura a RAM. |
+| `feature-quality=medium` | o alinhamento usa as fotos a ¼ do tamanho (o padrão usa ½): menos memória, alinhamento um pouco menos preciso. Vale em **todos** os modos. |
+| `pc-quality=low` | nuvem densa e DSM com menos detalhe. Só nos modos **com DSM** (no Rápido não há nuvem densa). |
+| `max-concurrency` = metade dos núcleos | menos tarefas em paralelo — o ODM usa cerca de 1 GB de pico por thread. Fica **mais lento**. |
 
-> ⚠️ `resize-to=2048` **reduz a resolução de TODOS os produtos finais** (inclusive o ortomosaico), pois encolhe as imagens de entrada. Marque só em **conjuntos grandes** que estouram a memória.
+> ℹ️ **A resolução do ortomosaico não muda** com esta opção — ela é escolhida à parte (acima). _Até a v1.24.1 esta opção enviava `resize-to=2048`, que o ODM atual **não tem** e descartava em silêncio: no modo Rápido ela não fazia nada._ Marque só em **conjuntos grandes** que estouram a memória.
 
 ### Qual usar
 - **🟢 Rápido** → você só quer o **mapa 2D** (NDVI/índices, contagem, medir área, inspeção) e o terreno é **plano**. Mais rápido e leve. **Na dúvida, comece aqui.**
@@ -73,7 +101,8 @@ A **texturização** roda em **todos os modos** (carrega muitas imagens ao mesmo
 - **1º — Mais memória ao NodeODM:** no **WSL**, RAM + `swap` (o swap faz a etapa pesada **terminar devagar** em vez de morrer, **sem perder qualidade**). No **Colima/Mac**, vale a **RAM real** do `--memory`. Veja **🧠 Memória e CPU** no guia de instalação.
 - **2º — Trocar de modo:** se não precisa do 3D, **DSM + ortomosaico (sem 3D)** já pula a etapa mais pesada (`mvstex`); se nem de DSM precisa, o **Rápido** é o mais leve.
 - **3º — Menos fotos por rodada:** divida a área em partes — ajuda todos os modos.
-- **4º — "Economizar RAM"** (`resize-to=2048` + `pc-quality=low`): baixa a resolução de tudo; ajuda principalmente os modos densos.
+- **4º — "Economizar RAM"** (alinhamento com fotos menores, nuvem em baixa, menos threads): reduz o pico de memória em todos os modos; o ortomosaico mantém a resolução.
+- **5º — Resolução "Equilibrada (2× o GSD)":** ¼ dos pixels no ortomosaico alivia a etapa final e o disco.
 - **Último caso:** rode num **NodeODM na nuvem** (modo Servidor) — sem o limite da sua máquina.
 
 ## 4. "Buracos" na nuvem são normais
