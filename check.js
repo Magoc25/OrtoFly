@@ -147,6 +147,13 @@ else {
   else ok(`offline: ${htmlVendor.length} libs do vendor/ no HTML — todas no PRECACHE do SW`);
 }
 
+// o decodificador Draco não entra por <script>: o DRACOLoader o busca no caminho que o código passa. Sem ele no
+// PRECACHE, o .glb do ODM volta a falhar offline (v1.29.0). O caminho é DERIVADO do código, não escrito aqui.
+const dracoDir = (jsCode.match(/setDecoderPath\(\s*'\.\/([^']+)'\s*\)/) || [])[1];
+if (!dracoDir) fail('offline: setDecoderPath do DRACOLoader não encontrado — o .glb do ODM (Draco) não abriria');
+else { const faltaD = ['draco_decoder.wasm', 'draco_wasm_wrapper.js'].filter(f => !precache.has(dracoDir + f));
+  if (faltaD.length) fail(`offline: decodificador Draco fora do PRECACHE (${faltaD.map(f => dracoDir + f).join(', ')})`); else ok(`offline: decodificador Draco (${dracoDir}) no PRECACHE`); }
+
 /* ── 4c) leitura de raster pela pirâmide (v1.20.0) ──────────────────────────
    O bug: `file.arrayBuffer()` + `parseGeoraster(ArrayBuffer)` decodificava a
    resolução cheia — 3,8 GB de pico num ortho de 200 MP, e o navegador reiniciava

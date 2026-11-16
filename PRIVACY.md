@@ -1,6 +1,6 @@
 # Aviso de Privacidade — OrtoFly
 
-**Versão:** 1.4 · **Última atualização:** Novembro de 2026
+**Versão:** 1.5 · **Última atualização:** Novembro de 2026
 
 Este Aviso explica como o **OrtoFly** trata dados pessoais, em conformidade com a
 **Lei nº 13.709/2018 (LGPD)**. O OrtoFly é um aplicativo web (PWA) de planejamento de
@@ -63,7 +63,7 @@ terceiros, **sem que o controlador os armazene**:
 - **GitHub Pages** (hospedagem do app). Desde a **v1.19.0**, as bibliotecas do app são
   servidas pelo **próprio site** — **nenhuma CDN de terceiros** (cdnjs/jsDelivr) recebe
   mais seus dados ao carregar o app.
-- **api.qrserver.com** (geração do QR Code de PIX, somente se você abrir o modal de apoio).
+- Desde a **v1.29.0** o QR Code do PIX é **gerado no próprio app**: o código PIX não é mais enviado a nenhum serviço de terceiros (até a v1.28.0 ia para `api.qrserver.com`).
 
 ## 5. Finalidades e bases legais (Art. 7º da LGPD)
 

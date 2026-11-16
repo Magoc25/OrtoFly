@@ -1,6 +1,6 @@
 /* OrtoFly — Service Worker (a versão vive só no CACHE_NAME abaixo) */
 
-const CACHE_NAME = 'ortofly-v60';
+const CACHE_NAME = 'ortofly-v61';
 const HTML_ESPERA_MS = 3500;   // quanto a abertura espera a rede antes de usar a cópia do cache (escolha do app)
 
 // Tudo que o app precisa para funcionar OFFLINE (uso em campo, sem sinal):
@@ -16,6 +16,8 @@ const PRECACHE = [
   './vendor/geotiff.min.js', './vendor/georaster.min.js', './vendor/georaster-layer.min.js',
   './vendor/three/three.min.js', './vendor/three/OrbitControls.js', './vendor/three/PLYLoader.js',
   './vendor/three/MTLLoader.js', './vendor/three/OBJLoader.js', './vendor/three/GLTFLoader.js',
+  './vendor/three/DRACOLoader.js', './vendor/three/draco/draco_decoder.wasm', './vendor/three/draco/draco_wasm_wrapper.js',   // o .glb do ODM vem com Draco
+  './vendor/qrcode.js',   // QR do PIX gerado no app (offline)
   './vendor/laz-perf/index.mjs', './vendor/laz-perf/laz-perf.wasm'
 ];
 

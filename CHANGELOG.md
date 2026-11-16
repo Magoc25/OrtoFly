@@ -5,6 +5,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.29.0] — Novembro 2026
+
+### 🆕 Adicionado
+
+- **O modelo 3D texturizado do ODM abre no app.** O ODM grava o `odm_textured_model_geo.glb` com compressão Draco, e o app não tinha o decodificador: o arquivo dava "Erro ao ler glTF" em qualquer navegador (medido no Chrome e no WebKit) — e o OBJ abre sem textura. O decodificador Draco do three.js (0.128.0, a versão já usada) passou a acompanhar o app e a funcionar offline: o `.glb` do voo de teste (29,6 MB) abre nos dois motores.
+
+### 🔧 Melhorado
+
+- **O QR do PIX é gerado no próprio app.** Até a v1.28.0 o código PIX ia para um serviço externo (`api.qrserver.com`) virar imagem: sem internet o QR não aparecia, e o app dependia de o serviço devolver o QR do código certo. Agora uma biblioteca pequena (qrcode-generator, MIT) gera o QR no navegador, offline. Conferido: o QR gerado, lido pelo leitor de códigos do macOS, devolve **exatamente** o código do botão "Copiar código PIX". A política de segurança deixa de aceitar imagens desse serviço.
+
+---
+
 ## [1.28.0] — Novembro 2026
 
 ### 🔧 Melhorado

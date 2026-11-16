@@ -59,8 +59,10 @@ próprios autores, que devem ser preservadas em qualquer redistribuição:
 | exifr 7.1.3 | MIT |
 | geotiff.js 2.1.3 | MIT |
 | georaster 1.6.0 · georaster-layer-for-leaflet 4.1.2 | Apache-2.0 |
-| three.js 0.128.0 (+ controls/loaders) | MIT |
+| three.js 0.128.0 (+ controls/loaders, DRACOLoader) | MIT |
+| Draco (decodificador glTF distribuído com o three.js 0.128.0) | Apache-2.0 |
 | laz-perf 0.0.6 | Apache-2.0 |
+| qrcode-generator 1.4.4 (Kazuhiko Arase) | MIT |
 
 Origem, versões e instruções de atualização: [vendor/README.md](./vendor/README.md).
 Avisos de licença que acompanham os bundles (ex.: `vendor/georaster-layer.min.js.LICENSE.txt`)

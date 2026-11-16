@@ -17,6 +17,11 @@ após a primeira visita. Também elimina o risco de uma lib "latest" mudar sozin
 | `georaster-layer.min.js` (+ `….LICENSE.txt`) | georaster-layer-for-leaflet | 4.1.2 | Apache-2.0 | jsdelivr |
 | `three/three.min.js` + `three/*.js` | three.js (+ OrbitControls, PLY/MTL/OBJ/GLTF loaders) | 0.128.0 | MIT | jsdelivr |
 | `laz-perf/index.mjs` + `laz-perf/laz-perf.wasm` | laz-perf (build ESM do jsdelivr; autocontido) | 0.0.6 | Apache-2.0 | jsdelivr `+esm` |
+| `three/DRACOLoader.js` + `three/draco/draco_decoder.wasm` + `three/draco/draco_wasm_wrapper.js` | three.js `examples/js` (DRACOLoader) + decodificador Draco da variante **glTF** (`examples/js/libs/draco/gltf/`) — abre o `.glb` do ODM, que vem com Draco (v1.29.0) | 0.128.0 | MIT (loader) · Apache-2.0 (Draco) | jsdelivr |
+| `qrcode.js` | qrcode-generator (Kazuhiko Arase) — QR do PIX gerado no app, offline (v1.29.0) | 1.4.4 | MIT | jsdelivr |
+
+> Os arquivos do decodificador Draco não são carregados por `<script>`: o `DRACOLoader` os busca
+> em `./vendor/three/draco/` na primeira malha com Draco. Por isso eles entram no `PRECACHE` à mão.
 
 > **Por que `geotiff.min.js` existe se o `georaster` já empacota o geotiff:** o bundle do
 > georaster não expõe o geotiff, e `parseGeoraster(ArrayBuffer)` sempre decodifica a

@@ -18,9 +18,9 @@ O OrtoFly opera em camadas com responsabilidades distintas:
 - **Camada 2 (usuário):** dados do app no armazenamento do navegador (`localStorage`, IndexedDB)
   e no dispositivo do usuário; e o servidor NodeODM que ele mesmo roda ou indica, para onde vão
   as fotos da aba Processar.
-- **Camada 3 (terceiros):** provedores de mapa e o serviço de QR Code, acionados em razão
+- **Camada 3 (terceiros):** provedores de mapa, acionados em razão
   do funcionamento técnico. *(Desde a v1.19.0 as bibliotecas do app são servidas pelo
-  próprio site — não há mais CDNs de terceiros.)*
+  próprio site — não há mais CDNs de terceiros; desde a v1.29.0 o QR do PIX é gerado no app.)*
 
 ## 2. Medidas técnicas implementadas
 
@@ -30,8 +30,8 @@ O OrtoFly opera em camadas com responsabilidades distintas:
   Desde a **v1.19.0**, `script-src`/`style-src` não permitem **nenhuma origem externa**:
   todas as bibliotecas são servidas pelo próprio site (`vendor/`, versões pinadas).
   Desde a **v1.28.0**, `img-src` aceita só o próprio site, `data:`/`blob:` e os três serviços
-  de imagem que o app usa (mapa Esri, mapa OpenStreetMap e o gerador do QR do PIX) — antes,
-  qualquer endereço `https:`.
+  de imagem que o app usa (mapa Esri e mapa OpenStreetMap; o QR do PIX passou a ser gerado no
+  app na v1.29.0) — antes, qualquer endereço `https:`.
   **Riscos aceitos, medidos em 2026-11-16 (Chrome 157 e WebKit 605.1.15, percurso completo:
   mapas, QR, GeoTIFF, índice, recorte, estatística, nuvem `.laz`, avaliações):**
   - `'unsafe-eval'` continua: sem ele o **decodificador de nuvem `.laz` (laz-perf)** quebra

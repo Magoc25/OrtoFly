@@ -10,7 +10,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>OrtoFly</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://server.arcgisonline.com https://*.tile.openstreetmap.org https://api.qrserver.com; connect-src 'self' https: blob: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; font-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none';" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://server.arcgisonline.com https://*.tile.openstreetmap.org; connect-src 'self' https: blob: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; font-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none';" />
 <meta name="description" content="Planeje voos fotogramétricos, calcule GSD e sobreposição e exporte missões (KMZ/WPML, KML, CSV) para drones DJI — no navegador, offline." />
 <meta name="theme-color" content="#0e7c63" />
 <link rel="manifest" href="./manifest.json" />
@@ -735,9 +735,11 @@ footer{
 <script src="./vendor/three/MTLLoader.js"></script>
 <script src="./vendor/three/OBJLoader.js"></script>
 <script src="./vendor/three/GLTFLoader.js"></script>
+<script src="./vendor/three/DRACOLoader.js"></script>
+<script src="./vendor/qrcode.js"></script>
 <script>
 /* ═══════════════ OrtoFly — © 2026 MGC Dev (versão: só em APP_VERSION) ═══════════════ */
-const APP_VERSION = '1.28.0';
+const APP_VERSION = '1.29.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -2547,8 +2549,15 @@ async function loadPLY(file){ const g=new THREE.PLYLoader().parse(await file.arr
 async function loadOBJ(file){ const obj=new THREE.OBJLoader().parse(await file.text());
   obj.traverse(c=>{ if(c.isMesh){ c.material=new THREE.MeshStandardMaterial({color:0xb0b8c0,flatShading:true,side:THREE.DoubleSide}); if(c.geometry&&c.geometry.computeVertexNormals)c.geometry.computeVertexNormals(); } });
   recenterGroup(obj); set3DObject(obj); status3d('Malha OBJ (sem textura — use GLB p/ textura)'); }
+/* O ODM grava o modelo texturizado (odm_textured_model_geo.glb) com compressão Draco: sem o decodificador o
+   GLTFLoader recusa ("No DRACOLoader instance provided") — até a v1.28.0 o .glb do ODM não abria em navegador
+   nenhum (medido em 2026-11-16, Chrome e WebKit). Decodificador do three.js 0.128.0 em vendor/three/draco/ (wasm). */
+let _draco=null;
+function _gltfLoader(){ const ld=new THREE.GLTFLoader();
+  if(THREE.DRACOLoader){ if(!_draco){ _draco=new THREE.DRACOLoader(); _draco.setDecoderPath('./vendor/three/draco/'); _draco.setDecoderConfig({type:'wasm'}); } ld.setDRACOLoader(_draco); }
+  return ld; }
 async function loadGLTF(file){ const url=URL.createObjectURL(file);
-  await new Promise(res=>{ new THREE.GLTFLoader().load(url,gltf=>{ URL.revokeObjectURL(url); recenterGroup(gltf.scene); set3DObject(gltf.scene); status3d('Modelo glTF carregado'); res(); }, undefined, err=>{ URL.revokeObjectURL(url); console.error(err); toast('Erro ao ler glTF/GLB','error'); status3d('Erro ao ler glTF'); res(); }); }); }
+  await new Promise(res=>{ _gltfLoader().load(url,gltf=>{ URL.revokeObjectURL(url); recenterGroup(gltf.scene); set3DObject(gltf.scene); status3d('Modelo glTF carregado'); res(); }, undefined, err=>{ URL.revokeObjectURL(url); console.error(err); toast('Erro ao ler glTF/GLB','error'); status3d('Erro ao ler glTF'); res(); }); }); }
 let _lazPerf=null;
 async function getLazPerf(){
   if(_lazPerf) return _lazPerf;
@@ -3505,11 +3514,13 @@ function citeCopy(btn){ const pre=btn.parentElement.nextElementSibling; navigato
 function openPixModal(){
   $('pixModal').classList.remove('hidden');
   _pixCode=pixEmv(PIX_KEY,PIX_NAME,PIX_CITY,'');
-  const enc=encodeURIComponent(_pixCode);
-  const qr1='https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=4&data='+enc;
-  $('pixQrContainer').innerHTML=`<img id="pixQrImg" src="${qr1}" width="200" height="200" style="border-radius:8px;background:#fff;padding:6px;display:block;margin:0 auto" alt="QR Code PIX" /><p id="pixQrFallback" style="display:none;color:var(--muted);font-size:.8rem;text-align:center;margin-top:.5rem">Copie o código abaixo para pagar.</p>`;
+  // QR gerado NO APP (v1.29.0): até a v1.28.0 o código PIX ia para api.qrserver.com virar imagem — não funcionava
+  // offline, dependia do serviço e confiava que ele devolvesse o QR do código certo. Lib em vendor/ (MIT, 1.4.4).
+  const qr1=_qrDataURL(_pixCode);
+  $('pixQrContainer').innerHTML=`<img id="pixQrImg" src="${qr1||''}" width="200" height="200" style="border-radius:8px;background:#fff;padding:6px;display:block;margin:0 auto" alt="QR Code PIX" /><p id="pixQrFallback" style="display:none;color:var(--muted);font-size:.8rem;text-align:center;margin-top:.5rem">Copie o código abaixo para pagar.</p>`;
   $('pixQrImg').onerror=function(){ this.style.display='none'; $('pixQrFallback').style.display='block'; };
 }
+function _qrDataURL(texto){ try{ if(typeof qrcode!=='function') return null; const q=qrcode(0,'M'); q.addData(texto); q.make(); return q.createDataURL(6,24); }catch(e){ console.warn('[PIX] QR',e); return null; } }
 function closePixModal(){ $('pixModal').classList.add('hidden'); }
 function copyPixCode(){ const btn=$('pixCopyBtn');
   navigator.clipboard.writeText(_pixCode).then(()=>{ btn.textContent='✅ Copiado!'; setTimeout(()=>btn.textContent='Copiar código PIX',2000); })

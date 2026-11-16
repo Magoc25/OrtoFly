@@ -1555,6 +1555,14 @@ async function main() {
     if (nome2) nome2.focus(); tecla(nome2, 'Enter');
     check('teclado: o nome do projeto (role="button") abre o projeto com Enter', !!nome2 && nome2.getAttribute('tabindex') === '0' && val(doc8, 'projName') === 'Projeto com id adulterado');
 
+    // (f) QR do PIX gerado NO APP (v1.29.0): a biblioteca de vendor/ e carregada aqui como o <script> faria
+    try { w8.eval(fs.readFileSync(path.join(fs.existsSync(path.join(path.dirname(file), 'vendor')) ? path.dirname(file) : path.join(__dirname, '..'), 'vendor', 'qrcode.js'), 'utf8')); } catch (e) {}
+    ev8('openPixModal()'); await tique();
+    const qrSrc = String((el(doc8, 'pixQrImg') || {}).src || '');
+    console.log('       [captura] QR do PIX = ' + JSON.stringify(qrSrc.slice(0, 40)) + ' (' + qrSrc.length + ' caracteres)');
+    check('PIX: o QR e gerado no app (imagem data:), sem mandar o codigo PIX a servico externo (antes: api.qrserver.com)',
+      /^data:image\/gif;base64,/.test(qrSrc) && qrSrc.length > 500 && !/qrserver/.test(String(ev8("$('pixQrContainer').innerHTML"))));
+    ev8('closePixModal()');
     await tique();
     check('cenario 8: nenhuma excecao nao tratada', errs8.length === 0 && rejeicoes.length === rej8);
     errs8.forEach(e => console.error('       ' + e));
