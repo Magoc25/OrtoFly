@@ -2700,9 +2700,21 @@ async function odmPing(){
   }catch(_){ if(txt)txt.textContent='🔴 Desconectado';
   }finally{ _odmPinging=false; }
 }
-function odmStartPing(){ odmPing(); if(_odmPingT) clearInterval(_odmPingT); _odmPingT=setInterval(()=>{ if(!document.hidden) odmPing(); },10000); }
+function odmStartPing(){
+  odmPing();
+  if(_odmPingT) clearInterval(_odmPingT);
+  _odmPingT=setInterval(()=>{
+    if(!document.hidden) odmPing();
+  },10000);
+}
 function odmUrlVal(){ return (($('odmUrl')&&$('odmUrl').value)||'').trim().replace(/\/+$/,''); }
-function odmStatus(t,err){ const e=$('odmStatus'); if(e){ e.textContent=t||''; e.style.color=err?'var(--danger)':''; } }
+function odmStatus(t,err){
+  const e=$('odmStatus');
+  if(e){
+    e.textContent=t||'';
+    e.style.color=err?'var(--danger)':'';
+  }
+}
 function odmPickImages(){ $('odmImages').click(); }
 /* ───── O que o app pede ao ODM em cada tarefa (v1.25.0) ─────
    Até a v1.24.1 o app nunca enviava `orthophoto-resolution`: o ODM usa 5 cm/px por padrão, e um voo
@@ -2945,11 +2957,28 @@ function odmLotes(files){
   if(atual.length) lotes.push(atual);
   return lotes;
 }
-function odmDormir(ms,signal){ return new Promise((res,rej)=>{ const t=setTimeout(res,ms); if(signal) signal.addEventListener('abort',()=>{ clearTimeout(t); rej(new DOMException('cancelado','AbortError')); },{once:true}); }); }
+function odmDormir(ms,signal){
+  return new Promise((res,rej)=>{
+    const t=setTimeout(res,ms);
+    if(signal) signal.addEventListener('abort',()=>{
+      clearTimeout(t);
+      rej(new DOMException('cancelado','AbortError'));
+    },{once:true});
+  });
+}
 // pedido ao NodeODM que devolve JSON; HTTP de erro vira exceção com a mensagem do servidor
 async function odmPedir(url,opts){ const r=await fetch(url,opts); const j=await r.json().catch(()=>null); if(!r.ok) throw new Error((j&&j.error)||('HTTP '+r.status)); return j||{}; }
-function odmEnvioProgresso(feitas,total,txt){ const f=$('odmEnvioFill'), t=$('odmEnvioTxt'); if(f) f.style.width=(total?Math.round(feitas/total*100):0)+'%'; if(t) t.textContent=txt||''; }
-function odmEnvioUI(ativo){ const b=$('odmCreateBtn'), box=$('odmEnvio'); if(b) b.disabled=!!ativo; if(box) box.classList.toggle('hidden',!ativo); if(!ativo) odmEnvioProgresso(0,0,''); }
+function odmEnvioProgresso(feitas,total,txt){
+  const f=$('odmEnvioFill'), t=$('odmEnvioTxt');
+  if(f) f.style.width=(total?Math.round(feitas/total*100):0)+'%';
+  if(t) t.textContent=txt||'';
+}
+function odmEnvioUI(ativo){
+  const b=$('odmCreateBtn'), box=$('odmEnvio');
+  if(b) b.disabled=!!ativo;
+  if(box) box.classList.toggle('hidden',!ativo);
+  if(!ativo) odmEnvioProgresso(0,0,'');
+}
 function odmCancelarEnvio(){ if(_odmEnvio) _odmEnvio.ctrl.abort(); }
 async function odmCreate(){
   if(_odmEnvio) return;   // já há um envio em andamento: um segundo clique criaria outra tarefa e outro envio
@@ -3045,8 +3074,29 @@ async function odmReprocessar(){
     odmStatus('❌ Não consegui reprocessar: '+e.message+(/cannot be restarted/i.test(e.message)?' — a tarefa ainda está em andamento: cancele antes, ou espere terminar.':''),true); toast('Falha ao reprocessar','error');
   }
 }
-function odmStartPoll(){ if(_odmPoll) clearInterval(_odmPoll); odmRefresh(); _odmPoll=setInterval(odmRefresh,5000); }
-function odmClearCard(){ if(_odmPoll) clearInterval(_odmPoll); _opfsLimpar(); _odmTask=null; _odmZip=null; _odmZipFor=null; _odmZipRaw=null; _odmSavedMode=false; _odmResultProj=null; _odmSaved=false; _odmMeta=null; ls.del(LS+'_odm_task'); $('odmTaskCard').classList.add('hidden'); $('odmOutputs').classList.add('hidden'); odmRenderTaskOpts(null); odmRenderPrecisao(); odmStatus(''); }
+function odmStartPoll(){
+  if(_odmPoll) clearInterval(_odmPoll);
+  odmRefresh();
+  _odmPoll=setInterval(odmRefresh,5000);
+}
+function odmClearCard(){
+  if(_odmPoll) clearInterval(_odmPoll);
+  _opfsLimpar();
+  _odmTask=null;
+  _odmZip=null;
+  _odmZipFor=null;
+  _odmZipRaw=null;
+  _odmSavedMode=false;
+  _odmResultProj=null;
+  _odmSaved=false;
+  _odmMeta=null;
+  ls.del(LS+'_odm_task');
+  $('odmTaskCard').classList.add('hidden');
+  $('odmOutputs').classList.add('hidden');
+  odmRenderTaskOpts(null);
+  odmRenderPrecisao();
+  odmStatus('');
+}
 /* O NodeODM responde HTTP 200 com {"error":"<uuid> not found"} quando a tarefa não existe mais
    (apagada pelo terminal, container recriado). Sem tratar isso o card mostrava "status
    desconhecido", consultava o servidor a cada 5 s para sempre e o aviso de saída da página
@@ -3106,7 +3156,15 @@ async function odmShowLog(){ const pre=$('odmLog'); if(!pre) return; const u=odm
 const ODM_RE={ortho:/odm_orthophoto\/odm_orthophoto\.tif$/i, dsm:/(^|\/)dsm\.tif$/i, dtm:/(^|\/)dtm\.tif$/i, laz:/georeferenced_model\.(laz|las)$/i,
   shots:/odm_report\/shots\.geojson$/i, stats:/odm_report\/stats\.json$/i};   // relatório do ODM: posição das fotos e precisão (v1.27.0)
 // texto de um Blob/File — com reserva para quem não tem Blob.text() (WebView antiga e o jsdom do smoke)
-function _lerTexto(b){ if(b&&typeof b.text==='function') return b.text(); return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(String(fr.result)); fr.onerror=()=>rej(fr.error); fr.readAsText(b); }); }
+function _lerTexto(b){
+  if(b&&typeof b.text==='function') return b.text();
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onload=()=>res(String(fr.result));
+    fr.onerror=()=>rej(fr.error);
+    fr.readAsText(b);
+  });
+}
 async function _jsonDoPacote(zip,kind){ const n=zip.names().find(k=>ODM_RE[kind].test(k)); if(!n) return null; const {blob}=await zip.extrair(n); return JSON.parse(await _lerTexto(blob)); }
 // centros das fotos reconstruídas (shots.geojson, em lon/lat) -> envoltória convexa em [lat,lon]
 async function odmLerCobertura(zip){
@@ -3268,7 +3326,12 @@ async function odmExtract(kind){
   const zip=await odmGetZip(); const re=ODM_RE[kind];
   const n=zip.names().find(k=>re.test(k)); if(!n) throw new Error((kind==='dsm'||kind==='dtm')?'DSM não gerado nesta tarefa — escolha "DSM + ortomosaico" ou "Completo" ao criar.':'não achei "'+kind+'" no all.zip');
   return await zip.extrair(n); }
-async function odmFetch(asset){ const u=odmUrlVal(); const r=await fetch(u+'/task/'+_odmTask+'/download/'+asset); if(!r.ok) throw new Error('HTTP '+r.status); return await r.blob(); }
+async function odmFetch(asset){
+  const u=odmUrlVal();
+  const r=await fetch(u+'/task/'+_odmTask+'/download/'+asset);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return await r.blob();
+}
 async function odmOpenZip(kind,viewer){ if(!_odmSavedMode && (!odmUrlVal()||!_odmTask)) return;
   try{ const {blob,name}=await odmExtract(kind); odmStatus('Abrindo '+name+'…');
     const file=(blob instanceof File && blob.name===name) ? blob : new File([blob],name,{type:blob.type});   // reembrulhar COPIA o arquivo inteiro; o extrator já devolve File nomeado
@@ -3304,10 +3367,47 @@ const IDB_NAME='ortofly_db', IDB_STORE='results';
    v1.25.0 só `oncomplete` e `onerror` eram tratados, então a promessa nunca resolvia e a tela ficava em
    "Salvando no app…" para sempre, sem erro. `onblocked`: outra aba segura uma versão antiga do banco. */
 const _idbFalha=(tx,oque)=>(tx&&tx.error)||new Error(oque+' — falta espaço no navegador?');
-function _idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open(IDB_NAME,1); r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains(IDB_STORE)) r.result.createObjectStore(IDB_STORE); }; r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); r.onblocked=()=>rej(new Error('o armazenamento do app está em uso por outra aba — feche-a e tente de novo')); }); }
-async function idbPut(k,v){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).put(v,k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(_idbFalha(tx,'gravação recusada')); tx.onabort=()=>rej(_idbFalha(tx,'gravação interrompida')); }); }
-async function idbGet(k){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readonly'); const q=tx.objectStore(IDB_STORE).get(k); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); tx.onabort=()=>rej(_idbFalha(tx,'leitura interrompida')); }); }
-async function idbDel(k){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).delete(k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(_idbFalha(tx,'exclusão recusada')); tx.onabort=()=>rej(_idbFalha(tx,'exclusão interrompida')); }); }
+function _idb(){
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open(IDB_NAME,1);
+    r.onupgradeneeded=()=>{
+      if(!r.result.objectStoreNames.contains(IDB_STORE)) r.result.createObjectStore(IDB_STORE);
+    };
+    r.onsuccess=()=>res(r.result);
+    r.onerror=()=>rej(r.error);
+    r.onblocked=()=>rej(new Error('o armazenamento do app está em uso por outra aba — feche-a e tente de novo'));
+  });
+}
+async function idbPut(k,v){
+  const db=await _idb();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).put(v,k);
+    tx.oncomplete=()=>res();
+    tx.onerror=()=>rej(_idbFalha(tx,'gravação recusada'));
+    tx.onabort=()=>rej(_idbFalha(tx,'gravação interrompida'));
+  });
+}
+async function idbGet(k){
+  const db=await _idb();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(IDB_STORE,'readonly');
+    const q=tx.objectStore(IDB_STORE).get(k);
+    q.onsuccess=()=>res(q.result);
+    q.onerror=()=>rej(q.error);
+    tx.onabort=()=>rej(_idbFalha(tx,'leitura interrompida'));
+  });
+}
+async function idbDel(k){
+  const db=await _idb();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).delete(k);
+    tx.oncomplete=()=>res();
+    tx.onerror=()=>rej(_idbFalha(tx,'exclusão recusada'));
+    tx.onabort=()=>rej(_idbFalha(tx,'exclusão interrompida'));
+  });
+}
 // Remove a tarefa do servidor. Devolve {ok, motivo}: o motivo é o que o NodeODM respondeu (ou a falha
 // de rede), para a tela dizer a causa real em vez de chutar "servidor offline".
 async function odmRemoveServer(uuid){
@@ -3327,9 +3427,22 @@ async function odmRemoveServer(uuid){
 // Registro das tarefas que ESTE navegador criou. Ele mora no localStorage, então tarefa criada em outro
 // navegador (ou antes de os dados do site serem apagados) não aparece aqui — por isso o Limpar tudo
 // também consulta o servidor (odmServerTasks).
-function odmTracked(){ const a=ls.getJSON(LS+'_odm_tasks',[]); return Array.isArray(a)?a:[]; }
-function odmTrack(uuid){ if(!uuid) return; const a=odmTracked(); if(!a.includes(uuid)){ a.push(uuid); ls.set(LS+'_odm_tasks',JSON.stringify(a)); } }
-function odmUntrack(uuid){ ls.set(LS+'_odm_tasks',JSON.stringify(odmTracked().filter(x=>x!==uuid))); ls.del(odmMetaKey(uuid)); }
+function odmTracked(){
+  const a=ls.getJSON(LS+'_odm_tasks',[]);
+  return Array.isArray(a)?a:[];
+}
+function odmTrack(uuid){
+  if(!uuid) return;
+  const a=odmTracked();
+  if(!a.includes(uuid)){
+    a.push(uuid);
+    ls.set(LS+'_odm_tasks',JSON.stringify(a));
+  }
+}
+function odmUntrack(uuid){
+  ls.set(LS+'_odm_tasks',JSON.stringify(odmTracked().filter(x=>x!==uuid)));
+  ls.del(odmMetaKey(uuid));
+}
 // O que o SERVIDOR tem (GET /task/list devolve [{uuid}]). null = não deu para listar.
 async function odmServerTasks(){
   const u=odmUrlVal(); if(!u) return null;

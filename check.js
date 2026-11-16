@@ -297,7 +297,8 @@ else ok('Material e Métodos: nenhuma versão do ODM chumbada como reserva');
 if (/fetch\(\s*u\s*\+\s*['"]\/task\/new['"]/.test(jsCode)) fail('envio: o código volta a mandar todas as fotos num único POST /task/new — sem progresso, sem repetição');
 else if (!['/task/new/init', '/task/new/upload/', '/task/new/commit/'].every(r => jsCode.includes(r))) fail('envio: falta algum dos três passos do envio em partes (init, upload, commit)');
 else ok('envio: fotos em três passos (init, upload em lotes, commit), nenhum POST único');
-const idbFns = ['idbPut', 'idbDel'].map(n => [n, (jsCode.match(new RegExp('async function ' + n + '\\s*\\([^\\n]*')) || [])[0]]);
+// a função inteira, de uma linha ou de várias (o refactor do item 35 as quebrou em várias): até o `}` da coluna 0
+const idbFns = ['idbPut', 'idbDel'].map(n => [n, (jsCode.match(new RegExp('async function ' + n + '\\s*\\((?:[^\\n]*\\}$|[\\s\\S]*?\\n\\})', 'm')) || [])[0]]);
 const semAbort = idbFns.filter(([, f]) => !f || !/tx\.onabort\s*=/.test(f)).map(([n]) => n);
 if (semAbort.length) fail(`armazenamento: ${semAbort.join(' e ')} não trata(m) tx.onabort — com a cota cheia a gravação fica pendurada para sempre`);
 else ok(`armazenamento: idbPut e idbDel tratam transação abortada (capturado: ${idbFns.map(([, f]) => f.length).join(' e ')} caracteres)`);
