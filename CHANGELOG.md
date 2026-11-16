@@ -14,6 +14,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ### 🔧 Melhorado
 
 - **O QR do PIX é gerado no próprio app.** Até a v1.28.0 o código PIX ia para um serviço externo (`api.qrserver.com`) virar imagem: sem internet o QR não aparecia, e o app dependia de o serviço devolver o QR do código certo. Agora uma biblioteca pequena (qrcode-generator, MIT) gera o QR no navegador, offline. Conferido: o QR gerado, lido pelo leitor de códigos do macOS, devolve **exatamente** o código do botão "Copiar código PIX". A política de segurança deixa de aceitar imagens desse serviço.
+- **Pedidos ao NodeODM com tempo-limite e token.** Só o teste de conexão tinha tempo-limite: com um servidor que aceita a conexão e não responde, o card ficava "consultando" para sempre. Agora todo pedido passa por um ponto único — 8 s para as consultas (medido com o NodeODM pausado: o ↻ Atualizar desiste em 8 s e diz que o servidor não respondeu), sem limite para envio e download. No modo Servidor há um campo **Token** para NodeODM iniciado com `--token` (conferido com um NodeODM de verdade: sem token, o app diz que o servidor recusou o token; com ele, conecta).
+- **Nuvem `.laz` sem congelar a tela.** A decodificação passa a ceder a vez ao navegador a cada 500 mil pontos, com a porcentagem na tela; fechar o visualizador interrompe a leitura. Antes, a interface ficava presa a decodificação inteira.
+- **Miniatura da foto leve.** O balão da foto no mapa recebia a imagem original (9 MB, 20 MP) e o navegador a decodificava a cada clique; agora recebe uma cópia de 400 px (24–40 KB, ~0,1 s).
+- **Avisos longos legíveis.** O aviso na base da tela ficava 2,6 s, qualquer que fosse o tamanho — erros de ~170 caracteres sumiam antes de serem lidos. Agora a duração acompanha o tamanho (até 10 s), e o de erro fica até um toque.
+- **Conversão grau → metro pelo elipsoide WGS 84.** Área, espaçamento e distâncias usavam constantes esféricas: ~0,05 % de erro a −7° (desprezível), mas ~0,8 % a 60°. Na área de exemplo, a área muda 0,05 %.
+
+### 🐛 Corrigido
+
+- **Projeto importado não era validado.** Qualquer JSON com a chave `projeto` era aplicado: coordenada não numérica quebrava a abertura no meio (estado pela metade), drone desconhecido deixava o seletor vazio, parâmetros entravam sem limite e um polígono de milhares de vértices travaria o mapa. Agora o arquivo é conferido **antes** de mudar qualquer coisa; drone desconhecido mantém o atual, com aviso; os parâmetros vão ao limite dos próprios campos; GeoJSON com `MultiPolygon` passa a ser aceito.
+- **Projeto salvo com altura acima de 500 m reabria a 500 m**, sem aviso: ao abrir, o valor do controle deslizante (que vai até 500 m) era copiado por cima do campo numérico (que vai até 1.500 m). Achado nesta auditoria.
+- **Dois pontos de foto colados no fim de uma faixa.** Quando o comprimento da faixa era quase múltiplo do espaçamento, saíam duas fotos a centímetros uma da outra (foto repetida; apps de voo podem recusar pontos muito próximos). O último ponto intermediário só entra se ficar a ≥ 1/4 do espaçamento do ponto final.
+- **O robô de estatísticas podia publicar um `stats.json` inválido.** Com o segredo ausente ou o Supabase fora do ar, o passo gravava `{"active_30d":,…}` e o commitava (simulado com as respostas vazia, erro HTTP e objeto de erro: o passo antigo saía com sucesso no caso vazio). Agora o passo falha sem gravar.
 
 ---
 

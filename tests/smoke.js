@@ -157,16 +157,41 @@ async function main() {
   const oGsd = txt(doc, 'oGsd'), oPhotos = txt(doc, 'oPhotos');
   check('plano: Resultados preenchidos na UI', oGsd !== undefined && oGsd !== '—' && oPhotos !== undefined && oPhotos !== '—');
 
-  /* margem além da área (v1.27.0). "Sem margem" tem de reproduzir a grade de antes PONTO POR PONTO: a
-     referência abaixo foi MEDIDA na v1.26.0 (commit 9bf4347), com a AOI de exemplo e os padrões da tela —
-     198 fotos, 9 faixas, e o hash das coordenadas com 9 casas. Com "Automática", a grade ganha uma faixa
-     de cada lado e as pontas passam meia pegada (no sentido do voo) além do polígono. */
-  const hashGrade = () => require('crypto').createHash('sha256').update(String(ev('JSON.stringify(state.lastPlan.grid.waypoints.map(p=>[p.lat.toFixed(9),p.lon.toFixed(9)]))'))).digest('hex').slice(0, 16);
-  const REF_V126 = { wp: 198, linhas: 9, hash: '7477e61bdbd8ccff' };
+  /* metros por grau pelo ELIPSOIDE (v1.29.0, item 24) — valores de referência do WGS 84, fora do app: 1° de latitude
+     = 110.574 m no equador e 111.412 m a 60°; 1° de longitude = 111.320 m no equador e 55.800 m a 60°. As constantes
+     esféricas de antes (110540 e 111320·cos φ) erravam ~0,8 % a 60°. */
+  const mpgS = ev('JSON.stringify([_metrosPorGrau(0),_metrosPorGrau(60),_metrosPorGrau(-7.019)])'), mpg = mpgS ? JSON.parse(mpgS) : [{}, {}, {}];   // leitura tolerante (r91d)
+  console.log('       [captura] metros por grau = ' + JSON.stringify(mpg.map(g => [Math.round(g.lat), Math.round(g.lon)])));
+  check('geodesia: metros por grau batem com o WGS 84 no equador e a 60° (±2 m)', Math.abs(mpg[0].lat - 110574) < 2 && Math.abs(mpg[0].lon - 111320) < 2 && Math.abs(mpg[1].lat - 111412) < 2 && Math.abs(mpg[1].lon - 55800) < 2);
+  const areaEsf = ev('(function(){ var P=state.polygon, la=0, lo=0; P.forEach(function(p){ la+=p[0]; lo+=p[1]; }); la/=P.length; lo/=P.length; var mLat=110540, mLon=111320*Math.cos(la*Math.PI/180); var xy=P.map(function(p){ return [(p[1]-lo)*mLon,(p[0]-la)*mLat]; }), a=0; for(var i=0;i<xy.length;i++){ var j=(i+1)%xy.length; a+=xy[i][0]*xy[j][1]-xy[j][0]*xy[i][1]; } return Math.abs(a/2); })()');
+  const areaNova = ev('polyAreaM2(state.polygon)');
+  console.log('       [captura] área da AOI de exemplo: esférica ' + Math.round(areaEsf) + ' m² · elipsoide ' + Math.round(areaNova) + ' m² (' + (100 * (areaNova - areaEsf) / areaEsf).toFixed(3) + ' %)');
+  check('geodesia: na AOI de exemplo (−7°) a área muda menos de 0,1 % (a correção pesa em latitude alta)', Math.abs(areaNova - areaEsf) / areaEsf < 0.001);
+  /* item 23: o último ponto intermediário de uma faixa não fica colado no ponto final. Faixa de 3 espaçamentos + 0,4 m:
+     antes saíam dois pontos a 0,4 m um do outro. */
+  const colados = ev(`(function(){ var ps=30, f=localFrame([[-7.0,-45.5],[-7.0,-45.49]]), L=3*ps+0.4;
+    var a=f.toLL(-L/2,-20), b=f.toLL(L/2,-20), c=f.toLL(L/2,20), d=f.toLL(-L/2,20);
+    var g=generateGrid([a,b,c,d], 25, ps, 90), m=Infinity;
+    g.lineGroups.forEach(function(grp){ for(var i=1;i<grp.length;i++){ var p=f.toXY(grp[i-1]), q=f.toXY(grp[i]); m=Math.min(m, Math.hypot(q[0]-p[0],q[1]-p[1])); } });
+    return JSON.stringify({menor:+m.toFixed(2), porFaixa:g.lineGroups.map(function(x){ return x.length; })}); })()`);
+  console.log('       [captura] faixa de 3 espaçamentos + 0,4 m = ' + colados);
+  const cj = colados ? JSON.parse(colados) : {};
+  check('grade: nenhuma foto a menos de 1/4 do espaçamento da vizinha na mesma faixa (antes: duas a 0,4 m)', cj.menor >= 0.25 * 30 && cj.porFaixa.every(n => n === 4));
+
+  /* margem além da área (v1.27.0). "Sem margem" tem de dar a grade SEM margem, ponto por ponto. Na v1.27.0 isso foi
+     conferido contra a grade MEDIDA na v1.26.0 (198 fotos, 9 faixas, hash 7477e61bdbd8ccff); a v1.29.0 mudou a
+     conversão grau→metro de propósito (item 24: elipsoide WGS 84 no lugar das constantes esféricas) e as coordenadas
+     andaram centímetros — então a igualdade passa a ser com a grade que o MESMO código gera sem o argumento de margem,
+     e o número de fotos e faixas continua o da v1.26.0. Com "Automática", a grade ganha uma faixa de cada lado e as
+     pontas passam meia pegada (no sentido do voo) além do polígono. */
+  const H16 = s => require('crypto').createHash('sha256').update(String(s)).digest('hex').slice(0, 16);
+  const hashGrade = () => H16(ev('JSON.stringify(state.lastPlan.grid.waypoints.map(p=>[p.lat.toFixed(9),p.lon.toFixed(9)]))'));
+  const hashSemArg = () => H16(ev('(function(){ var p=state.lastPlan, g=generateGrid(state.polygon,p.lineSpacing,p.photoSpacing,p.bearing); return JSON.stringify(g.waypoints.map(function(w){ return [w.lat.toFixed(9),w.lon.toFixed(9)]; })); })()'));
+  const REF_V126 = { wp: 198, linhas: 9, hash: hashSemArg() };
   const margemPadrao = val(doc, 'margem');
   const g0 = { wp: ev('state.lastPlan.grid.waypoints.length'), linhas: ev('state.lastPlan.grid.nLines'), hash: hashGrade() };
-  console.log('       [captura] grade sem margem = ' + JSON.stringify(g0) + ' · referência v1.26.0 = ' + JSON.stringify(REF_V126));
-  check('margem: "Sem margem" dá a MESMA grade da v1.26.0, ponto por ponto (198 fotos, 9 faixas, mesmo hash)',
+  console.log('       [captura] grade sem margem = ' + JSON.stringify(g0) + ' · grade do mesmo código sem o argumento de margem = ' + JSON.stringify(REF_V126));
+  check('margem: "Sem margem" dá a grade sem margem ponto por ponto, com as 198 fotos e 9 faixas da v1.26.0',
     margemPadrao === 'none' && g0.wp === REF_V126.wp && g0.linhas === REF_V126.linhas && g0.hash === REF_V126.hash);
   const selMargem = el(doc, 'margem');
   if (selMargem) { selMargem.value = 'auto'; selMargem.dispatchEvent(new w.Event('change')); }
@@ -845,7 +870,7 @@ async function main() {
   const errs5 = [];
   async function subir5(cfg) {
     const fake = { tarefas: new Map((cfg.tarefas || []).map(([u, t]) => [u, { ...t }])), cont: { info: 0, remove: 0, cancel: 0, list: 0, options: 0, init: 0, upload: 0, commit: 0, legado: 0, download: 0 }, corpos: [], cancelFalha: cfg.cancelFalha || null, criadas: [],
-      abertas: new Map(), vistoNoUpload: [], reinicios: [], opfsApagado: [], idb: new Map() };
+      abertas: new Map(), vistoNoUpload: [], reinicios: [], opfsApagado: [], idb: new Map(), tokens: [] };
     // opcoes que o servidor falso conhece (GET /options). O de verdade (ODM 3.5.6, medido em 2026-11-15) NAO tem
     // `resize-to`, e o NodeODM descarta em silencio o que nao conhece -- por isso o duplo tambem descarta.
     const OPCOES = cfg.opcoes || ['fast-orthophoto', 'dsm', 'skip-3dmodel', 'orthophoto-resolution', 'dem-resolution', 'rolling-shutter', 'feature-quality', 'pc-quality', 'max-concurrency'];
@@ -863,7 +888,11 @@ async function main() {
       return { tipo: 'vazio', uuid: null };
     };
     const responder = (u, o) => {
-      const p = (String(u).match(/^https?:\/\/[^/]+(\/.*)$/) || [])[1] || String(u);
+      const p0 = (String(u).match(/^https?:\/\/[^/]+(\/.*)$/) || [])[1] || String(u);
+      // o NodeODM le o token da query (?token=, libs/auth/TokenAuthBase.js): o duplo registra e responde pela rota sem ela
+      const [p, qs] = p0.split('?'); fake.tokens.push(new URLSearchParams(qs || '').get('token'));
+      if (cfg.exigeToken && new URLSearchParams(qs || '').get('token') !== cfg.exigeToken) return json({ error: 'Invalid authentication token: token does not match.' });
+      if (cfg.infoPendura && /^\/task\/[^/]+\/info$/.test(p)) { fake.cont.info++; return new Promise((_, rej) => { const s = o && o.signal; if (s) s.addEventListener('abort', () => rej(new DOMException('abortado', 'AbortError'))); }); }
       if (p === '/info') return cfg.semInfo ? Promise.reject(new TypeError('Failed to fetch')) : json({ version: '2.2.4', taskQueueCount: 0, engine: 'odm', engineVersion: '3.5.6', cpuCores: 8 });
       if (p === '/options') { fake.cont.options++; return json(OPCOES.map(name => ({ name, type: 'x', value: '', domain: '', help: '' }))); }
       /* envio em TRES passos (lido no codigo do NodeODM 2.2.4 em 2026-11-15): init (multipart: name, options) -> {uuid};
@@ -931,6 +960,8 @@ async function main() {
         window.fetch = (u, o) => responder(u, o);
         window.confirm = msg => { confirms.push(String(msg)); return cfg.confirmar ? !!cfg.confirmar(String(msg), confirms.length - 1) : true; };
         window.setInterval = (fn, ms) => { const id = ++nInt; intervalos.set(id, { fn, ms }); return id; };
+        // tempo-limite dos pedidos ao NodeODM (8 s) encurtado para o teste nao esperar relogio de verdade
+        if (cfg.encurtarEspera) { const st = window.setTimeout.bind(window); window.setTimeout = (f, ms, ...a) => st(f, ms === 8000 ? 40 : ms, ...a); }
         window.clearInterval = id => { intervalos.delete(id); };
         window.URL.createObjectURL = () => 'blob:stub'; window.URL.revokeObjectURL = () => {};
         window.matchMedia = window.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
@@ -1312,6 +1343,36 @@ async function main() {
     c2.fechar();
   }
 
+  /* -- cenario 5, 5a parte: ponto unico dos pedidos ao NodeODM (v1.29.0) --------------------------------
+     Ate a v1.28.0 so o ping e o Testar tinham tempo-limite: um servidor que aceita a conexao e nao responde
+     deixava o card "consultando" para sempre. E nao havia como mandar o token de um NodeODM protegido. */
+  { // (x) a consulta da tarefa desiste no tempo-limite e diz por que
+    const c = await subir5({ nome: '5x', tarefas: [[T_VIVA, { code: 20 }]], ls: lsTarefa(T_VIVA, [T_VIVA]), infoPendura: true, encurtarEspera: true });
+    const viu = await c.esperar(() => /não respondeu em 8 s/.test(String(txt(c.doc, 'odmTaskStatus'))), 1500);
+    console.log('       [captura] servidor que nao responde: card = ' + JSON.stringify(String(txt(c.doc, 'odmTaskStatus')).slice(0, 90)));
+    check('tempo-limite: com o NodeODM aceitando a conexao e nao respondendo, a consulta desiste e diz por que (antes: ficava pendurada)', c.fake.cont.info >= 1 && viu);
+    c.fechar();
+  }
+  { // (y) modo Servidor com token: todo pedido leva ?token=, e o token recusado e dito como tal
+    const base = { ortofly_odm_mode: 'server', ortofly_odm_url_server: 'https://odm.exemplo.test', 'ortofly_odm_auth_https://odm.exemplo.test': '1' };
+    const c = await subir5({ nome: '5y', tarefas: [[T_VIVA, { code: 40 }]], ls: { ...lsTarefa(T_VIVA, [T_VIVA]), ...base, ortofly_odm_token_server: 's3gr3do' }, exigeToken: 's3gr3do' });
+    await c.esperar(() => c.fake.cont.info > 0 && /conclu/.test(String(txt(c.doc, 'odmTaskStatus'))));
+    const campoTk = el(c.doc, 'odmToken'), linhaTk = el(c.doc, 'odmTokenRow');
+    console.log('       [captura] tokens vistos pelo duplo = ' + JSON.stringify([...new Set(c.fake.tokens)]) + ' · card = ' + JSON.stringify(String(txt(c.doc, 'odmTaskStatus')).slice(0, 60)));
+    check('token: no modo Servidor o campo aparece com o token guardado e TODO pedido o leva (?token=)', !!linhaTk && !linhaTk.classList.contains('hidden') && !!campoTk && campoTk.value === 's3gr3do'
+      && c.fake.tokens.length > 0 && c.fake.tokens.every(x => x === 's3gr3do') && /conclu/.test(String(txt(c.doc, 'odmTaskStatus'))));
+    if (campoTk) { campoTk.value = 'errado'; campoTk.dispatchEvent(new c.w.Event('input')); }
+    c.clicar('button[onclick="odmTest()"]');
+    await c.esperar(() => /token/i.test(c.status()) && /❌/.test(c.status()));
+    console.log('       [captura] token errado no Testar = ' + JSON.stringify(c.status().slice(0, 120)));
+    check('token: o Testar com token errado diz que o NodeODM recusou o TOKEN (nao "servidor offline")', /recusou o token/.test(c.status()));
+    c.fechar();
+    const c2 = await subir5({ nome: '5y2', tarefas: [[T_VIVA, { code: 40 }]], ls: lsTarefa(T_VIVA, [T_VIVA]) });
+    await c2.esperar(() => c2.fake.cont.info > 0);
+    check('token: no PC Local o campo fica escondido e nenhum pedido leva token', has(c2.doc, 'odmTokenRow', 'hidden') === true && c2.fake.tokens.every(x => x === null));
+    c2.fechar();
+  }
+
   /* -- cenario 5, 4a parte: precisao do produto e pontos de controle (v1.27.0) ---------------------------
      O stats.json abaixo traz os numeros da tarefa C da auditoria (34 fotos do voo de teste, com correcao de
      obturador): GSD das fotos 1,78 cm, reprojecao 1,02 px, CE90 pelo GPS 2,82 m, sem GCP. */
@@ -1563,6 +1624,52 @@ async function main() {
     check('PIX: o QR e gerado no app (imagem data:), sem mandar o codigo PIX a servico externo (antes: api.qrserver.com)',
       /^data:image\/gif;base64,/.test(qrSrc) && qrSrc.length > 500 && !/qrserver/.test(String(ev8("$('pixQrContainer').innerHTML"))));
     ev8('closePixModal()');
+
+    // (g) item 31: a duração do aviso acompanha o tamanho da mensagem; erro fica até o toque (e some em 10 s)
+    const duracoes = []; const stOrig = w8.setTimeout;
+    w8.setTimeout = (f, ms, ...a) => { duracoes.push(ms); return stOrig.call(w8, f, ms, ...a); };
+    ev8("toast('Salvo')"); ev8("toast('" + 'x'.repeat(170) + "')"); ev8("toast('erro curto','error')");
+    w8.setTimeout = stOrig;
+    const tEl8 = el(doc8, 'toast'); const aberto = !!tEl8 && /show/.test(tEl8.className); if (tEl8) tEl8.click();
+    console.log('       [captura] duracoes dos avisos (ms) = ' + JSON.stringify(duracoes.slice(-3)));
+    check('aviso: curto fica 2,6 s; longo (170 caracteres) ~10 s; erro 10 s e fecha com um toque (antes: 2,6 s para todos)',
+      duracoes.slice(-3).join(',') === '2600,10000,10000' && aberto && !/show/.test(tEl8.className));
+
+    // (h) item 22: projeto importado e validado ANTES de tocar no estado
+    const importa = obj => new Promise(r => { ev8("window.__a=state.polygon.length"); w8.importProjectFile(new w8.Blob([JSON.stringify(obj)], { type: 'application/json' })); setTimeout(r, 120); });
+    const polyAntes = ev8('JSON.stringify(state.polygon)');
+    await importa({ projeto: { polygon: [['a', 'b']] } });
+    check('importar: projeto com coordenada nao numerica e recusado e NADA muda (antes: estado aplicado pela metade)',
+      /inválido/.test(String(txt(doc8, 'toast'))) && ev8('JSON.stringify(state.polygon)') === polyAntes);
+    const enorme = []; for (let i = 0; i < 3000; i++) enorme.push([-7 + Math.sin(i) / 100, -45 + Math.cos(i) / 100]);
+    await importa({ projeto: { polygon: enorme } });
+    check('importar: poligono com 3.000 vertices e recusado (um marcador por vertice travaria o mapa)', /inválido/.test(String(txt(doc8, 'toast'))) && ev8('JSON.stringify(state.polygon)') === polyAntes);
+    await importa({ projeto: { polygon: [[-7.01, -45.49], [-7.01, -45.48], [-7.02, -45.48]], droneId: 'drone-que-nao-existe', params: { alt: 99999, fo: 5, so: 99, speed: 300 } } });
+    console.log('       [captura] import com drone desconhecido: toast = ' + JSON.stringify(String(txt(doc8, 'toast')).slice(0, 90)) + ' · drone=' + val(doc8, 'drone') + ' alt=' + val(doc8, 'altNum') + ' fo=' + val(doc8, 'fo') + ' so=' + val(doc8, 'so') + ' speed=' + val(doc8, 'speed'));
+    await importa({ projeto: { polygon: [[-7.01, -45.49], [-7.01, -45.48], [-7.02, -45.48]], droneId: 'mavic3', params: { alt: 800, fo: 75, so: 65 } } });
+    check('importar: projeto salvo a 800 m reabre a 800 m (antes: o controle deslizante, que vai ate 500, o rebaixava a 500 sem aviso)', val(doc8, 'altNum') === '800' && ev8('state.lastPlan.alt') === 800);
+    await importa({ projeto: { polygon: [[-7.01, -45.49], [-7.01, -45.48], [-7.02, -45.48]], droneId: 'drone-que-nao-existe', params: { alt: 99999, fo: 5, so: 99, speed: 300 } } });
+    check('importar: drone desconhecido mantem o atual (com aviso) e parametros fora da faixa vao ao limite do campo',
+      /desconhecido/.test(String(txt(doc8, 'toast'))) && val(doc8, 'drone') !== '' && val(doc8, 'altNum') === '1500' && val(doc8, 'fo') === '50' && val(doc8, 'so') === '85' && val(doc8, 'speed') === '20');
+    const proprio = JSON.parse(String(ev8("JSON.stringify({app:'OrtoFly',projeto:snapshot()})")));
+    const snapAntes = ev8('JSON.stringify(snapshot())');
+    await importa(proprio);
+    check('importar: um projeto exportado pelo proprio app volta identico', ev8('JSON.stringify(snapshot())') === snapAntes && /importado ✅/.test(String(txt(doc8, 'toast'))));
+    await importa({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'MultiPolygon', coordinates: [[[[-45.49, -7.01], [-45.48, -7.01], [-45.48, -7.02], [-45.49, -7.02], [-45.49, -7.01]]]] } }] });
+    check('importar: GeoJSON com MultiPolygon usa o 1o anel (antes: "sem poligono")', ev8('state.polygon.length') === 4 && /GeoJSON/.test(String(txt(doc8, 'toast'))));
+
+    // (i) item 21: a miniatura do popup e reduzida a 400 px (antes: a foto de 20 MP inteira no <img>)
+    const pedidos = []; w8.createImageBitmap = async (f, o) => { pedidos.push(o); return { width: 400, height: 267, close() {} }; };
+    w8.HTMLCanvasElement.prototype.getContext = () => ({ drawImage() {} });
+    w8.HTMLCanvasElement.prototype.toBlob = function (cb, tipo) { cb(new w8.Blob(['jpg'], { type: tipo })); };
+    const urls = []; w8.URL.createObjectURL = b => { urls.push(b && b.type); return 'blob:mini'; };
+    const original = new w8.File(['x'.repeat(1000)], 'DJI_0001.JPG', { type: 'image/jpeg' });
+    const fnMini = (() => { try { return w8.eval('_miniatura'); } catch (e) { return null; } })();   // tolerante (r91d)
+    const rMini = fnMini ? await fnMini(original) : undefined;
+    check('popup da foto: miniatura gerada a 400 px de largura em JPEG, nao a foto original', pedidos.length === 1 && pedidos[0].resizeWidth === 400 && urls[urls.length - 1] === 'image/jpeg' && rMini === 'blob:mini');
+    w8.createImageBitmap = async () => { throw new Error('nao suportado'); };
+    const rRes = fnMini ? await fnMini(original) : undefined;
+    check('popup da foto: sem createImageBitmap, cai no arquivo original (nada quebra)', rRes === 'blob:mini' && urls[urls.length - 1] === 'image/jpeg');
     await tique();
     check('cenario 8: nenhuma excecao nao tratada', errs8.length === 0 && rejeicoes.length === rej8);
     errs8.forEach(e => console.error('       ' + e));

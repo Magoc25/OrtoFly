@@ -186,6 +186,7 @@ footer{
 #toast{position:fixed;bottom:64px;left:50%;transform:translateX(-50%) translateY(20px);z-index:3000;background:var(--navy);border:1px solid var(--border);color:var(--text);padding:10px 16px;border-radius:24px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;max-width:90vw;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.5)}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #toast.error{background:#3b1414;border-color:rgba(248,113,113,.5)}
+#toast.show.error{pointer-events:auto;cursor:pointer}   /* erro: um toque fecha (v1.29.0) */
 @media (max-width:860px){
   .wrap{flex-direction:column}
   #map{height:46dvh;flex:none}
@@ -514,6 +515,7 @@ footer{
           <div class="field"><label for="odmUrl">URL do NodeODM</label><input id="odmUrl" type="text" placeholder="http://127.0.0.1:3000" oninput="odmRenderHint()" /></div>
           <button class="btn sm" style="align-self:flex-end" onclick="odmTest()">Testar</button>
         </div>
+        <div class="row hidden" id="odmTokenRow" style="margin-top:6px"><div class="field"><label for="odmToken">Token (opcional)</label><input id="odmToken" type="password" autocomplete="off" placeholder="só se o seu NodeODM exigir (iniciado com --token)" /></div></div>
         <p id="odmModeHint" class="hint" style="margin-top:6px"></p>
         <div id="odmStatus" class="spec"></div>
         <div class="btn-grid" style="margin-top:8px">
@@ -749,7 +751,11 @@ const $ = id => document.getElementById(id);
 const fmt = (n,d=0) => (isFinite(n) ? Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d}) : '—');
 let _toastT;
 function toast(msg, type){ const t=$('toast'); t.setAttribute('role',type==='error'?'alert':'status'); t.textContent=msg; t.className='show'+(type==='error'?' error':'');   // erro é anunciado na hora pelo leitor de tela (alert); o resto, sem interromper (status)
-  clearTimeout(_toastT); _toastT=setTimeout(()=>t.className='',2600); }
+  // duração pelo TAMANHO da mensagem (v1.29.0): erros de ~170 caracteres ficavam 2,6 s — sumiam antes de serem lidos.
+  // Erro fica até o toque, e some sozinho em 10 s; os curtos continuam com 2,6 s.
+  const ms=type==='error'?TOAST_MAX_MS:Math.min(TOAST_MAX_MS,Math.max(TOAST_MIN_MS,60*String(msg).length));
+  clearTimeout(_toastT); _toastT=setTimeout(()=>t.className='',ms); t.onclick=type==='error'?()=>{ clearTimeout(_toastT); t.className=''; }:null; }
+const TOAST_MIN_MS=2600, TOAST_MAX_MS=10000;   // escolha do app: ~60 ms por caractere entre os dois
 function downloadBlob(blob, filename){
   const url=URL.createObjectURL(blob); const a=document.createElement('a');
   a.href=url; a.download=filename; document.body.appendChild(a); a.click();
@@ -875,9 +881,14 @@ function fitAOI(){ if(!map||state.polygon.length<3) return; map.fitBounds(L.poly
 function locateMe(){ if(!map) return; map.locate({setView:true,maxZoom:17}); map.once('locationerror',()=>toast('Não foi possível obter a localização','error')); }
 
 /* ═══════════════ GEOMETRIA / PLANEJAMENTO ═══════════════ */
+/* Metros por grau na latitude `lat`, pela série do elipsoide WGS 84 — FONTE ÚNICA (v1.29.0). Até a v1.28.0 eram as
+   constantes esféricas 110540 e 111320·cos φ, repetidas em dois lugares: ~0,05 % de erro a −7° (desprezível), mas
+   ~0,8 % a 60° — em área, espaçamento entre fotos e distâncias. */
+function _metrosPorGrau(lat){ const f=lat*Math.PI/180;
+  return { lat:111132.92-559.82*Math.cos(2*f)+1.175*Math.cos(4*f), lon:111412.84*Math.cos(f)-93.5*Math.cos(3*f) }; }
 function localFrame(poly){
   let lat0=0,lon0=0; poly.forEach(p=>{lat0+=p[0];lon0+=p[1];}); lat0/=poly.length; lon0/=poly.length;
-  const mLat=110540, mLon=111320*Math.cos(lat0*Math.PI/180);
+  const g=_metrosPorGrau(lat0), mLat=g.lat, mLon=g.lon;
   return {
     toXY:p=>[(p[1]-lon0)*mLon,(p[0]-lat0)*mLat],
     toLL:(x,y)=>[lat0+y/mLat, lon0+x/mLon]
@@ -956,7 +967,9 @@ function generateGrid(poly, lineSpacing, photoSpacing, bearingDeg, margem){
     const heading=(Math.atan2(dx,dy)*180/Math.PI+360)%360; const ux=dx/len, uy=dy/len;
     const grp=[];
     const pushPt=(x,y)=>{ const ll=f.toLL(x,y); waypoints.push({idx:idx++,lat:ll[0],lon:ll[1],heading}); pathLL.push(ll); if(prev) lenTotal+=Math.hypot(x-prev[0],y-prev[1]); prev=[x,y]; pathXY.push([x,y]); grp.push(ll); };
-    for(let d=0; d<len; d+=photoSpacing) pushPt(A[0]+ux*d, A[1]+uy*d);
+    // o ponto final B entra sempre; o último ponto intermediário só se ficar a ≥ 1/4 do espaçamento dele (v1.29.0) —
+    // antes, faixa de comprimento quase múltiplo do espaçamento dava duas fotos a centímetros uma da outra
+    for(let d=0; d<len; d+=photoSpacing){ if(d>0&&len-d<0.25*photoSpacing) break; pushPt(A[0]+ux*d, A[1]+uy*d); }
     pushPt(B[0],B[1]);
     lineGroups.push(grp); flip=!flip;
   }
@@ -1209,18 +1222,33 @@ function loadProjects(){ try{ return JSON.parse(ls.get(LS+'_projects')||'[]'); }
 function storeProjects(arr){ try{ return ls.set(LS+'_projects',JSON.stringify(arr)); }catch(e){ console.error('[Projetos] store',e); return false; } }
 function snapshot(){ return {polygon:state.polygon, droneId:state.droneId, params:{alt:+$('altNum').value, fo:+$('fo').value, so:+$('so').value, speed:+$('speed').value, dir:$('dir').value, dirDeg:+$('dirDeg').value, cross:$('cross').checked, margem:$('margem').value, margemM:+$('margemM').value,
   cSw:+$('cSw').value,cSh:+$('cSh').value,cFocal:+$('cFocal').value,cIw:+$('cIw').value,cIh:+$('cIh').value}}; }
+/* Projeto IMPORTADO é dado de fora (v1.29.0): até a v1.28.0 qualquer JSON com a chave `projeto` era aplicado —
+   coordenada não numérica fazia o Leaflet lançar no meio (estado aplicado pela metade), droneId desconhecido deixava o
+   seletor vazio, parâmetros entravam sem limite e um polígono de milhares de vértices criava um marcador por vértice. */
+const POLIGONO_MAX_VERTICES=2000;   // escolha do app: cada vértice vira um marcador arrastável no mapa
+function _poligonoValido(p){ return Array.isArray(p)&&p.length>=3&&p.length<=POLIGONO_MAX_VERTICES
+  &&p.every(v=>Array.isArray(v)&&v.length>=2&&isFinite(v[0])&&isFinite(v[1])&&typeof v[0]==='number'&&typeof v[1]==='number'&&Math.abs(v[0])<=90&&Math.abs(v[1])<=180); }
+const _limite=(v,a,b)=>Math.max(a,Math.min(b,+v));   // os limites são os dos próprios campos da tela
 function applySnapshot(d){
-  state.polygon=(d.polygon||[]).slice(); state.droneId=d.droneId||'mavic3'; $('drone').value=state.droneId; onDroneChange(true);
+  const avisos=[];
+  if(d.polygon&&d.polygon.length&&!_poligonoValido(d.polygon)) throw new Error('arquivo de projeto inválido: a área precisa de 3 a '+POLIGONO_MAX_VERTICES+' vértices com latitude e longitude numéricas');
+  const droneOk=DRONES.some(x=>x.id===d.droneId);
+  if(d.droneId&&!droneOk) avisos.push('drone "'+d.droneId+'" desconhecido — mantido o drone atual');
+  state.polygon=(d.polygon||[]).map(v=>[+v[0],+v[1]]); state.droneId=droneOk?d.droneId:(d.droneId?state.droneId:'mavic3'); $('drone').value=state.droneId; onDroneChange(true);
   const p=d.params||{};
-  if(p.alt){$('alt').value=p.alt;$('altNum').value=p.alt;}
-  if(p.fo){$('fo').value=p.fo;} if(p.so){$('so').value=p.so;}
-  if(p.speed){$('speed').value=p.speed;} if(p.dir){$('dir').value=p.dir;} if(p.dirDeg!=null){$('dirDeg').value=p.dirDeg;}
+  let altImport=null; if(p.alt&&isFinite(p.alt)){ altImport=_limite(p.alt,5,1500); $('alt').value=Math.min(500,altImport); $('altNum').value=altImport; }
+  if(p.fo&&isFinite(p.fo)){$('fo').value=_limite(p.fo,50,90);} if(p.so&&isFinite(p.so)){$('so').value=_limite(p.so,40,85);}
+  if(p.speed&&isFinite(p.speed)){$('speed').value=_limite(p.speed,1,20);} if(p.dir){$('dir').value=p.dir;} if(p.dirDeg!=null){$('dirDeg').value=p.dirDeg;}
   $('cross').checked=!!p.cross;
   // projeto salvo antes da v1.27.0 não tem margem: abre SEM margem, que é o plano com que ele foi salvo
   $('margem').value=['none','auto','custom'].includes(p.margem)?p.margem:'none'; if(p.margemM!=null&&isFinite(+p.margemM)) $('margemM').value=p.margemM;
   if(state.droneId==='custom'){ ['cSw','cSh','cFocal','cIw','cIh'].forEach(k=>{ if(p[k]) $(k).value=p[k]; }); }
   syncRangeLabels(); updateDirUI();
+  // syncRangeLabels copia o controle deslizante (máx. 500 m) para o campo numérico (até 1500 m): sem esta linha, um
+  // projeto salvo a 800 m reabria a 500 m, sem aviso (achado na auditoria, 2026-11-16)
+  if(altImport!=null) $('altNum').value=altImport;
   renderAOI(); if(state.polygon.length>=3) fitAOI(); recompute();
+  return avisos;
 }
 function saveProject(){
   const name=($('projName').value||'').trim(); if(!name){ toast('Dê um nome ao projeto','error'); $('projName').focus(); return; }
@@ -1245,7 +1273,9 @@ function openProjects(){ const arr=loadProjects(); const box=$('projectsList');
   $('projectsModal').classList.remove('hidden');
 }
 function closeProjects(){ $('projectsModal').classList.add('hidden'); }
-function openProject(id){ const p=loadProjects().find(x=>x.id===id); if(!p) return; $('projName').value=p.name; state.name=p.name; applySnapshot(p.data); closeProjects(); toast('Projeto carregado ✅'); if(p.result) odmLoadSavedResult(id); }
+function openProject(id){ const p=loadProjects().find(x=>x.id===id); if(!p) return;
+  let av; try{ av=applySnapshot(p.data||{}); }catch(e){ toast('Não consegui abrir o projeto: '+e.message,'error'); return; }   // registro adulterado ou corrompido no armazenamento
+  $('projName').value=p.name; state.name=p.name; closeProjects(); toast(av.length?'Projeto carregado, com aviso: '+av.join('; '):'Projeto carregado ✅', av.length?'error':undefined); if(p.result) odmLoadSavedResult(id); }
 function deleteProject(id){ const p=loadProjects().find(x=>x.id===id); if(!confirm('Excluir este projeto?'+((p&&p.result)?'\n\nOs produtos salvos (ortho/nuvem) também serão apagados do app.':''))) return;
   if(!storeProjects(loadProjects().filter(x=>x.id!==id))){ toast('Não consegui excluir: o armazenamento do navegador está bloqueado.','error'); return; }   // sem gravar a lista, os produtos NÃO são apagados
   if(p&&p.result){ idbDel('result_'+id).catch(()=>{}); if(_odmResultProj===id) odmClearCard(); } openProjects(); toast('Projeto excluído'); }
@@ -1258,13 +1288,18 @@ function importProjectFile(file){
   const reader=new FileReader();
   reader.onload=()=>{ try{
     const j=JSON.parse(reader.result);
-    if(j.projeto){ if(j.nome) $('projName').value=j.nome; applySnapshot(j.projeto); toast('Projeto importado ✅'); }
-    else if(j.type==='FeatureCollection'){ // importa só a área de um GeoJSON
-      const poly=(j.features||[]).find(f=>f.geometry&&f.geometry.type==='Polygon');
+    if(j.projeto&&typeof j.projeto==='object'){
+      if(j.projeto.polygon&&!_poligonoValido(j.projeto.polygon)){ toast('Arquivo de projeto inválido: a área precisa de 3 a '+POLIGONO_MAX_VERTICES+' vértices com latitude e longitude numéricas. Nada foi alterado.','error'); return; }   // valida ANTES de tocar no estado
+      const av=applySnapshot(j.projeto); if(j.nome) $('projName').value=String(j.nome).slice(0,60);
+      toast(av.length?'Projeto importado, com aviso: '+av.join('; '):'Projeto importado ✅', av.length?'error':undefined); }
+    else if(j.type==='FeatureCollection'){ // importa só a área de um GeoJSON (Polygon, ou o 1º anel de um MultiPolygon)
+      const poly=(j.features||[]).find(f=>f.geometry&&(f.geometry.type==='Polygon'||f.geometry.type==='MultiPolygon'));
       if(!poly){ toast('GeoJSON sem polígono de área','error'); return; }
-      const ring=poly.geometry.coordinates[0]||[];
+      const ring=(poly.geometry.type==='MultiPolygon'?((poly.geometry.coordinates||[])[0]||[])[0]:poly.geometry.coordinates[0])||[];
       const closed=ring.length>=4 && ring[0][0]===ring[ring.length-1][0] && ring[0][1]===ring[ring.length-1][1];
-      state.polygon=(closed?ring.slice(0,-1):ring.slice()).map(c=>[c[1],c[0]]);   // só descarta o último vértice se o anel vier fechado (spec); anel aberto entra inteiro
+      const novo=(closed?ring.slice(0,-1):ring.slice()).map(c=>[c[1],c[0]]);   // só descarta o último vértice se o anel vier fechado (spec); anel aberto entra inteiro
+      if(!_poligonoValido(novo)){ toast('Polígono do GeoJSON inválido (3 a '+POLIGONO_MAX_VERTICES+' vértices com coordenadas numéricas). Nada foi alterado.','error'); return; }
+      state.polygon=novo;
       renderAOI(); fitAOI(); recompute(); toast('Área importada do GeoJSON ✅');
     } else toast('Arquivo não reconhecido','error');
   }catch(e){ console.error(e); toast('Erro ao importar: '+e.message,'error'); } };
@@ -1302,6 +1337,7 @@ function wire(){
   $('margem').addEventListener('change',recompute);
   $('margemM').addEventListener('input',scheduleRecompute);
   odmInitMode(); odmStartPing();
+  $('odmToken').addEventListener('input',()=>{ ls.set(odmTokenKey(_odmMode),odmTokenVal()); });
   $('odmUrl').addEventListener('input',()=>{ clearTimeout(window._odmUrlT); window._odmUrlT=setTimeout(odmPing,700); });
   $('odmImages').addEventListener('change',e=>{ odmOnImages(e.target.files); });
   $('odmGcp').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(f) odmOnGcp(f); e.target.value=''; });
@@ -1433,8 +1469,21 @@ function renderPhotos(){
   if(gps.length>1) L.polyline(gps.map(p=>[p.lat,p.lon]),{color:'#60a5fa',weight:1.5,opacity:.55,dashArray:'4,5'}).addTo(photoLayer);
   gps.forEach(p=>{ const m=L.circleMarker([p.lat,p.lon],{radius:3.4,color:'#0b2a3f',weight:1,fillColor:'#60a5fa',fillOpacity:.95}).addTo(photoLayer); m.on('click',()=>showPhotoPopup(m,p)); p._m=m; });
 }
-function showPhotoPopup(m,p){
-  const url=URL.createObjectURL(p.file); _photoUrls.add(url);
+/* Miniatura do popup reduzida a 400 px de largura (v1.29.0): o <img> de 200 px recebia a foto ORIGINAL (9,5 MB, 20 MP)
+   e o navegador decodificava 5472×3648 a cada clique — lento e pesado em celular. Reserva: o arquivo original. */
+async function _miniatura(file){
+  try{
+    if(typeof createImageBitmap!=='function') throw new Error('sem createImageBitmap');
+    const bmp=await createImageBitmap(file,{resizeWidth:400,resizeQuality:'medium'});
+    const cv=document.createElement('canvas'); cv.width=bmp.width; cv.height=bmp.height;
+    cv.getContext('2d').drawImage(bmp,0,0); if(bmp.close) bmp.close();
+    const blob=await new Promise(r=>cv.toBlob(r,'image/jpeg',0.8));
+    if(!blob) throw new Error('toBlob vazio');
+    return URL.createObjectURL(blob);
+  }catch(e){ return URL.createObjectURL(file); }
+}
+async function showPhotoPopup(m,p){
+  const url=await _miniatura(p.file); _photoUrls.add(url);
   const altTxt=p.relAlt!=null?(p.relAlt.toFixed(0)+' m (rel.)'):(p.alt!=null?p.alt.toFixed(0)+' m':'—');
   const when=p.time?new Date(p.time).toLocaleString('pt-BR'):'';
   m.bindPopup(`<div style="font:12px system-ui;max-width:200px"><img src="${url}" style="width:100%;border-radius:6px;margin-bottom:5px" alt=""/><b>${esc(p.name)}</b><br>${p.model?esc(p.model)+'<br>':''}Altura: ${esc(altTxt)}<br>${esc(when)}</div>`,{maxWidth:220}).openPopup();
@@ -1691,6 +1740,12 @@ async function _tiffToGeoraster(file,onProg,orcamento){
   return { gr, factor:base.w/W, full:(W===base.w&&H===base.h), cheiaBytes:base.bytes,
            ycc:base.im.fileDirectory.PhotometricInterpretation===6, srcW:base.w, srcH:base.h, alphaIdx:_alfaDoTiff(base.im.fileDirectory,nb) };
 }
+/* resolution:256 — amostras por bloco de 256 px CSS. Em tela Retina (densidade 2) isso é metade dos pixels físicos, e
+   seria natural pedir 512. MEDIDO em 2026-11-16 (auditoria, item 19) com o odm_orthophoto.tif de 3159×3638, no WebKit
+   com densidade 2 e mapa de 1008×803: redesenho de uma vista nova a 256 = 0,9–1,4 s; a 512 = 2,3–3,7 s (~2,7×). No
+   Chrome, ~1,5×. O arrasto ficaria visivelmente mais lento num app que é usado em campo: FICA 256 — a imagem fica um
+   pouco mais suave na tela, mas a medição (zonal, índices, recorte) sempre usa o raster carregado, não a tela.
+   Não reabra sem medir de novo (§35, Degrau 4). */
 function buildRasterLayer(){ const o={georaster:_rasterMeta.gr,opacity:(+$('rasterOpacity').value||100)/100,resolution:256,pane:'rasterPane'};
   const fn=_rasterColorFn();   // fonte única de cor (RGB/DSM/índice — trata YCbCr, alpha e nodata); aqui só embrulha em CSS
   o.pixelValuesToColorFn=v=>{ const c=fn(v); return c?`rgb(${c[0]},${c[1]},${c[2]})`:null; };
@@ -2122,7 +2177,7 @@ function zonalCompute(){
     const rad=(p.r&&p.r>0)?p.r:radius;   // raio do próprio ponto (3º número) ou o raio global
     const ccol=(X-gr.xmin)/px, crow=(gr.ymax-Y)/py;
     let rpx,rpy;
-    if(geoRaster){ const latR=(lat||0)*Math.PI/180, dLat=rad/110540, dLon=rad/((111320*Math.cos(latR))||1e-9); rpx=dLon/px; rpy=dLat/py; }
+    if(geoRaster){ const g=_metrosPorGrau(lat||0), dLat=rad/g.lat, dLon=rad/(g.lon||1e-9); rpx=dLon/px; rpy=dLat/py; }
     else { rpx=rad/px; rpy=rad/py; }   // raster projetado: pixel em metros
     const c0=Math.max(0,Math.floor(ccol-rpx)), c1=Math.min(W-1,Math.ceil(ccol+rpx));
     const r0=Math.max(0,Math.floor(crow-rpy)), r1=Math.min(H-1,Math.ceil(crow+rpy));
@@ -2492,7 +2547,7 @@ let _3d=null, _3dObj=null, _ptBase=0.1;
 function status3d(t){ const e=$('viewer3dStatus'); if(e) e.textContent=t||''; }
 function open3D(){ $('viewer3dInput').click(); }
 function open3DModal(){ $('viewer3dModal').classList.remove('hidden'); if(!_3d) init3D(); else { onResize3D(); if(!_3d._raf) _loop3D(); } requestAnimationFrame(()=>{ if(_3d) onResize3D(); }); }
-function close3DModal(){ $('viewer3dModal').classList.add('hidden'); }
+function close3DModal(){ _lazCancelado=true; $('viewer3dModal').classList.add('hidden'); }
 function init3D(){
   if(typeof THREE==='undefined'){ toast('three.js não carregou','error'); return; }
   const host=$('viewer3dCanvas'); const w=host.clientWidth||640,h=host.clientHeight||420;
@@ -2541,7 +2596,8 @@ async function handle3DFile(file){
     else if(ext==='obj') await loadOBJ(file);
     else if(ext==='gltf'||ext==='glb') await loadGLTF(file);
     else { toast('Formato 3D não suportado','error'); status3d('Formato não suportado'); }
-  }catch(e){ console.error('[3D]',e); toast('Erro 3D: '+e.message,'error'); status3d('Erro: '+e.message); }
+  }catch(e){ if(/^cancelado/.test(e&&e.message||'')){ status3d(''); toast('Leitura da nuvem interrompida'); return; }   // o próprio usuário fechou o visualizador
+    console.error('[3D]',e); toast('Erro 3D: '+e.message,'error'); status3d('Erro: '+e.message); }
 }
 async function loadPLY(file){ const g=new THREE.PLYLoader().parse(await file.arrayBuffer()); recenterGeom(g);
   if(g.index&&g.index.count>0){ g.computeVertexNormals(); set3DObject(new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:!!g.attributes.color,color:g.attributes.color?0xffffff:0xaab4bd,flatShading:true,side:THREE.DoubleSide}))); status3d('Malha PLY · '+g.attributes.position.count.toLocaleString('pt-BR')+' vértices'); }
@@ -2589,12 +2645,12 @@ function _lasHeader(dv){
     rgbOff, rgbOk:(rgbOff!=null && rgbOff+6<=plen) };
 }
 // `varrer(step, cb)` chama cb(dv,base) SÓ nos pontos que entram na nuvem exibida
-function _lasNuvem(h,num,varrer,rotulo){
+async function _lasNuvem(h,num,varrer,rotulo){   // `varrer` pode ser assíncrono (o .laz cede a vez ao navegador em blocos)
   const step=Math.max(1,Math.ceil(num/2000000)), n=Math.floor(num/step);
   if(n<=0) throw new Error('nuvem sem pontos');
   const pos=new Float32Array(n*3), col=h.rgbOk?new Float32Array(n*3):null;
   let j=0,maxC=0,mnx=Infinity,mny=Infinity,mnz=Infinity,mxx=-Infinity,mxy=-Infinity,mxz=-Infinity;
-  varrer(step,(dv,p)=>{ if(j>=n) return;
+  await varrer(step,(dv,p)=>{ if(j>=n) return;
     const wx=dv.getInt32(p,true)*h.sx+h.ox, wy=dv.getInt32(p+4,true)*h.sy+h.oy, wz=dv.getInt32(p+8,true)*h.sz+h.oz;
     pos[j*3]=wx;pos[j*3+1]=wy;pos[j*3+2]=wz;
     if(wx<mnx)mnx=wx;if(wy<mny)mny=wy;if(wz<mnz)mnz=wz;if(wx>mxx)mxx=wx;if(wy>mxy)mxy=wy;if(wz>mxz)mxz=wz;
@@ -2610,6 +2666,8 @@ function _lasNuvem(h,num,varrer,rotulo){
   const pts=new THREE.Points(g,new THREE.PointsMaterial({size:1,vertexColors:true})); pts.rotation.x=-Math.PI/2;
   set3DObject(pts); status3d(`Nuvem ${rotulo} · ${j.toLocaleString('pt-BR')} pts${step>1?` (1/${step})`:''}${hasRGB?(' · RGB '+(maxC<=255?'8-bit':'16-bit')):' · elevação'}`);
 }
+const LAZ_BLOCO=500000;   // pontos decodificados entre duas devoluções do fio ao navegador (escolha do app)
+let _lazCancelado=false;   // o ✕ do visualizador interrompe a decodificação em andamento
 async function loadLAZ(file){
   status3d('Carregando decodificador .laz…');
   let LP; try{ LP=await getLazPerf(); }catch(e){ console.error('[LAZ] lib',e); throw new Error('falha no decodificador .laz: '+((e&&e.message)||e)+' — ou baixe o .laz (⬇ Tudo .zip) e use o CloudCompare.'); }
@@ -2621,9 +2679,14 @@ async function loadLAZ(file){
   const zip=new LP.LASZip(); zip.open(fp,u8.length);
   const pp=LP._malloc(h.plen);
   const ponto=new Uint8Array(h.plen), pdv=new DataView(ponto.buffer);   // 34 bytes: copiar p/ fora do HEAPU8 (que pode ser trocado se o heap do WASM crescer)
+  // Em blocos de LAZ_BLOCO pontos, devolvendo o fio ao navegador entre eles (v1.29.0): até a v1.28.0 o laço rodava de uma
+  // vez — numa nuvem densa a interface congelava por dezenas de segundos, sem porcentagem e sem como fechar o visualizador.
+  _lazCancelado=false;
   try{
-    _lasNuvem(h,h.num,(step,cb)=>{
+    await _lasNuvem(h,h.num,async(step,cb)=>{
       for(let i=0;i<h.num;i++){ zip.getPoint(pp);        // o LAZ só sabe avançar: todo ponto é decodificado…
+        if(i%LAZ_BLOCO===0&&i){ status3d('Decodificando '+file.name+'… '+Math.round(i/h.num*100)+' %'); await new Promise(r=>setTimeout(r,0));
+          if(_lazCancelado) throw new Error('cancelado: o visualizador foi fechado'); }
         if(i%step) continue;                             // …mas só o amostrado é guardado (antes, TODOS eram, três vezes)
         ponto.set(LP.HEAPU8.subarray(pp,pp+h.plen)); cb(pdv,0); }
     },'LAZ');
@@ -2634,7 +2697,7 @@ async function loadLAS(file){
   const h=_lasHeader(dv);
   const maxFit=Math.floor((buf.byteLength-h.off)/h.plen); const num=Math.min(h.num,Math.max(0,maxFit));
   if(num<=0) throw new Error('LAS sem pontos');
-  _lasNuvem(h,num,(step,cb)=>{ for(let i=0;i<num;i+=step) cb(dv,h.off+i*h.plen); },'LAS');
+  await _lasNuvem(h,num,(step,cb)=>{ for(let i=0;i<num;i+=step) cb(dv,h.off+i*h.plen); },'LAS');
 }
 
 /* ═══════════════ PROCESSAR (NodeODM) — Fase 5 ═══════════════ */
@@ -2681,6 +2744,8 @@ function odmSetMode(m,skipSave){
   if(!skipSave && $('odmUrl')) ls.set(odmModeKey(_odmMode),($('odmUrl').value||'').trim());
   _odmMode=m; ls.set(LS+'_odm_mode',m);
   const saved=ls.get(odmModeKey(m));
+  if($('odmToken')) $('odmToken').value=ls.get(odmTokenKey(m))||'';   // o token é do servidor de cada modo
+  if($('odmTokenRow')) $('odmTokenRow').classList.toggle('hidden',m!=='server');
   if($('odmUrl')){ $('odmUrl').value=(saved!=null?saved:odmDefaultUrl(m)); $('odmUrl').placeholder=odmDefaultUrl(m)||'https://seu-tunel.trycloudflare.com'; }
   if($('odmModeLocal')) $('odmModeLocal').classList.toggle('primary',m==='local');
   if($('odmModeServer')) $('odmModeServer').classList.toggle('primary',m==='server');
@@ -2694,8 +2759,10 @@ async function odmPing(){
   if(!u){ if(txt)txt.textContent='Informe a URL do NodeODM'; _odmPinging=false; return; }
   if(odmRecusa(u)==='safari' && !odmAutoAllowed()){ if(txt)txt.textContent='⚠️ Safari: o PC Local não conecta (veja abaixo)'; _odmPinging=false; return; }
   if(!odmAutoAllowed()){ if(txt)txt.textContent='🔌 Clique em “Testar” para conectar'; _odmPinging=false; return; }
-  try{ const c=new AbortController(), t=setTimeout(()=>c.abort(),4500);
-    const r=await fetch(u+'/info',{signal:c.signal}); clearTimeout(t); if(!r.ok) throw 0; const j=await r.json(); _odmInfo=j;
+  try{
+    const j=await odmApi('/info',{ms:4500});
+    if(!j||!j.version) throw new Error('resposta sem versão');
+    _odmInfo=j;
     if(txt)txt.textContent='🟢 Conectado · NodeODM v'+(j.version||'?')+' · fila '+(j.taskQueueCount!=null?j.taskQueueCount:'?');
   }catch(_){ if(txt)txt.textContent='🔴 Desconectado';
   }finally{ _odmPinging=false; }
@@ -2708,6 +2775,39 @@ function odmStartPing(){
   },10000);
 }
 function odmUrlVal(){ return (($('odmUrl')&&$('odmUrl').value)||'').trim().replace(/\/+$/,''); }
+/* ───── PONTO ÚNICO dos pedidos ao NodeODM (v1.29.0) ─────
+   Até a v1.28.0 cada função montava a URL e tratava erro à sua maneira — o defeito do item 1 (multipart que
+   o servidor não lê) existiu em dois lugares por isso — e só o ping e o Testar tinham tempo-limite: um
+   servidor que aceita a conexão e não responde deixava o card "consultando" para sempre. Aqui:
+     · a URL vem do campo, com ?token= quando o modo Servidor tem um (o NodeODM lê req.query.token —
+       libs/auth/TokenAuthBase.js, 2.2.4);
+     · `ms` = tempo-limite (os pedidos JSON curtos usam ODM_ESPERA_MS; envio e download não têm limite);
+     · resposta com {error} vira exceção com a mensagem DO SERVIDOR (e.doServidor, e.resposta) — o
+       NodeODM responde HTTP 200 com {error} —; HTTP de erro sem {error} vira "HTTP nnn";
+     · `tipo:'resposta'` devolve o Response cru (download em fluxo: quem chama lê o corpo).
+   Falha de REDE continua sendo o TypeError do fetch: é por ele que o Testar reconhece a recusa do navegador. */
+const ODM_ESPERA_MS=8000;   // escolha do app: um NodeODM no ar responde /info, /options e /task/…/info em milissegundos
+function odmTokenKey(m){ return LS+'_odm_token_'+(m||_odmMode); }
+function odmTokenVal(){ const e=$('odmToken'); return (_odmMode==='server'&&e&&e.value.trim())||''; }
+async function odmApi(caminho,{method='GET',body,ms,tipo='json',signal,base}={}){
+  const u=base||odmUrlVal(); if(!u) throw new Error('sem URL do NodeODM');
+  const tk=odmTokenVal(), url=u+caminho+(tk?(caminho.includes('?')?'&':'?')+'token='+encodeURIComponent(tk):'');
+  const ctrl=new AbortController();
+  let estourou=false;
+  const t=ms?setTimeout(()=>{ estourou=true; ctrl.abort(); },ms):null;
+  if(signal){ if(signal.aborted) ctrl.abort(); else signal.addEventListener('abort',()=>ctrl.abort(),{once:true}); }
+  try{
+    const r=await fetch(url,{method,body,signal:ctrl.signal});
+    if(tipo==='resposta') return r;
+    const j=await r.json().catch(()=>null);
+    if(j&&j.error) throw Object.assign(new Error(String(j.error)),{doServidor:true,resposta:j});
+    if(!r.ok) throw Object.assign(new Error('HTTP '+r.status),{http:r.status});
+    return j;
+  }catch(e){
+    if(estourou) throw Object.assign(new Error('o NodeODM não respondeu em '+Math.round(ms/1000)+' s'),{tempo:true});
+    throw e;
+  }finally{ if(t) clearTimeout(t); }
+}
 function odmStatus(t,err){
   const e=$('odmStatus');
   if(e){
@@ -2893,10 +2993,7 @@ async function odmCarregarOpcoes(u){
   if(_odmOpts&&_odmOptsUrl===u) return _odmOpts;
   _odmOpts=null; _odmOptsUrl=u;
   try{
-    const c=new AbortController(), t=setTimeout(()=>c.abort(),8000);
-    const r=await fetch(u+'/options',{signal:c.signal}); clearTimeout(t);
-    if(!r.ok) return null;
-    const j=await r.json();
+    const j=await odmApi('/options',{ms:ODM_ESPERA_MS,base:u});
     if(Array.isArray(j)&&j.length&&_odmOptsUrl===u) _odmOpts=new Set(j.map(o=>o&&o.name).filter(Boolean));
   }catch(e){ console.warn('[ODM] options',e); }
   return _odmOpts;
@@ -2914,8 +3011,11 @@ function odmRenderTaskOpts(lista){
 }
 async function odmTest(){ const u=odmUrlVal(); if(!u){ toast('Informe a URL do NodeODM','error'); return; }
   ls.set(odmModeKey(_odmMode),u); odmStatus('Conectando…');
-  try{ const c=new AbortController(), t=setTimeout(()=>c.abort(),8000);
-    const r=await fetch(u+'/info',{signal:c.signal}); clearTimeout(t); if(!r.ok) throw new Error('HTTP '+r.status); const j=await r.json(); _odmInfo=j;
+  ls.set(odmTokenKey(_odmMode),odmTokenVal());
+  try{
+    const j=await odmApi('/info',{ms:ODM_ESPERA_MS});
+    if(!j||!j.version) throw new Error('a resposta não é a de um NodeODM');
+    _odmInfo=j;
     if(odmRecusa(u)==='safari') ls.set(LS+'_odm_webkit_ok','1');   // o Safari aceitou: a observação vence a regra (r112b)
     if(odmIsLoopback(u)){ _odmAuto=true; ls.set(odmAuthKey(u),'1'); } // autorizado: libera o status ao vivo (agora e em recargas futuras)
     odmStatus(`✅ ${j.name||'NodeODM'} v${j.version||'?'} · fila: ${j.taskQueueCount!=null?j.taskQueueCount:'?'} · engine: ${j.engine||'ODM'}`);
@@ -2924,7 +3024,8 @@ async function odmTest(){ const u=odmUrlVal(); if(!u){ toast('Informe a URL do N
     // só falha de REDE (TypeError do fetch) pode ser recusa do navegador; resposta com erro ou que não é JSON veio de um servidor
     const rede=!!e&&e.name==='TypeError', rec=rede?odmRecusa(u):null, msg=(e&&e.message)||String(e);
     odmStatus(
-      (e&&e.name==='AbortError') ? '❌ Não conectou (não respondeu em 8 s). NodeODM rodando? URL certa?'
+      (e&&e.tempo) ? '❌ Não conectou (não respondeu em '+Math.round(ODM_ESPERA_MS/1000)+' s). NodeODM rodando? URL certa?'
+      : (e&&e.doServidor&&/token/i.test(msg)) ? '❌ O NodeODM recusou o token ('+msg+'). Confira o campo Token.'
       : !rede ? '❌ Não conectou ('+msg+'): o endereço respondeu, mas não com as informações de um NodeODM. URL certa?'
       : rec==='safari' ? '❌ Não conectou ('+msg+'): o Safari não deixa esta página (https) falar com um NodeODM em http:// — nem no seu próprio computador —, então o NodeODM pode estar rodando normalmente. Para processar, abra o OrtoFly no Chrome ou no Edge.'
       : rec==='permissao' ? '❌ Não conectou ('+msg+'). Confira: 1) o NodeODM está rodando? Abra '+u+'/info numa aba — tem de aparecer um texto com "version"; 2) no Chrome e no Edge, o site precisa de permissão para acessar outros apps e serviços neste dispositivo: clique no ícone à esquerda do endereço e permita.'
@@ -2966,8 +3067,6 @@ function odmDormir(ms,signal){
     },{once:true});
   });
 }
-// pedido ao NodeODM que devolve JSON; HTTP de erro vira exceção com a mensagem do servidor
-async function odmPedir(url,opts){ const r=await fetch(url,opts); const j=await r.json().catch(()=>null); if(!r.ok) throw new Error((j&&j.error)||('HTTP '+r.status)); return j||{}; }
 function odmEnvioProgresso(feitas,total,txt){
   const f=$('odmEnvioFill'), t=$('odmEnvioTxt');
   if(f) f.style.width=(total?Math.round(feitas/total*100):0)+'%';
@@ -2992,13 +3091,13 @@ async function odmCreate(){
   _odmEnvio={ctrl}; odmEnvioUI(true); odmEnvioProgresso(0,total,'Preparando o envio…');
   try{
     if(_odmExifP){ odmStatus('Lendo a altura de voo nas fotos…'); await _odmExifP; }   // a resolução pedida depende desta leitura
-    if(!_odmInfo){ try{ const r=await fetch(u+'/info',{signal:ctrl.signal}); if(r.ok) _odmInfo=await r.json(); }catch(e){} }   // versão do ODM e núcleos, p/ o registro da tarefa
+    if(!_odmInfo){ try{ _odmInfo=await odmApi('/info',{ms:ODM_ESPERA_MS,signal:ctrl.signal}); }catch(e){} }   // versão do ODM e núcleos, p/ o registro da tarefa
     if(ctrl.signal.aborted) throw new DOMException('cancelado','AbortError');
     const {opts,meta}=odmMontarOpcoes();
     const {aceitas,ignoradas}=await odmFiltrarOpcoes(u,opts);
     // 1) abre a tarefa: nome e opções (o servidor já recusa aqui uma opção com valor inválido)
     const fdI=new FormData(); fdI.append('name',($('odmName').value||'ortofly').trim()); fdI.append('options',JSON.stringify(aceitas));
-    const ji=await odmPedir(u+'/task/new/init',{method:'POST',body:fdI,signal:ctrl.signal});
+    const ji=(await odmApi('/task/new/init',{method:'POST',body:fdI,ms:ODM_ESPERA_MS,signal:ctrl.signal}))||{};
     if(!ji.uuid) throw new Error(ji.error||'o servidor não abriu a tarefa');
     uuid=ji.uuid; odmTrack(uuid);
     // 2) as fotos, em lotes: cada lote é um pedido pequeno, que pode ser repetido sozinho
@@ -3008,10 +3107,11 @@ async function odmCreate(){
       for(let tent=0;;tent++){
         try{
           const fd=new FormData(); lote.forEach(f=>fd.append('images',f,f.name));
-          const j=await odmPedir(u+'/task/new/upload/'+uuid,{method:'POST',body:fd,signal:ctrl.signal});
+          const j=(await odmApi('/task/new/upload/'+uuid,{method:'POST',body:fd,signal:ctrl.signal}))||{};   // sem tempo-limite: o lote pode ser grande e a rede lenta
           if(j.success) return;
-          throw Object.assign(new Error(j.error||'o servidor não confirmou o recebimento das fotos'),{semRepetir:!!j.noRetry||/Invalid uuid/i.test(j.error||'')});
+          throw new Error('o servidor não confirmou o recebimento das fotos');
         }catch(e){
+          if(e.doServidor) e.semRepetir=!!(e.resposta&&e.resposta.noRetry)||/Invalid uuid/i.test(e.message);   // recusa do servidor que repetir não resolve
           if(ctrl.signal.aborted||e.semRepetir||tent>=ODM_LOTE_ESPERAS.length) throw e;
           odmStatus('Falha ao enviar um lote ('+e.message+') — nova tentativa em '+Math.round(ODM_LOTE_ESPERAS[tent]/1000)+' s…');
           await odmDormir(ODM_LOTE_ESPERAS[tent],ctrl.signal);
@@ -3026,7 +3126,7 @@ async function odmCreate(){
     if(gcp){ odmEnvioProgresso(total,total,'Enviando os pontos de controle…'); await enviarLote([new File([gcp.file],'gcp_list.txt',{type:'text/plain'})]); }
     // 3) fecha o envio — é só aqui que a tarefa passa a existir no servidor e entra na fila
     odmEnvioProgresso(total,total,'Fotos enviadas — iniciando o processamento…');
-    const jc=await odmPedir(u+'/task/new/commit/'+uuid,{method:'POST',signal:ctrl.signal});
+    const jc=(await odmApi('/task/new/commit/'+uuid,{method:'POST',signal:ctrl.signal}))||{};   // sem tempo-limite: o servidor move as fotos antes de responder
     if(!jc.uuid) throw new Error(jc.error||'o servidor não iniciou a tarefa');
     criada=true;
     _odmSaved=false; _odmSavedMode=false; _odmZip=null; _odmZipFor=null; _odmZipRaw=null; _odmResultProj=null;   // sem isso, vindo de um resultado salvo, o card da tarefa nova mostraria o zip ANTIGO e esconderia o 💾 Salvar
@@ -3061,7 +3161,7 @@ async function odmReprocessar(){
     +(menos?'\n\n⚠️ O modo escolhido gera menos produtos que o anterior, e o NodeODM não apaga os antigos: o pacote (.zip) continuará trazendo '+sobra+' do processamento anterior, que não corresponde ao ortomosaico novo. Para um pacote limpo, descarte a tarefa e envie as fotos de novo.':''))) return;
   odmStatus('Pedindo o reprocessamento…');
   try{
-    const j=await odmPedir(u+'/task/restart',{method:'POST',body:new URLSearchParams({uuid,options:JSON.stringify(aceitas)})});
+    const j=(await odmApi('/task/restart',{method:'POST',body:new URLSearchParams({uuid,options:JSON.stringify(aceitas)}),ms:ODM_ESPERA_MS}))||{};
     if(!j.success) throw new Error(j.error||'o servidor não aceitou o reprocessamento');
     if(uuid!==_odmTask) return;   // o card mudou de tarefa enquanto a resposta vinha
     _odmZip=null; _odmZipFor=null; _odmZipRaw=null; _opfsLimpar(); _odmSaved=false;   // o pacote baixado é do processamento anterior
@@ -3113,11 +3213,18 @@ function odmTaskErro(msg){
   box.classList.remove('hidden');
   box.innerHTML='<p class="hint">O servidor não tem mais nada registrado para ela.</p><button class="btn sm block" onclick="odmClearCard()">✕ Fechar</button>';
 }
-async function odmRefresh(){ const u=odmUrlVal(), uuid=_odmTask; if(!u||!uuid) return;
-  try{ const r=await fetch(u+'/task/'+uuid+'/info'); const j=await r.json().catch(()=>({}));
-    if(uuid!==_odmTask) return;   // o card mudou de tarefa (ou fechou) enquanto a resposta vinha
-    if(j&&j.error){ odmTaskErro(String(j.error)); return; }
-    if(!r.ok) throw new Error('HTTP '+r.status);
+async function odmRefresh(){
+  const u=odmUrlVal(), uuid=_odmTask;
+  if(!u||!uuid) return;
+  let j;
+  try{ j=(await odmApi('/task/'+uuid+'/info',{ms:ODM_ESPERA_MS}))||{}; }
+  catch(e){
+    if(uuid!==_odmTask) return;
+    if(e.doServidor){ odmTaskErro(e.message); return; }   // {error}: a tarefa não existe mais (ou outro erro do servidor)
+    console.error('[ODM] info',e); $('odmTaskStatus').textContent='Erro ao consultar status: '+e.message; return;
+  }
+  if(uuid!==_odmTask) return;   // o card mudou de tarefa (ou fechou) enquanto a resposta vinha
+  try{
     odmRenderTaskOpts(j.options);   // o que o SERVIDOR aceitou — não o que o app acha que mandou
     const codes={10:'na fila',20:'processando',30:'falhou',40:'concluído',50:'cancelado'}; const st=j.status&&j.status.code;
     const pct=(st===20&&j.progress!=null)?Math.round(j.progress):null;
@@ -3146,11 +3253,14 @@ function odmShowFailure(st,err){ const box=$('odmOutputs'); if(!box) return; box
     '<div class="btn-grid" style="margin-top:6px"><button class="btn sm" onclick="odmShowLog()">📜 Ver log do NodeODM</button></div>'+
     '<pre id="odmLog" class="hidden" style="max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:11px;line-height:1.45;background:var(--bg);color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:6px"></pre>'+
     '<p class="hint" style="margin-top:6px">Os dados parciais <b>ainda ocupam disco</b> no NodeODM. Depois de ver o log, clique em <b>🗑️ Descartar</b> acima p/ liberar.</p>'; }
-async function odmShowLog(){ const pre=$('odmLog'); if(!pre) return; const u=odmUrlVal();
+async function odmShowLog(){
+  const pre=$('odmLog'); if(!pre) return;
+  const u=odmUrlVal();
   if(!u||!_odmTask){ pre.classList.remove('hidden'); pre.textContent='Sem tarefa no servidor (já descartada?).'; return; }
   pre.classList.remove('hidden'); pre.textContent='Carregando log…';
-  try{ const r=await fetch(u+'/task/'+_odmTask+'/output'); if(!r.ok) throw new Error('HTTP '+r.status);
-    const data=await r.json(); const arr=Array.isArray(data)?data:String(data).split('\n');
+  try{
+    const data=await odmApi('/task/'+_odmTask+'/output',{ms:ODM_ESPERA_MS});
+    const arr=Array.isArray(data)?data:String(data).split('\n');
     pre.textContent=arr.slice(-80).join('\n').trim()||'(log vazio)'; pre.scrollTop=pre.scrollHeight;
   }catch(e){ console.error('[ODM] output',e); pre.textContent='Não consegui ler o log: '+e.message+' (NodeODM ligado? tarefa ainda existe?)'; } }
 const ODM_RE={ortho:/odm_orthophoto\/odm_orthophoto\.tif$/i, dsm:/(^|\/)dsm\.tif$/i, dtm:/(^|\/)dtm\.tif$/i, laz:/georeferenced_model\.(laz|las)$/i,
@@ -3295,7 +3405,8 @@ async function odmGetZip(){ if(_odmZip&&(_odmSavedMode||_odmZipFor===_odmTask)) 
     _odmZipPFor=uuid;
     _odmZipP=(async()=>{
       odmStatus('Baixando o pacote (all.zip)…'); toast('Baixando all.zip…');
-      const r=await fetch(u+'/task/'+uuid+'/download/all.zip'); if(!r.ok) throw new Error('HTTP '+r.status);
+      const r=await odmApi('/task/'+uuid+'/download/all.zip',{tipo:'resposta'});   // sem tempo-limite: o pacote pode ter GB
+      if(!r.ok) throw new Error('HTTP '+r.status);
       // progresso: o corpo passa por um contador a caminho do disco (o tamanho total só vem se o servidor mandar Content-Length)
       const total=+(r.headers&&r.headers.get&&r.headers.get('Content-Length'))||0; let lidos=0, visto=0;
       const conta=(typeof TransformStream==='function') ? new TransformStream({transform(parte,saida){
@@ -3327,8 +3438,7 @@ async function odmExtract(kind){
   const n=zip.names().find(k=>re.test(k)); if(!n) throw new Error((kind==='dsm'||kind==='dtm')?'DSM não gerado nesta tarefa — escolha "DSM + ortomosaico" ou "Completo" ao criar.':'não achei "'+kind+'" no all.zip');
   return await zip.extrair(n); }
 async function odmFetch(asset){
-  const u=odmUrlVal();
-  const r=await fetch(u+'/task/'+_odmTask+'/download/'+asset);
+  const r=await odmApi('/task/'+_odmTask+'/download/'+asset,{tipo:'resposta'});
   if(!r.ok) throw new Error('HTTP '+r.status);
   return await r.blob();
 }
@@ -3350,9 +3460,8 @@ async function odmCancel(){
   const u=odmUrlVal(), uuid=_odmTask; if(!u||!uuid) return;
   if(!confirm('Cancelar a tarefa?')) return;
   try{
-    const r=await fetch(u+'/task/cancel',{method:'POST',body:new URLSearchParams({uuid})});
-    const j=await r.json().catch(()=>({}));
-    if(!r.ok||!j||!j.success) throw new Error((j&&j.error)||('HTTP '+r.status));
+    const j=await odmApi('/task/cancel',{method:'POST',body:new URLSearchParams({uuid}),ms:ODM_ESPERA_MS});
+    if(!j||!j.success) throw new Error('o servidor não confirmou o cancelamento');
     toast('Cancelamento pedido ✅');
   }catch(e){
     console.error('[ODM] cancel',e);
@@ -3413,13 +3522,13 @@ async function idbDel(k){
 async function odmRemoveServer(uuid){
   const u=odmUrlVal(); if(!u||!uuid) return {ok:false, motivo:'sem URL do NodeODM ou sem tarefa'};
   try{
-    const r=await fetch(u+'/task/remove',{method:'POST',body:new URLSearchParams({uuid})});
-    const j=await r.json().catch(()=>({}));
-    if(r.ok&&j&&j.success) return {ok:true};
-    // tarefa que já não existe no servidor conta como removida (senão o uuid fica preso em _odm_tasks p/ sempre)
-    if(j&&j.error&&/not found|invalid uuid|no such/i.test(j.error)) return {ok:true, jaNaoExistia:true};
-    return {ok:false, motivo:(j&&j.error)||('HTTP '+r.status)};
+    const j=await odmApi('/task/remove',{method:'POST',body:new URLSearchParams({uuid}),ms:ODM_ESPERA_MS});
+    if(j&&j.success) return {ok:true};
+    return {ok:false, motivo:'o servidor não confirmou a remoção'};
   }catch(e){
+    // tarefa que já não existe no servidor conta como removida (senão o uuid fica preso em _odm_tasks p/ sempre)
+    if(e.doServidor&&/not found|invalid uuid|no such/i.test(e.message)) return {ok:true, jaNaoExistia:true};
+    if(e.doServidor||e.http) return {ok:false, motivo:e.message};
     console.warn('[ODM] remove',e);
     return {ok:false, motivo:'o servidor não respondeu ('+((e&&e.message)||e)+')'};
   }
@@ -3447,8 +3556,7 @@ function odmUntrack(uuid){
 async function odmServerTasks(){
   const u=odmUrlVal(); if(!u) return null;
   try{
-    const r=await fetch(u+'/task/list'); if(!r.ok) return null;
-    const j=await r.json();
+    const j=await odmApi('/task/list',{ms:ODM_ESPERA_MS});
     return Array.isArray(j) ? j.map(t=>t&&t.uuid).filter(Boolean) : null;
   }catch(e){ console.warn('[ODM] list',e); return null; }
 }

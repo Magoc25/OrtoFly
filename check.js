@@ -361,6 +361,14 @@ console.log('       [captura] img-src = "' + imgSrc.trim() + '" · origens de im
 if (!imgSrc || hostsImg.length < 2) fail('CSP: img-src ou as origens de imagem do código não foram encontrados — a extração secou');
 else if (/(^|\s)https:(\s|$)/.test(imgSrc)) fail('CSP: img-src voltou a aceitar qualquer https:');
 else { const faltam = hostsImg.filter(h => !imgSrc.includes('https://' + h)); if (faltam.length) fail(`CSP: img-src não cobre origem que o código usa (${faltam.join(', ')}) — o mapa/QR quebraria`); else ok(`CSP: img-src restrito às ${hostsImg.length} origens de imagem que o código usa`); }
+// (6) PONTO ÚNICO dos pedidos ao NodeODM (v1.29.0): nenhum fetch( fora de odmApi — fora dele, um pedido novo nasce
+//     sem tempo-limite, sem token e com o próprio jeito de ler erro (foi assim que o defeito do item 1 existiu em dois lugares)
+const fnApi = (jsCode.match(/async function odmApi\s*\([\s\S]*?\n}/) || [])[0];
+const fetchFora = jsCode.replace(fnApi || '\u0000', '').match(/[^\n]{0,50}\bfetch\s*\([^\n]{0,40}/);
+if (!fnApi || !/fetch\s*\(/.test(fnApi)) fail('NodeODM: odmApi não encontrada (ou sem fetch) — a asserção de ponto único passaria de graça');
+else if (fetchFora) fail(`NodeODM: fetch( fora de odmApi ("${fetchFora[0].trim()}") — sem tempo-limite nem token`);
+else if (!/setTimeout\(/.test(fnApi) || !/token=/.test(fnApi)) fail('NodeODM: odmApi perdeu o tempo-limite ou o ?token=');
+else ok(`NodeODM: todo pedido passa por odmApi (tempo-limite e token; capturado: ${fnApi.split('\n').length} linhas)`);
 const idInterpolado = (js.match(/on[a-z]+="[^"]*'\$\{[^}]*\}'[^"]*"/) || [])[0];
 if (idInterpolado) fail(`segurança: valor interpolado entre aspas num manipulador inline (${idInterpolado.slice(0, 80)}) — use data-* e um ouvinte`);
 else ok("segurança: nenhum valor interpolado entre aspas num manipulador inline (on*=\"…('${…}')\")");

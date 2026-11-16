@@ -25,16 +25,26 @@ jobs:
           SB_URL: ${{ secrets.REV_SB_URL }}
           SB_KEY: ${{ secrets.REV_SB_KEY }}
         run: |
+          # secret ausente, Supabase fora do ar ou resposta que não é a lista esperada é FALHA, não stats.json
+          # quebrado: até a v1.28.0 o RESPONSE vazio dava `jq` sem saída e código 0, e o passo gravava
+          # {"active_30d":,"updated_at":"…"} — JSON inválido, commitado e publicado (mesmo princípio do keep-alive.yml).
+          set -o pipefail
+          if [ -z "$SB_URL" ] || [ -z "$SB_KEY" ]; then
+            echo "::error::Secrets REV_SB_URL / REV_SB_KEY ausentes — stats.json não foi atualizado."
+            exit 1
+          fi
           THIRTY_DAYS_AGO=$(date -d '30 days ago' +%Y-%m-%d)
-          RESPONSE=$(curl -s \
+          RESPONSE=$(curl -fsS \
             "${SB_URL}/rest/v1/app_pings?select=device_id,ping_date&app_name=eq.OrtoFly&ping_date=gte.${THIRTY_DAYS_AGO}" \
             -H "apikey: ${SB_KEY}" \
             -H "Authorization: Bearer ${SB_KEY}")
           # Conta só dispositivos RECORRENTES: vistos em >=2 dias distintos na janela.
           # Deduplica ping_date explicitamente — não depende da constraint app_pings_unique.
           COUNT=$(echo "$RESPONSE" | jq 'group_by(.device_id) | map(select(([.[].ping_date] | unique | length) >= 2)) | length')
+          [[ "$COUNT" =~ ^[0-9]+$ ]] || { echo "::error::contagem inválida: '$COUNT' — stats.json não foi atualizado."; exit 1; }
           TODAY=$(date +%Y-%m-%d)
           echo "{\"active_30d\":${COUNT},\"updated_at\":\"${TODAY}\"}" > stats.json
+          jq -e '.active_30d | numbers' stats.json > /dev/null || { echo "::error::stats.json gerado não é JSON válido"; exit 1; }
           echo "Dispositivos recorrentes (>=2 dias, 30d): $COUNT"
 
       - name: Commit e push
