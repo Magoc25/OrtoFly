@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.29.2] — Novembro 2026
+
+### 📄 Documentação
+
+- **Os guias dizem como o autor usa o NodeODM — e o que ele testou.** No **Windows**, o Docker **dentro do WSL**; no **Mac**, o **Colima**: só esses dois caminhos foram testados pelo autor, e agora vêm **em primeiro lugar** em cada guia (no Windows, o WSL passou a ser o Caminho A, com os passos A.1 a A.6; no Mac, o Colima passou a ser a Opção 1). O **Docker Desktop** continua nos dois guias como alternativa, marcado como **não testado pelo autor** — e a frase "com Docker Desktop, o localhost funciona direto", que nunca foi conferida, saiu. O README diz o mesmo junto da tabela de guias. O rodapé do guia do Windows orienta a instalar as versões atuais (o `wsl --install -d Ubuntu` já traz o Ubuntu mais recente).
+
+---
+
 ## [1.29.1] — Novembro 2026
 
 ### 📄 Documentação

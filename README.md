@@ -12,7 +12,7 @@ Desenvolvido por **Marlon Gomes da Costa (MGC Dev)**
 >
 > 💬 **Ajude a validar!** Testou? **Conte como foi** — funcionou no seu fluxo? o ortomosaico/DSM ficou coerente com a realidade medida em campo? Relatos sobre o funcionamento e a **qualidade dos produtos** são muito bem-vindos e orientam a evolução do app. Use a **avaliação dentro do app** ou [abra uma issue no GitHub](https://github.com/Magoc25/OrtoFly/issues).
 
-[![Versão](https://img.shields.io/badge/versão-1.29.1-blue)](./CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/versão-1.29.2-blue)](./CHANGELOG.md)
 [![Status](https://img.shields.io/badge/status-beta%20%C2%B7%20em%20valida%C3%A7%C3%A3o-yellow)](./TERMS.md)
 [![Licença](https://img.shields.io/badge/licença-não%20comercial-orange)](#-licença-e-termos-de-uso)
 [![PIX](https://img.shields.io/badge/apoie-PIX-brightgreen)](#-apoiar-o-projeto)
@@ -152,9 +152,11 @@ Guias passo a passo (bem detalhados, mesmo para quem não usa terminal):
 
 | Onde rodar | Guia |
 |---|---|
-| 🖥️ **Windows** | [Configurar no Windows (WSL + Docker)](./Guia-Local-Windows-WSL-NodeODM.md) |
-| 🍎 **macOS** | [Configurar no Mac (Docker Desktop ou Colima)](./Guia-Local-macOS-NodeODM.md) |
+| 🖥️ **Windows** | [Configurar no Windows](./Guia-Local-Windows-WSL-NodeODM.md) — **Docker no WSL** (o que o autor usa) ou Docker Desktop |
+| 🍎 **macOS** | [Configurar no Mac](./Guia-Local-macOS-NodeODM.md) — **Colima** (o que o autor usa) ou Docker Desktop |
 | ☁️ **Servidor remoto (sua VPS / outro PC)** | Rode o NodeODM nele (os mesmos passos do Docker) e aponte a aba **Processar** para a URL `https://…` dele — o app é só o cliente. |
+
+> 🧑‍💻 **Como o autor usa:** no **Windows**, o Docker **dentro do WSL**; no **Mac**, o **Colima** — o primeiro caminho de cada guia. **Só esses dois foram testados pelo autor.** Os guias também ensinam o **Docker Desktop**, que costuma ser mais simples de instalar, mas ele **não foi testado pelo autor**. Se você usar e algo não funcionar, conte pela avaliação no app.
 
 > 💡 É **opcional** — use só se quiser gerar os produtos de fotogrametria. Tudo roda **localmente**, suas imagens não saem do seu dispositivo.
 >

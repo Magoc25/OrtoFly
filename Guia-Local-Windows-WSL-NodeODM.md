@@ -33,36 +33,20 @@ a partir das suas fotos — tudo no seu computador, **sem nuvem**.
 
 ---
 
+> 🧑‍💻 **Como o autor usa:** o **Caminho A (Docker no WSL)**. É o único caminho **testado pelo autor**, e tudo o que este guia diz sobre rede, memória, atalhos `.bat` e limpeza de disco foi conferido nele. O **Caminho B (Docker Desktop)** está aqui como alternativa, **sem teste do autor**.
+
 Existem **dois caminhos** — escolha **um**:
 
 | Caminho | Para quem | Observação |
 |---|---|---|
-| **A — Docker Desktop** | a maioria | Mais simples (tem interface). `localhost` funciona sozinho. |
-| **B — Docker no WSL** | quem não quer/poder instalar o Docker Desktop (ex.: pouco disco) | Mais leve, mas exige **ajustes de rede** (documentados aqui). Foi o caminho que validamos. |
+| **A — Docker no WSL** | quem quer o mesmo caminho do autor; mais leve (bom com pouco disco) | Exige **ajustes de rede** (documentados aqui). ✅ **O que o autor usa e testou.** |
+| **B — Docker Desktop** | quem prefere um programa com interface gráfica | Mais simples de instalar. ⚠️ **Não testado pelo autor.** |
 
 ---
 
-## 🅰️ Caminho A — Docker Desktop (mais fácil)
+## 🅰️ Caminho A — Docker no WSL (leve · ✅ o que o autor usa)
 
-1. **Baixe:** acesse **https://www.docker.com/products/docker-desktop/** → **Download for Windows**.
-2. **Instale:** abra o instalador, deixe marcado **"Use WSL 2"**, clique **OK/Next** até o fim. **Reinicie** o PC se pedir.
-3. **Abra o Docker Desktop** (Menu Iniciar → Docker Desktop). Aceite os termos. Espere o indicador (baleia 🐳, canto inferior) ficar **"Engine running"** (verde).
-4. **Suba o NodeODM:**
-
-   🟦 **Abra o PowerShell (normal)** — *Menu Iniciar → digite `powershell` → clique em "Windows PowerShell"*. **Não** precisa ser Administrador. **Cole** o comando abaixo (clique com o **botão direito** dentro da janela = colar) e tecle **Enter**:
-   ```powershell
-   docker run -d --name nodeodm --restart unless-stopped -p 127.0.0.1:3000:3000 opendronemap/nodeodm
-   ```
-   *(baixa a imagem ~1,5 GB na 1ª vez e já sobe o NodeODM; o `127.0.0.1:` deixa o NodeODM só para este computador — veja o 🔒 antes de **▶ Usar no app**)*
-5. **Confira:** abra no navegador **http://127.0.0.1:3000/info** — deve aparecer um texto JSON com `"version"`. ✅
-
-➡️ Vá para **▶ Usar no app**. *(Com Docker Desktop, o localhost funciona direto — sem ajustes de rede.)*
-
----
-
-## 🅱️ Caminho B — Docker no WSL (leve, sem Docker Desktop)
-
-### B.1 — Instalar o WSL + Ubuntu (pule se já tiver)
+### A.1 — Instalar o WSL + Ubuntu (pule se já tiver)
 
 🟥 **Abra o PowerShell como Administrador** — *Menu Iniciar → digite `powershell` → clique com o **botão direito** em "Windows PowerShell" → "Executar como administrador" → clique "Sim"*. **Cole** o comando (botão direito = colar) e tecle **Enter**:
 ```powershell
@@ -70,16 +54,16 @@ wsl --install -d Ubuntu
 ```
 Depois **reinicie o PC**. Ao reabrir, uma janela do Ubuntu pede para **criar um usuário e senha** do Linux (anote a senha).
 
-> Já usa o WSL/Ubuntu? Vá direto ao B.2.
+> Já usa o WSL/Ubuntu? Vá direto ao A.2.
 
-### B.2 — Instalar o Docker dentro do Ubuntu
+### A.2 — Instalar o Docker dentro do Ubuntu
 
 🟦 **Abra o PowerShell (normal)** — *Menu Iniciar → `powershell` → "Windows PowerShell"* (não precisa Administrador). **Cole** e tecle **Enter**:
 ```powershell
 wsl -d Ubuntu -u root bash -c "apt-get update -y && apt-get install -y docker.io"
 ```
 
-### B.3 — Ligar o systemd (Docker sobe sozinho e não "hiberna")
+### A.3 — Ligar o systemd (Docker sobe sozinho e não "hiberna")
 
 🟦 **No PowerShell (normal)** — **cole** o primeiro comando e **Enter**:
 ```powershell
@@ -94,7 +78,7 @@ Aguarde **~10 segundos**. Depois **cole** este e **Enter**:
 wsl -d Ubuntu -u root bash -c "systemctl enable --now docker"
 ```
 
-### B.4 — Ajuste de rede do WSL (IMPORTANTE)
+### A.4 — Ajuste de rede do WSL (IMPORTANTE)
 Na configuração padrão, o Windows **não consegue alcançar** o servidor dentro do WSL (firewall do Hyper-V + IPv6). Este passo cria o arquivo de configuração `.wslconfig` já com a rede certa.
 
 🟦 **No PowerShell (normal)** — **cole** o comando abaixo (ele cria o arquivo sozinho) e tecle **Enter**:
@@ -109,7 +93,7 @@ Aguarde **~10 segundos**.
 > Isso ativa o modo de rede **"espelhado"** e desliga o **firewall do Hyper-V** — foi exatamente o que destravou na nossa máquina.
 > 💡 Mais adiante, a seção **🧠 Memória e CPU** vai **completar** este mesmo arquivo com RAM e swap (recomendado para datasets grandes).
 
-### B.5 — Subir o NodeODM
+### A.5 — Subir o NodeODM
 
 🟦 **No PowerShell (normal)** — **cole** e tecle **Enter**:
 ```powershell
@@ -117,8 +101,26 @@ wsl -d Ubuntu -u root bash -c "systemctl start docker; docker run -d --name node
 ```
 *(baixa a imagem ~1,5 GB na 1ª vez)*
 
-### B.6 — Confira
+### A.6 — Confira
 Abra no navegador **http://127.0.0.1:3000/info** → JSON com `"version"`. ✅
+
+---
+
+## 🅱️ Caminho B — Docker Desktop (mais fácil de instalar · ⚠️ não testado pelo autor)
+
+1. **Baixe:** acesse **https://www.docker.com/products/docker-desktop/** → **Download for Windows**.
+2. **Instale:** abra o instalador, deixe marcado **"Use WSL 2"**, clique **OK/Next** até o fim. **Reinicie** o PC se pedir.
+3. **Abra o Docker Desktop** (Menu Iniciar → Docker Desktop). Aceite os termos. Espere o indicador (baleia 🐳, canto inferior) ficar **"Engine running"** (verde).
+4. **Suba o NodeODM:**
+
+   🟦 **Abra o PowerShell (normal)** — *Menu Iniciar → digite `powershell` → clique em "Windows PowerShell"*. **Não** precisa ser Administrador. **Cole** o comando abaixo (clique com o **botão direito** dentro da janela = colar) e tecle **Enter**:
+   ```powershell
+   docker run -d --name nodeodm --restart unless-stopped -p 127.0.0.1:3000:3000 opendronemap/nodeodm
+   ```
+   *(baixa a imagem ~1,5 GB na 1ª vez e já sobe o NodeODM; o `127.0.0.1:` deixa o NodeODM só para este computador — veja o 🔒 antes de **▶ Usar no app**)*
+5. **Confira:** abra no navegador **http://127.0.0.1:3000/info** — deve aparecer um texto JSON com `"version"`. ✅
+
+➡️ Vá para **▶ Usar no app**.
 
 ---
 
@@ -127,29 +129,29 @@ Abra no navegador **http://127.0.0.1:3000/info** → JSON com `"version"`. ✅
 > **Já tem o container antigo (instalado com `-p 3000:3000`)?** Primeiro **confira** como ele está.
 >
 > 🟦 **No PowerShell (normal)** — *Menu Iniciar → `powershell` → "Windows PowerShell"* (não precisa Administrador). **Cole** o comando do seu caminho e tecle **Enter**:
-> - **Caminho A (Docker Desktop):**
->   ```powershell
->   docker ps
->   ```
-> - **Caminho B (WSL):**
+> - **Caminho A (WSL):**
 >   ```powershell
 >   wsl -d Ubuntu -u root bash -c "docker ps"
 >   ```
+> - **Caminho B (Docker Desktop):**
+>   ```powershell
+>   docker ps
+>   ```
 >
-> Olhe a coluna **PORTS** da linha `nodeodm`: se aparecer **`0.0.0.0:3000->3000/tcp`**, ele está aberto para a rede; se aparecer **`127.0.0.1:3000->3000/tcp`**, já está certo e não há nada a fazer. *(No Caminho B, o `netstat` do Windows **não** mostra a porta do NodeODM — com o WSL no modo espelhado ela fica dentro do Linux. Por isso a conferência é pelo `docker ps`.)*
+> Olhe a coluna **PORTS** da linha `nodeodm`: se aparecer **`0.0.0.0:3000->3000/tcp`**, ele está aberto para a rede; se aparecer **`127.0.0.1:3000->3000/tcp`**, já está certo e não há nada a fazer. *(No Caminho A, o `netstat` do Windows **não** mostra a porta do NodeODM — com o WSL no modo espelhado ela fica dentro do Linux. Por isso a conferência é pelo `docker ps`.)*
 >
 > **Para fechar o container antigo**, nesta ordem:
 > 1. **No app**, **salve ou descarte** as tarefas que ainda estão no NodeODM — recriar o container **apaga** as que ficaram nele.
 > 2. 🟦 **No PowerShell (normal)**, **cole** o comando do seu caminho e tecle **Enter** (ele remove o container antigo; a imagem baixada fica, não baixa de novo):
->    - **Caminho A (Docker Desktop):**
->      ```powershell
->      docker rm -f nodeodm
->      ```
->    - **Caminho B (WSL):**
+>    - **Caminho A (WSL):**
 >      ```powershell
 >      wsl -d Ubuntu -u root bash -c "docker rm -f nodeodm"
 >      ```
-> 3. **Rode de novo o comando de subir o NodeODM** do seu caminho — o do **passo 4 do Caminho A** ou o do **B.5** — que já vem com `127.0.0.1:`.
+>    - **Caminho B (Docker Desktop):**
+>      ```powershell
+>      docker rm -f nodeodm
+>      ```
+> 3. **Rode de novo o comando de subir o NodeODM** do seu caminho — o do **A.5** (Caminho A) ou o do **passo 4 do Caminho B** — que já vem com `127.0.0.1:`.
 > 4. **Confira de novo** com o `docker ps` acima: tem de aparecer **`127.0.0.1:3000->3000/tcp`**.
 >
 > Os atalhos **`Iniciar-NodeODM.bat`** e **`Desligar-NodeODM.bat`** **não mudam**: eles só ligam e desligam o container, que guarda a porta com que foi criado.
@@ -173,19 +175,19 @@ Se o **Testar** der **"Failed to fetch"** / não conectar:
 
 1. **Use `127.0.0.1`, não `localhost`.** O `localhost` pode resolver para IPv6 (`::1`) e falhar; `127.0.0.1` é sempre IPv4. *(O app já usa `127.0.0.1` por padrão.)*
 2. **O NodeODM está no ar?** Abra **http://127.0.0.1:3000/info** no navegador. Se **não** abrir:
-   - **Caminho A:** confira o Docker Desktop em **"Engine running"**; 🟦 **no PowerShell (normal)**, `docker ps` deve listar `nodeodm` (se não, cole `docker start nodeodm` e Enter).
-   - **Caminho B:** 🟦 **no PowerShell (normal)**, cole e Enter:
+   - **Caminho A:** 🟦 **no PowerShell (normal)**, cole e Enter:
      ```powershell
      wsl -d Ubuntu -u root bash -c "systemctl start docker; docker start nodeodm; docker ps"
      ```
+   - **Caminho B:** confira o Docker Desktop em **"Engine running"**; 🟦 **no PowerShell (normal)**, `docker ps` deve listar `nodeodm` (se não, cole `docker start nodeodm` e Enter).
 3. **Abre no navegador, mas o app não conecta?** Quase sempre é a **permissão do navegador**: o site ficou sem acesso a **outros apps e serviços neste dispositivo** (você clicou em **Nunca permitir**, ou fechou o aviso). Clique no **ícone à esquerda do endereço** e libere essa permissão — ou abra `chrome://settings/content/all` (no Edge: `edge://settings/content/all`), busque **`github.io`** e **apague** o item (lixeira), que zera as permissões do site. Recarregue com **Ctrl+Shift+R**, clique em **Testar** e, quando perguntar, **Permitir ao acessar o site**. Se não for isso, é cache do app: o **Ctrl+Shift+R** resolve.
    > 💡 Em versões anteriores do Chrome o aviso falava em **"rede local"**; no Chrome 154 (set/2026), acessar o próprio computador é **"outros apps e serviços neste dispositivo"**.
-4. **(Caminho B) "timeout":** quase sempre é o **firewall do Hyper-V**. Confirme o `.wslconfig` (passo B.4) com `networkingMode=mirrored` e `firewall=false`, depois 🟦 cole `wsl --shutdown` no PowerShell e reabra.
-5. **Funcionava e "sumiu":** o WSL hibernou. No Caminho B, garanta o **systemd** (passo B.3) e use o atalho abaixo para reerguer.
+4. **(Caminho A) "timeout":** quase sempre é o **firewall do Hyper-V**. Confirme o `.wslconfig` (passo A.4) com `networkingMode=mirrored` e `firewall=false`, depois 🟦 cole `wsl --shutdown` no PowerShell e reabra.
+5. **Funcionava e "sumiu":** o WSL hibernou. No Caminho A, garanta o **systemd** (passo A.3) e use o atalho abaixo para reerguer.
 
 ---
 
-## 🔌 Ligar e desligar — 2 atalhos (Caminho B)
+## 🔌 Ligar e desligar — 2 atalhos (Caminho A)
 O **Iniciar** sobe o NodeODM e o mantém ligado **em segundo plano** (sem precisar deixar janela aberta); o **Desligar** para e libera a memória. Estes são **arquivos `.bat`** (não são comandos do PowerShell).
 
 📄 **Como criar um arquivo `.bat`:** abra o **Bloco de Notas** (*Menu Iniciar → digite `bloco de notas` → Enter*) → **cole** o conteúdo → menu **Arquivo → Salvar como** → em **"Tipo"** escolha **"Todos os arquivos (*.*)"** → digite o nome **com `.bat` no final** → salve na **Área de Trabalho**.
@@ -217,7 +219,7 @@ timeout /t 3 /nobreak >nul
 
 - **Como usar:** **duplo-clique** no **`Iniciar-NodeODM.bat`** → espere aparecer **"PRONTO"** → **pode fechar a janela** (o NodeODM segue ligado em 2º plano). Terminou de usar? **Duplo-clique** no **`Desligar-NodeODM.bat`** → memória liberada. *(Estes dois não precisam de Administrador.)*
 - ⚠️ **Por que o keep-alive oculto?** O WSL **hiberna sozinho** quando fica ocioso (~1 min) e derruba o NodeODM (causa de "desconectado" / "Failed to fetch"). O `sleep infinity` oculto segura o WSL acordado até você Desligar.
-- **Caminho A (Docker Desktop):** não precisa desses atalhos — abra/feche o **Docker Desktop**; o NodeODM volta sozinho pela política `--restart`. Para parar: 🟦 no PowerShell, `docker stop nodeodm`.
+- **Caminho B (Docker Desktop):** não precisa desses atalhos — abra/feche o **Docker Desktop**; o NodeODM volta sozinho pela política `--restart`. Para parar: 🟦 no PowerShell, `docker stop nodeodm`.
 
 ---
 
@@ -228,7 +230,7 @@ O **"Not enough memory"** do ODM — e até o **PC desligar sozinho** no meio do
 - **`memory`** — quanta RAM o WSL pode usar. Deixe **~50% para o WSL** e **~50% para o Windows**. Se o WSL toma quase tudo, o **Windows trava/desliga**.
 - **`swap`** — a **rede de segurança**: memória virtual em disco que o WSL usa **quando a RAM acaba**. Em vez de **falhar**, o ODM fica mais lento e **conclui**. O swap **cresce conforme a necessidade** (de quase 0 até o teto que você definir). `swap` pequeno (ou ausente) = ODM morre por falta de memória.
 
-Aqui você vai **editar o arquivo `.wslconfig`** (o mesmo do passo B.4) no **Bloco de Notas**. Siga na ordem:
+Aqui você vai **editar o arquivo `.wslconfig`** (o mesmo do passo A.4) no **Bloco de Notas**. Siga na ordem:
 
 **Passo 1.** 🟦 **Abra o PowerShell (normal)** — *Menu Iniciar → `powershell` → "Windows PowerShell"* (não precisa Administrador). **Cole** o comando abaixo e tecle **Enter**. Ele **abre o arquivo no Bloco de Notas** (este comando não muda nada sozinho — só abre o arquivo para você editar):
 ```powershell
@@ -236,7 +238,7 @@ notepad "$env:USERPROFILE\.wslconfig"
 ```
 > Se aparecer "Deseja criar um novo arquivo?", clique **Sim**.
 
-**Passo 2.** No **Bloco de Notas** que abriu, **apague tudo** o que estiver lá e **cole exatamente** este conteúdo *(ele já inclui as linhas de rede do B.4)*:
+**Passo 2.** No **Bloco de Notas** que abriu, **apague tudo** o que estiver lá e **cole exatamente** este conteúdo *(ele já inclui as linhas de rede do A.4)*:
 ```ini
 [wsl2]
 networkingMode=mirrored
@@ -364,4 +366,4 @@ O número `AllocatedBaseSize` é em **MB**. Se estiver muito acima do normal (ex
 - **Bordas:** o que fica no limite das fotos sai deformado. No planejamento (aba ✈️ Voo), escolha **Margem além da área → Automática** (1 faixa a mais de cada lado + meia foto em cada ponta) se a borda interessa. Ao abrir o ortomosaico pelo app, o **contorno tracejado** mostra a área coberta pelas fotos, com um botão para **recortar** por ele.
 - **Precisão:** ao baixar o pacote, o card da tarefa mostra o que o **próprio ODM** estimou (GSD das fotos, erro de reprojeção e CE90). **Sem pontos de controle**, espere erro de posição de **alguns metros** e de escala da ordem de **1 %** (mais de 2 % em área). Para reduzir, envie um **`gcp_list.txt`** (formato do ODM) no botão **📍 Pontos de controle** do card "Nova tarefa" — ele vai junto com as fotos.
 
-*Validado em Windows 11 + WSL2 (Ubuntu 22.04) + Docker Engine. © MGC Dev.*
+*Testado pelo autor no Caminho A: Windows 11 + WSL2 + Ubuntu + Docker Engine. Instale sempre as **versões atuais** — o `wsl --install -d Ubuntu` do passo A.1 já traz o Ubuntu mais recente. O Caminho B (Docker Desktop) não foi testado pelo autor. © MGC Dev.*

@@ -29,39 +29,29 @@ Guia para rodar o **NodeODM** (motor de fotogrametria do OpenDroneMap) no **macO
 
 ---
 
-## 🤔 Docker Desktop ou Colima? (escolha um)
+## 🤔 Colima ou Docker Desktop? (escolha um)
+
+> 🧑‍💻 **Como o autor usa:** o **Colima** (Opção 1). É o único caminho **testado pelo autor**, e os comandos, a memória/CPU, o dia a dia e a limpeza de disco deste guia foram conferidos nele. O **Docker Desktop** (Opção 2) está aqui como alternativa, **sem teste do autor**.
 
 Os dois rodam o NodeODM **igualmente bem** — a diferença é *como* você lida com eles:
 
-| | 🐳 **Docker Desktop** | 🐧 **Colima** |
+| | 🐧 **Colima** | 🐳 **Docker Desktop** |
 |---|---|---|
-| **Como é** | App com **interface gráfica** (ícone na barra de menu; painéis de containers, logs) | Só **linha de comando** (Terminal), open-source |
-| **Instalação** | Baixar `.dmg` e arrastar — **sem terminal** | Precisa do **Homebrew** antes; tudo por comando |
-| **Memória/CPU p/ o ODM** | Ajusta por janelas (*Settings → Resources*) | **Você define no comando** (`--cpu`/`--memory`) — controle fino, ótimo p/ fotogrametria |
-| **Consumo em repouso** | Maior (~300–500 MB) | Menor (~100–200 MB) |
-| **Ao reiniciar o Mac** | Volta **sozinho** (se configurado p/ abrir com o Mac) | Você roda **`colima start`** antes de usar |
-| **Licença/custo** | Grátis p/ uso pessoal; **pago p/ empresas grandes** (>250 funcionários ou >US$ 10M) | **100% grátis** e aberto, sem restrição comercial |
+| **Como é** | Só **linha de comando** (Terminal), open-source | App com **interface gráfica** (ícone na barra de menu; painéis de containers, logs) |
+| **Instalação** | Precisa do **Homebrew** antes; tudo por comando | Baixar `.dmg` e arrastar — **sem terminal** |
+| **Memória/CPU p/ o ODM** | **Você define no comando** (`--cpu`/`--memory`) — controle fino, ótimo p/ fotogrametria | Ajusta por janelas (*Settings → Resources*) |
+| **Consumo em repouso** | Menor (~100–200 MB) | Maior (~300–500 MB) |
+| **Ao reiniciar o Mac** | Você roda **`colima start`** antes de usar | Volta **sozinho** (se configurado p/ abrir com o Mac) |
+| **Licença/custo** | **100% grátis** e aberto, sem restrição comercial | Grátis p/ uso pessoal; **pago p/ empresas grandes** (>250 funcionários ou >US$ 10M) |
 
 **Em uma linha:**
-- Quer o **caminho mais simples**, sem terminal, e usa Docker p/ outras coisas → **Docker Desktop**.
 - Quer **leveza**, **controle de RAM/CPU** p/ o processamento, ou está numa **empresa** (risco de licença) → **Colima**.
+- Quer o **caminho mais simples**, sem terminal, e usa Docker p/ outras coisas → **Docker Desktop**.
+- Na dúvida → **Colima**: é o que o autor usa e testou.
 
 Agora siga **a opção que você escolheu**:
 
-## 1️⃣ Opção 1 — Docker Desktop (mais fácil)
-1. Acesse **https://www.docker.com/products/docker-desktop/** → **Download for Mac** → escolha **Apple Silicon** ou **Intel** conforme seu Mac.
-2. Abra o `.dmg` e **arraste o Docker** para a pasta **Aplicativos**.
-3. Abra o **Docker** (Launchpad → Docker). Autorize na 1ª vez (pode pedir sua senha). Espere a baleia 🐳 na barra de menu ficar **"running"**.
-4. **Suba o NodeODM:**
-
-   🟢 **Abra o Terminal** — *Launchpad → Terminal* (ou *⌘+Espaço → "Terminal"*). **Cole** o comando abaixo (**⌘+V**) e tecle **Enter**:
-   ```bash
-   docker run -d --name nodeodm --restart unless-stopped -p 127.0.0.1:3000:3000 opendronemap/nodeodm
-   ```
-   *(baixa a imagem ~1,5 GB na 1ª vez e sobe o NodeODM)*
-5. **Confira:** abra **http://127.0.0.1:3000/info** no navegador → JSON com `"version"`. ✅
-
-## 2️⃣ Opção 2 — Colima (leve, grátis)
+## 1️⃣ Opção 1 — Colima (leve, grátis · ✅ o que o autor usa)
 
 1. **Instale o Homebrew** (gerenciador de pacotes do Mac), se ainda não tiver.
 
@@ -89,6 +79,19 @@ Agora siga **a opção que você escolheu**:
    docker run -d --name nodeodm --restart unless-stopped -p 127.0.0.1:3000:3000 opendronemap/nodeodm
    ```
 5. **Confira:** **http://127.0.0.1:3000/info** no navegador → JSON. ✅
+
+## 2️⃣ Opção 2 — Docker Desktop (mais fácil de instalar · ⚠️ não testado pelo autor)
+1. Acesse **https://www.docker.com/products/docker-desktop/** → **Download for Mac** → escolha **Apple Silicon** ou **Intel** conforme seu Mac.
+2. Abra o `.dmg` e **arraste o Docker** para a pasta **Aplicativos**.
+3. Abra o **Docker** (Launchpad → Docker). Autorize na 1ª vez (pode pedir sua senha). Espere a baleia 🐳 na barra de menu ficar **"running"**.
+4. **Suba o NodeODM:**
+
+   🟢 **Abra o Terminal** — *Launchpad → Terminal* (ou *⌘+Espaço → "Terminal"*). **Cole** o comando abaixo (**⌘+V**) e tecle **Enter**:
+   ```bash
+   docker run -d --name nodeodm --restart unless-stopped -p 127.0.0.1:3000:3000 opendronemap/nodeodm
+   ```
+   *(baixa a imagem ~1,5 GB na 1ª vez e sobe o NodeODM)*
+5. **Confira:** abra **http://127.0.0.1:3000/info** no navegador → JSON com `"version"`. ✅
 
 ---
 
@@ -205,4 +208,4 @@ docker system prune -f
 - **Bordas:** o que fica no limite das fotos sai deformado. No planejamento (aba ✈️ Voo), escolha **Margem além da área → Automática** (1 faixa a mais de cada lado + meia foto em cada ponta) se a borda interessa. Ao abrir o ortomosaico pelo app, o **contorno tracejado** mostra a área coberta pelas fotos, com um botão para **recortar** por ele.
 - **Precisão:** ao baixar o pacote, o card da tarefa mostra o que o **próprio ODM** estimou (GSD das fotos, erro de reprojeção e CE90). **Sem pontos de controle**, espere erro de posição de **alguns metros** e de escala da ordem de **1 %** (mais de 2 % em área). Para reduzir, envie um **`gcp_list.txt`** (formato do ODM) no botão **📍 Pontos de controle** do card "Nova tarefa" — ele vai junto com as fotos.
 
-*Guia para macOS (Docker Desktop ou Colima). A configuração do app (URL `127.0.0.1:3000`) é idêntica à do Windows. Comportamento dos navegadores conferido em set/2026: Safari no macOS 27 e Chrome 154. © MGC Dev.*
+*Guia para macOS. Testado pelo autor com o Colima; o Docker Desktop não foi testado pelo autor. A configuração do app (URL `127.0.0.1:3000`) é idêntica à do Windows. Comportamento dos navegadores conferido em set/2026: Safari no macOS 27 e Chrome 154. © MGC Dev.*
