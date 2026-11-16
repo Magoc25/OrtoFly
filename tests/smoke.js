@@ -745,7 +745,8 @@ async function main() {
   const X1 = '33333333-3333-4333-8333-333333333333', X2 = '44444444-4444-4444-8444-444444444444';
   const errs5 = [];
   async function subir5(cfg) {
-    const fake = { tarefas: new Map((cfg.tarefas || []).map(([u, t]) => [u, { ...t }])), cont: { info: 0, remove: 0, cancel: 0, list: 0, options: 0 }, corpos: [], cancelFalha: cfg.cancelFalha || null, criadas: [] };
+    const fake = { tarefas: new Map((cfg.tarefas || []).map(([u, t]) => [u, { ...t }])), cont: { info: 0, remove: 0, cancel: 0, list: 0, options: 0, init: 0, upload: 0, commit: 0, legado: 0, download: 0 }, corpos: [], cancelFalha: cfg.cancelFalha || null, criadas: [],
+      abertas: new Map(), vistoNoUpload: [], reinicios: [], opfsApagado: [], idb: new Map() };
     // opcoes que o servidor falso conhece (GET /options). O de verdade (ODM 3.5.6, medido em 2026-11-15) NAO tem
     // `resize-to`, e o NodeODM descarta em silencio o que nao conhece -- por isso o duplo tambem descarta.
     const OPCOES = cfg.opcoes || ['fast-orthophoto', 'dsm', 'skip-3dmodel', 'orthophoto-resolution', 'dem-resolution', 'rolling-shutter', 'feature-quality', 'pc-quality', 'max-concurrency'];
@@ -766,18 +767,51 @@ async function main() {
       const p = (String(u).match(/^https?:\/\/[^/]+(\/.*)$/) || [])[1] || String(u);
       if (p === '/info') return cfg.semInfo ? Promise.reject(new TypeError('Failed to fetch')) : json({ version: '2.2.4', taskQueueCount: 0, engine: 'odm', engineVersion: '3.5.6', cpuCores: 8 });
       if (p === '/options') { fake.cont.options++; return json(OPCOES.map(name => ({ name, type: 'x', value: '', domain: '', help: '' }))); }
-      if (p === '/task/new') {   // multipart, como o servidor real espera NESTA rota
-        const b = o && o.body; let pedidas = null, nImg = 0, nome = '';
-        try { pedidas = JSON.parse(b.get('options')); nImg = b.getAll('images').length; nome = String(b.get('name')); } catch (e) { pedidas = null; }
+      /* envio em TRES passos (lido no codigo do NodeODM 2.2.4 em 2026-11-15): init (multipart: name, options) -> {uuid};
+         upload/<uuid> (multipart: images[]) -> {success:true}; commit/<uuid> -> {uuid}. So no commit a tarefa passa a
+         existir. Erro vem como HTTP 200 + {error}; uuid que nao passou pelo init -> "Invalid uuid (not found)". */
+      if (p === '/task/new') { fake.cont.legado++; return json({ error: 'o duplo nao aceita mais o envio num pedido so' }); }
+      if (p === '/task/new/init') {
+        fake.cont.init++; const b = o && o.body; let pedidas = null, nome = '';
+        try { pedidas = JSON.parse(b.get('options')); nome = String(b.get('name')); } catch (e) { pedidas = null; }
         if (!Array.isArray(pedidas)) return json({ error: 'options invalidas' });
-        const uuid = '55555555-5555-4555-8555-' + String(fake.criadas.length + 1).padStart(12, '0');
-        const aceitas = pedidas.filter(x => OPCOES.includes(x.name));   // o NodeODM guarda so o que conhece
-        fake.tarefas.set(uuid, { code: 20, options: aceitas }); fake.criadas.push({ uuid, pedidas, aceitas, nImg, nome });
+        const uuid = '55555555-5555-4555-8555-' + String(fake.cont.init).padStart(12, '0');
+        fake.abertas.set(uuid, { pedidas, nome, nImg: 0 });
         return json({ uuid });
       }
+      const mu = p.match(/^\/task\/new\/upload\/([^/]+)$/);
+      if (mu) {
+        fake.cont.upload++; fake.vistoNoUpload.push(String(txt(doc5, 'odmStatus')));
+        const ab = fake.abertas.get(mu[1]); if (!ab) return json({ error: 'Invalid uuid (not found)' });
+        if (cfg.uploadPendura) return new Promise((_, rej) => { const s = o && o.signal; if (s) s.addEventListener('abort', () => rej(new DOMException('abortado', 'AbortError'))); });
+        if (fake.cont.upload <= (cfg.falhaUpload || 0)) return Promise.reject(new TypeError('Failed to fetch'));   // rede caiu no meio: o lote NAO chegou
+        let n = 0; try { n = o.body.getAll('images').length; } catch (e) { n = 0; }
+        if (!n) return json({ error: 'Need at least 1 file.', noRetry: true });
+        ab.nImg += n; return json({ success: true });
+      }
+      const mc = p.match(/^\/task\/new\/commit\/([^/]+)$/);
+      if (mc) {
+        fake.cont.commit++; const ab = fake.abertas.get(mc[1]); if (!ab) return json({ error: 'Invalid uuid (not found)' });
+        const aceitas = ab.pedidas.filter(x => OPCOES.includes(x.name));   // o NodeODM guarda so o que conhece
+        fake.abertas.delete(mc[1]); fake.tarefas.set(mc[1], { code: 20, options: aceitas, nImg: ab.nImg });
+        fake.criadas.push({ uuid: mc[1], pedidas: ab.pedidas, aceitas, nImg: ab.nImg, nome: ab.nome });
+        return json({ uuid: mc[1] });
+      }
+      // reprocessar: urlencoded/JSON com uuid + options (JSON em texto); so tarefa concluida (40), falha (30) ou cancelada (50)
+      if (p === '/task/restart') {
+        const b = o && o.body, c = lerCorpo(b); let novas = null;
+        try { novas = JSON.parse(Object.prototype.toString.call(b) === '[object URLSearchParams]' ? b.get('options') : JSON.parse(b).options); } catch (e) { novas = null; }
+        fake.reinicios.push({ tipo: c.tipo, uuid: c.uuid, options: novas });
+        if (!c.uuid) return json({ error: 'uuid param missing.' });
+        const t = fake.tarefas.get(c.uuid); if (!t) return json({ success: false, error: c.uuid + ' not found' });
+        if (![30, 40, 50].includes(t.code)) return json({ success: false, error: 'Task cannot be restarted' });
+        if (Array.isArray(novas)) t.options = novas.filter(x => OPCOES.includes(x.name));
+        t.code = 10; return json({ success: true });
+      }
+      if (/^\/task\/[^/]+\/download\/all\.zip$/.test(p)) { fake.cont.download++; return new Promise(() => {}); }   // o pacote nunca chega: so interessa quantas vezes foi pedido
       if (p === '/task/list') { fake.cont.list++; return json([...fake.tarefas.keys()].map(uuid => ({ uuid }))); }
       const mi = p.match(/^\/task\/([^/]+)\/info$/);
-      if (mi) { fake.cont.info++; const t = fake.tarefas.get(mi[1]); return json(t ? { uuid: mi[1], name: 'voo', status: { code: t.code }, progress: 0, imagesCount: 34, options: t.options || [] } : { error: mi[1] + ' not found' }); }
+      if (mi) { fake.cont.info++; const t = fake.tarefas.get(mi[1]); return json(t ? { uuid: mi[1], name: 'voo', status: { code: t.code }, progress: 0, imagesCount: cfg.imagensNoServidor || t.nImg || 34, options: t.options || [] } : { error: mi[1] + ' not found' }); }
       if (p === '/task/remove' || p === '/task/cancel') {
         const acao = p.slice(6); fake.cont[acao]++;
         const { tipo, uuid } = lerCorpo(o && o.body); fake.corpos.push(acao + ':' + tipo);
@@ -803,6 +837,17 @@ async function main() {
         // estado de um app que ja foi usado: e por aqui (wire) que a tarefa volta ao card ao reabrir
         // leitor de EXIF falso (a lib de verdade nao e carregada no smoke): devolve o que o cenario mandar, por nome de arquivo
         if (cfg.exif) window.exifr = { parse: async f => cfg.exif(String(f && f.name)) };
+        // IndexedDB falso (o jsdom nao tem): 'ok' grava num Map; 'aborta' imita falta de espaco -- a transacao e ABORTADA,
+        // sem `onerror`, que e como o navegador se comporta quando a cota estoura
+        if (cfg.idb) {
+          const mkTx = () => { const tx = { error: null, objectStore: () => ({
+            put: (v, k) => { setTimeout(() => { if (cfg.idb === 'aborta') { tx.error = new Error('QuotaExceededError (simulado)'); if (tx.onabort) tx.onabort(); } else { fake.idb.set(k, v); if (tx.oncomplete) tx.oncomplete(); } }, 5); return {}; },
+            delete: k => { setTimeout(() => { fake.idb.delete(k); if (tx.oncomplete) tx.oncomplete(); }, 5); return {}; },
+            get: k => { const q = {}; setTimeout(() => { q.result = fake.idb.get(k); if (q.onsuccess) q.onsuccess(); }, 5); return q; } }) }; return tx; };
+          window.indexedDB = { open: () => { const r = { result: { objectStoreNames: { contains: () => true }, transaction: () => mkTx() } }; setTimeout(() => { if (r.onsuccess) r.onsuccess(); }, 5); return r; } };
+        }
+        // area de arquivos temporarios (OPFS) falsa: so registra o que o app manda apagar
+        if (cfg.opfs) Object.defineProperty(window.navigator, 'storage', { configurable: true, value: { getDirectory: async () => ({ removeEntry: async nome => { fake.opfsApagado.push(String(nome)); } }) } });
         const ls = { ortofly_beta_ack: '1', 'ortofly_odm_auth_http://127.0.0.1:3000': '1', ...(cfg.ls || {}) };
         for (const [k, v] of Object.entries(ls)) window.localStorage.setItem(k, v);
       }
@@ -820,6 +865,10 @@ async function main() {
       pollVivo: () => [...intervalos.values()].some(i => i.ms === 5000),
       status: () => String(txt(doc5, 'odmStatus')), toast: () => { const n = el(doc5, 'toast'); return n ? { texto: String(n.textContent), erro: n.classList.contains('error') } : { texto: '', erro: false }; },
       ev: evOf(w5),
+      // espera uma promessa criada DENTRO do app, com teto de tempo: promessa que nunca resolve vira 'NUNCA RESOLVEU', nao um teste pendurado
+      aguardar: (expr, ms = 1500) => { let p; try { p = w5.eval(expr); } catch (e) { return Promise.resolve('eval falhou: ' + e.message); }
+        return Promise.race([Promise.resolve(p).then(v => v, e => 'rejeitou: ' + ((e && e.message) || e)), new Promise(r => setTimeout(() => r('NUNCA RESOLVEU'), ms))]); },
+      envioAberto: () => has(doc5, 'odmEnvio', 'hidden') === false, botaoEnviarLivre: () => { const b = el(doc5, 'odmCreateBtn'); return b ? b.disabled === false : undefined; },
       // escolhe N fotos pelo campo de arquivo de verdade (dispara o mesmo `change` que o usuario dispara)
       selecionar: n => { try { const inp = doc5.getElementById('odmImages'); const fs = Array.from({ length: n }, (_, i) => new w5.File(['x'], 'DJI_' + String(i + 1).padStart(4, '0') + '.JPG', { type: 'image/jpeg' }));
         Object.defineProperty(inp, 'files', { configurable: true, value: fs }); inp.dispatchEvent(new w5.Event('change')); return true; } catch (e) { return false; } },
@@ -1007,6 +1056,159 @@ async function main() {
     check('M&M: sem tarefa e sem conexao NAO cita versao fixa do ODM (antes: "3.5.6" chumbado)', mm.length > 60 && !/3\.5\.6/.test(mm) && !/3\.5\.6/.test(abnt) && /não registrada/.test(mm));
     check('M&M: sem tarefa, nao afirma modo de processamento nenhum', !/Multi-View/.test(mm) && !/DSM/.test(mm));
     c.fechar();
+  }
+
+  /* -- cenario 5, 3a parte: envio em partes, pacote, armazenamento e reprocessamento (v1.26.0) ------
+     Ate a v1.25.0: todas as fotos num POST so (sem progresso, sem repeticao, sem cancelar); dois
+     cliques baixavam o all.zip duas vezes para o mesmo arquivo; uma gravacao abortada por falta de
+     espaco deixava "Salvando..." para sempre; e a falha ao gravar o projeto era anunciada como
+     sucesso -- com o Salvar no projeto apagando a tarefa do servidor mesmo assim. */
+  const esperasCurtas = c => c.ev('ODM_LOTE_ESPERAS[0]=10; ODM_LOTE_ESPERAS[1]=10; ODM_LOTE_ESPERAS[2]=10; 1');   // nao esperar 13 s de relogio por repeticao
+
+  { // (l) envio em tres passos, em lotes
+    const c = await subir5({ nome: '5l', exif: exifVoo(2, 13) });
+    c.selecionar(6); await gsdLido(c);
+    const t = await c.enviar();
+    console.log('       [captura] envio em partes: ' + JSON.stringify({ init: c.fake.cont.init, upload: c.fake.cont.upload, commit: c.fake.cont.commit, legado: c.fake.cont.legado }) + ' · na tela durante o envio = ' + JSON.stringify(c.fake.vistoNoUpload.slice(-1)));
+    check('envio: abre a tarefa, manda as fotos em LOTES e fecha (antes: tudo num pedido so)', !!t && c.fake.cont.init === 1 && c.fake.cont.upload === 2 && c.fake.cont.commit === 1 && c.fake.cont.legado === 0);
+    check('envio: as 6 fotos chegam, sem faltar nem repetir', !!t && t.nImg === 6);
+    check('envio: a tela mostra o andamento em fotos enquanto envia', c.fake.vistoNoUpload.length > 0 && c.fake.vistoNoUpload.some(s => /Enviando \d+\/6 fotos/.test(s)));
+    check('envio: ao terminar, a barra some e o botao Enviar volta a funcionar', c.envioAberto() === false && c.botaoEnviarLivre() === true);
+    c.fechar();
+  }
+  { // (m) a rede cai no meio: o lote que nao chegou e repetido sozinho
+    const c = await subir5({ nome: '5m', exif: exifVoo(2, 13), falhaUpload: 1 });
+    c.selecionar(6); await gsdLido(c); esperasCurtas(c);
+    const t = await c.enviar();
+    check('envio: um lote que falha e REPETIDO e a tarefa sai completa (antes: perdia tudo)', !!t && t.nImg === 6 && c.fake.cont.upload === 3 && c.fake.cont.commit === 1);
+    c.fechar();
+  }
+  { // (n) a rede nao volta: desiste, diz por que e nao deixa tarefa pela metade
+    const c = await subir5({ nome: '5n', exif: exifVoo(2, 13), falhaUpload: 99 });
+    c.selecionar(6); await gsdLido(c); esperasCurtas(c);
+    const t = await c.enviar();
+    await c.esperar(() => c.botaoEnviarLivre() === true);
+    console.log('       [captura] envio que desiste: status = ' + JSON.stringify(c.status().slice(0, 150)));
+    check('envio: sem rede, desiste depois das repeticoes, sem criar tarefa', t === null && c.fake.cont.commit === 0 && c.fake.tarefas.size === 0 && c.fake.cont.upload >= 4);
+    check('envio: a falha e DITA na tela e nada fica no registro do app', /❌/.test(c.status()) && /Failed to fetch/.test(c.status()) && c.ls('ortofly_odm_tasks') === '[]' && c.ls('ortofly_odm_task') === null);
+    check('envio: depois da falha da para tentar de novo (botao livre, barra fechada)', c.botaoEnviarLivre() === true && c.envioAberto() === false);
+    c.fechar();
+  }
+  { // (o) Cancelar envio, com um lote parado na rede
+    const c = await subir5({ nome: '5o', exif: exifVoo(2, 13), uploadPendura: true });
+    c.selecionar(6); await gsdLido(c);
+    // duas chamadas seguidas ao proprio handler: um segundo `click()` nem chegaria la, porque o botao trava no primeiro —
+    // e ai quem segura e so o botao, nao a trava interna (mutacao que a remove passava verde: condicao ausente, r90)
+    c.ev('odmCreate(); odmCreate(); 1');
+    await c.esperar(() => c.fake.cont.upload > 0);
+    let evSaida; try { evSaida = new c.w.Event('beforeunload', { cancelable: true }); c.w.dispatchEvent(evSaida); } catch (e) { evSaida = undefined; }
+    check('envio: duplo clique abre UMA tarefa so (o botao trava durante o envio)', c.fake.cont.init === 1 && c.botaoEnviarLivre() === false && c.envioAberto() === true);
+    check('envio: fechar a aba durante o envio pede confirmacao (as fotos se perderiam)', !!evSaida && evSaida.defaultPrevented === true);
+    const foi = c.clicar('button[onclick="odmCancelarEnvio()"]');
+    await c.esperar(() => /cancelado/i.test(c.status()));
+    console.log('       [captura] envio cancelado: status = ' + JSON.stringify(c.status().slice(0, 150)));
+    check('envio: Cancelar envio interrompe, nao cria tarefa e libera a tela', foi && /cancelado/i.test(c.status()) && c.fake.cont.commit === 0 && c.fake.tarefas.size === 0 && c.botaoEnviarLivre() === true && c.envioAberto() === false && c.ls('ortofly_odm_tasks') === '[]');
+    c.fechar();
+  }
+  { // (p) o servidor ficou com mais fotos do que as escolhidas (lote que chegou duas vezes): o card avisa
+    const c = await subir5({ nome: '5p', exif: exifVoo(2, 13), imagensNoServidor: 8 });
+    c.selecionar(6); await gsdLido(c); await c.enviar();
+    await c.esperar(() => /img/.test(String(txt(c.doc, 'odmTaskStatus'))));
+    const st = String(txt(c.doc, 'odmTaskStatus'));
+    console.log('       [captura] contagem diferente: card = ' + JSON.stringify(st.slice(0, 170)));
+    check('envio: se o servidor tem um numero de fotos diferente do escolhido, o card AVISA', /⚠️/.test(st) && /\b6\b/.test(st) && /\b8\b/.test(st));
+    c.fechar();
+  }
+  { // (q) dois pedidos do pacote ao mesmo tempo viram UM download
+    const c = await subir5({ nome: '5q', tarefas: [[T_VIVA, { code: 40 }]], ls: lsTarefa(T_VIVA, [T_VIVA]) });
+    await c.esperar(() => c.fake.cont.info > 0);
+    c.ev('odmGetZip().catch(function(){}); odmGetZip().catch(function(){}); 1');
+    await new Promise(r => setTimeout(r, 80));
+    check('pacote: dois pedidos simultaneos do all.zip fazem UM download (antes: dois, para o mesmo arquivo)', c.fake.cont.download === 1);
+    c.fechar();
+  }
+  { // (r) gravacao abortada por falta de espaco: a promessa tem de REJEITAR
+    const c = await subir5({ nome: '5r', idb: 'aborta' });
+    const r = await c.aguardar("idbPut('chave', 1).then(function(){ return 'gravou'; })");
+    console.log('       [captura] gravacao abortada = ' + JSON.stringify(String(r).slice(0, 120)));
+    check('armazenamento: gravacao abortada (sem espaco) REJEITA com o motivo (antes: ficava pendurada para sempre)', /^rejeitou: /.test(String(r)) && /Quota|espaço/i.test(String(r)));
+    c.fechar();
+  }
+  { // (s) falha ao gravar a lista de projetos (armazenamento cheio/bloqueado)
+    const c = await subir5({ nome: '5s', idb: 'ok', tarefas: [[T_VIVA, { code: 40 }]], ls: lsTarefa(T_VIVA, [T_VIVA]) });
+    await c.esperar(() => c.fake.cont.info > 0);
+    let trocou = false;
+    try { const orig = c.w.Storage.prototype.setItem; c.w.Storage.prototype.setItem = function (k, v) { if (k === 'ortofly_projects') throw new c.w.DOMException('cota excedida', 'QuotaExceededError'); return orig.call(this, k, v); }; trocou = true; } catch (e) { trocou = false; }
+    const foi = c.clicar('button[onclick="saveProject()"]');
+    console.log('       [captura] salvar projeto com armazenamento cheio: toast = ' + JSON.stringify(c.toast()));
+    check('projetos: falha ao gravar NAO e anunciada como "Projeto salvo" (antes: era)', trocou && foi && c.toast().erro === true && !/Projeto salvo/.test(c.toast().texto));
+    // Salvar no projeto, com o pacote ja "baixado": se o projeto nao grava, a tarefa do servidor NAO pode ser apagada
+    c.ev("_odmZipRaw={size:10}; _odmZip={names:function(){ return []; }}; _odmZipFor=_odmTask; 1");
+    const antes = c.fake.cont.remove;
+    const r = await c.aguardar('odmSaveResult().then(function(){ return "terminou"; })', 3000);
+    console.log('       [captura] salvar resultado com armazenamento cheio: ' + JSON.stringify(String(r)) + ' · status = ' + JSON.stringify(c.status().slice(0, 150)));
+    check('salvar no projeto: sem conseguir gravar o projeto, a tarefa NAO e apagada do servidor (antes: era)',
+      r === 'terminou' && /❌/.test(c.status()) && c.fake.cont.remove === antes && c.fake.tarefas.has(T_VIVA));
+    check('salvar no projeto: o pacote orfao e retirado do banco do app', c.fake.idb.size === 0);
+    c.fechar();
+  }
+  { // (t) arquivos temporarios de uma sessao anterior sao apagados ao abrir o app
+    const c = await subir5({ nome: '5t', opfs: true });
+    await c.esperar(() => c.fake.opfsApagado.length > 0, 800);
+    check('temporarios: ao abrir, o app apaga a area temporaria de uma sessao anterior', c.fake.opfsApagado.includes('ortofly-tmp'));
+    c.fechar();
+  }
+  { // (u) Reprocessar: opcoes novas, mesmas fotos
+    const meta = { modo: 'fast', gsd: 1.8, n: 34, res: 1.8, options: [{ name: 'fast-orthophoto', value: true }], engineVersion: '3.5.6' };
+    const c = await subir5({ nome: '5u', tarefas: [[T_VIVA, { code: 40, options: meta.options }]], ls: { ...lsTarefa(T_VIVA, [T_VIVA]), ['ortofly_odm_meta_' + T_VIVA]: JSON.stringify(meta) } });
+    await c.esperar(() => c.fake.cont.info > 0);
+    c.marcar('input[name="odmOut"][value="dsm"]', true);
+    const foi = c.clicar('button[onclick="odmReprocessar()"]');
+    await c.esperar(() => c.fake.reinicios.length > 0 && /Reprocessando|❌/.test(c.status()));
+    const re = c.fake.reinicios[0] || {}, opRe = n => { const x = (re.options || []).find(o => o.name === n); return x ? x.value : undefined; };
+    console.log('       [captura] reprocessar: ' + JSON.stringify(re) + ' · confirmacao = ' + JSON.stringify((c.confirms[0] || '').slice(0, 160)));
+    check('reprocessar: o pedido vai em urlencoded, com o uuid e as opcoes da tela (o duplo foi exercitado, r91)', foi && re.tipo === 'urlencoded' && re.uuid === T_VIVA && opRe('dsm') === true && opRe('skip-3dmodel') === true);
+    check('reprocessar: usa o GSD registrado DESTA tarefa, sem fotos escolhidas na tela', opRe('orthophoto-resolution') === 1.8 && Math.abs(opRe('dem-resolution') - 3.6) < 0.01);
+    check('reprocessar: pergunta antes e avisa que as fotos nao sao reenviadas', c.confirms.length === 1 && /não são reenviadas/.test(c.confirms[0]));
+    check('reprocessar: nenhuma foto e enviada de novo', c.fake.cont.init === 0 && c.fake.cont.upload === 0 && c.fake.cont.legado === 0);
+    const mm = String(c.ev('citeText().mm'));
+    check('reprocessar: o registro da tarefa passa a ser o do NOVO processamento (M&M com DSM)', /DSM/.test(mm) && /Multi-View/.test(mm));
+    c.fechar();
+    // reprocessar num modo que gera MENOS produtos: o NodeODM nao apaga os antigos (medido em 2026-11-16: o dsm.tif
+    // do processamento anterior continua na pasta e no all.zip) -- o app avisa antes e nao abre o DSM que sobrou
+    const metaDsm = { modo: 'dsm', gsd: 1.8, n: 34, res: 1.8, resEscolha: 'native', options: [{ name: 'dsm', value: true }], engineVersion: '3.5.6' };
+    const c4 = await subir5({ nome: '5u4', tarefas: [[T_VIVA, { code: 40, options: metaDsm.options }]], ls: { ...lsTarefa(T_VIVA, [T_VIVA]), ['ortofly_odm_meta_' + T_VIVA]: JSON.stringify(metaDsm) } });
+    await c4.esperar(() => c4.fake.cont.info > 0);
+    c4.marcar('input[name="odmOut"][value="fast"]', true);
+    c4.clicar('button[onclick="odmReprocessar()"]');
+    await c4.esperar(() => c4.fake.reinicios.length > 0 && /Reprocessando|❌/.test(c4.status()));
+    console.log('       [captura] reprocessar para um modo menor: confirmacao = ' + JSON.stringify((c4.confirms[0] || '').slice(-190)));
+    check('reprocessar: trocar para um modo que gera MENOS produtos avisa que o DSM antigo continua no pacote', /DSM/.test(c4.confirms[0] || '') && /anterior/.test(c4.confirms[0] || '') && /anterior/.test(c4.status()));
+    c4.ev("_odmZip={names:function(){ return ['odm_dem/dsm.tif','odm_orthophoto/odm_orthophoto.tif']; }, extrair:function(){ return Promise.resolve({blob:null,name:'dsm.tif'}); }}; _odmZipFor=_odmTask; 1");
+    const rDsm = await c4.aguardar("odmExtract('dsm').then(function(){ return 'abriu o dsm antigo'; })");
+    console.log('       [captura] abrir o DSM que sobrou = ' + JSON.stringify(String(rDsm).slice(0, 150)));
+    check('reprocessar: depois de ir para o Rapido, o app NAO abre o dsm.tif do processamento anterior', /^rejeitou: /.test(String(rDsm)) && /Rápido/.test(String(rDsm)) && /anterior/.test(String(rDsm)));
+    c4.fechar();
+    // app reaberto: a tela volta com as opcoes DA TAREFA, senao o Reprocessar trocaria o que ninguem pediu para trocar
+    const metaD = { modo: 'dsm', gsd: 1.8, n: 34, res: 3.6, resEscolha: '2x', rs: true, lite: true, options: [{ name: 'dsm', value: true }], engineVersion: '3.5.6' };
+    const c3 = await subir5({ nome: '5u3', tarefas: [[T_VIVA, { code: 40, options: metaD.options }]], ls: { ...lsTarefa(T_VIVA, [T_VIVA]), ['ortofly_odm_meta_' + T_VIVA]: JSON.stringify(metaD) } });
+    await c3.esperar(() => c3.fake.cont.info > 0);
+    const tela = { modo: ((c3.doc.querySelector('input[name="odmOut"]:checked') || {}).value), res: val(c3.doc, 'odmRes'), rs: (el(c3.doc, 'odmRS') || {}).checked, lite: (el(c3.doc, 'odmLite') || {}).checked };
+    console.log('       [captura] tela ao reabrir com a tarefa = ' + JSON.stringify(tela));
+    check('reprocessar: ao reabrir o app, a tela mostra as opcoes com que a tarefa foi feita (saida, resolucao, obturador, RAM)',
+      tela.modo === 'dsm' && tela.res === '2x' && tela.rs === true && tela.lite === true);
+    c3.clicar('button[onclick="odmReprocessar()"]');
+    await c3.esperar(() => c3.fake.reinicios.length > 0);
+    const re3 = (c3.fake.reinicios[0] || {}).options || [];
+    check('reprocessar: sem mexer em nada, repete as opcoes da tarefa — a correcao de obturador nao cai sozinha', re3.some(o => o.name === 'rolling-shutter' && o.value === true) && re3.some(o => o.name === 'orthophoto-resolution' && o.value === 3.6));
+    c3.fechar();
+    const c2 = await subir5({ nome: '5u2', tarefas: [[T_VIVA, { code: 20 }]], ls: lsTarefa(T_VIVA, [T_VIVA]) });
+    await c2.esperar(() => c2.fake.cont.info > 0);
+    c2.clicar('button[onclick="odmReprocessar()"]');
+    await c2.esperar(() => /❌/.test(c2.status()));
+    console.log('       [captura] reprocessar tarefa em andamento: status = ' + JSON.stringify(c2.status().slice(0, 170)));
+    check('reprocessar: tarefa em andamento e recusada pelo servidor e o app diz o que fazer', c2.fake.reinicios.length === 1 && /cannot be restarted/i.test(c2.status()) && /cancele/i.test(c2.status()));
+    c2.fechar();
   }
 
   await new Promise(r => setTimeout(r, 50));

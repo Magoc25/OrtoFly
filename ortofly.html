@@ -530,8 +530,15 @@ footer{
         <div id="odmRSInfo" class="spec" style="margin:0 0 6px"></div>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;cursor:pointer" title="Reduz o pico de memória: envia feature-quality=medium (alinhamento com imagens menores), pc-quality=low (nuvem densa em baixa, nos modos com DSM) e max-concurrency = metade dos núcleos. O alinhamento fica um pouco menos preciso e o DSM/nuvem perdem detalhe; a resolução do ortomosaico NÃO muda. Recomendado só p/ conjuntos grandes que estouram a RAM."><input type="checkbox" id="odmLite" style="width:auto" /> Economizar RAM (feições em média · nuvem em baixa · menos threads)</label>
         <p class="hint" style="margin:6px 0 2px">💡 <b>Área plana</b> e só quer o mapa 2D (ortomosaico)? O <b>Rápido</b> já basta — mais rápido e leve. Precisa de <b>DSM/altimetria, nuvem densa ou 3D</b>, ou o terreno tem <b>relevo</b>? Use os modos densos.</p>
-        <button class="btn primary block" onclick="odmCreate()">🚀 Enviar e processar</button>
-        <p class="hint">Dezenas–centenas de fotos. Datasets enormes podem pesar no upload.</p>
+        <button class="btn primary block" id="odmCreateBtn" onclick="odmCreate()">🚀 Enviar e processar</button>
+        <div id="odmEnvio" class="hidden" style="margin-top:8px">
+          <div style="height:8px;background:rgba(0,0,0,.18);border-radius:4px;overflow:hidden"><div id="odmEnvioFill" style="height:100%;width:0;background:#1a9e4b;transition:width .3s"></div></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+            <span id="odmEnvioTxt" class="spec" style="flex:1"></span>
+            <button class="btn sm" onclick="odmCancelarEnvio()">✖ Cancelar envio</button>
+          </div>
+        </div>
+        <p class="hint">Dezenas–centenas de fotos. Elas sobem em <b>lotes</b>, com o andamento na tela: se a rede oscilar, o lote é repetido sozinho, e dá para cancelar o envio.</p>
         <p class="hint">💡 O que fica no <b>limite das fotos</b> sai deformado no ortomosaico (poucas fotos, todas de um lado só) — voe uma faixa além da área que interessa.</p>
       </div>
       <div class="card hidden" id="odmTaskCard">
@@ -543,6 +550,7 @@ footer{
           <button class="btn sm" onclick="odmRefresh()">↻ Atualizar</button>
           <button class="btn sm" onclick="odmCancel()">✖ Cancelar</button>
           <button class="btn sm" onclick="odmDiscard()" title="Apaga as fotos e produtos desta tarefa do NodeODM (libera o disco).">🗑️ Descartar</button>
+          <button class="btn sm" onclick="odmReprocessar()" title="Refaz o processamento desta tarefa com as opções que estão agora na tela (saída, resolução, obturador, Economizar RAM). As fotos já estão no servidor: não são reenviadas. Vale para tarefa concluída, falha ou cancelada.">🔁 Reprocessar</button>
         </div>
         <div id="odmOutputs" class="hidden" style="margin-top:8px"></div>
       </div>
@@ -712,7 +720,7 @@ footer{
 <script src="./vendor/three/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly — © 2026 MGC Dev (versão: só em APP_VERSION) ═══════════════ */
-const APP_VERSION = '1.25.0';
+const APP_VERSION = '1.26.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1116,7 +1124,10 @@ function exportCSV(){
 
 /* ═══════════════ PROJETOS (localStorage) ═══════════════ */
 function loadProjects(){ try{ return JSON.parse(localStorage.getItem(LS+'_projects')||'[]'); }catch(e){ console.error('[Projetos] load',e); toast('Erro ao ler projetos','error'); return []; } }
-function storeProjects(arr){ try{ localStorage.setItem(LS+'_projects',JSON.stringify(arr)); }catch(e){ console.error(e); toast('Erro ao salvar','error'); } }
+// Devolve true/false e NÃO avisa sozinho: quem chama decide o que dizer e, principalmente, o que NÃO fazer
+// em seguida. Até a v1.25.0 o erro era engolido aqui e o chamador seguia — "Projeto salvo ✅" por cima da
+// falha, e o Salvar no projeto apagava a tarefa do servidor sem o registro do projeto ter sido gravado.
+function storeProjects(arr){ try{ localStorage.setItem(LS+'_projects',JSON.stringify(arr)); return true; }catch(e){ console.error('[Projetos] store',e); return false; } }
 function snapshot(){ return {polygon:state.polygon, droneId:state.droneId, params:{alt:+$('altNum').value, fo:+$('fo').value, so:+$('so').value, speed:+$('speed').value, dir:$('dir').value, dirDeg:+$('dirDeg').value, cross:$('cross').checked,
   cSw:+$('cSw').value,cSh:+$('cSh').value,cFocal:+$('cFocal').value,cIw:+$('cIw').value,cIh:+$('cIh').value}}; }
 function applySnapshot(d){
@@ -1137,7 +1148,8 @@ function saveProject(){
   const existing=arr.find(p=>p.name.toLowerCase()===name.toLowerCase());
   const rec={id: existing?existing.id:id, name, ts:Date.now(), data:snapshot()};
   if(existing){ Object.assign(existing,rec); } else { arr.unshift(rec); }
-  storeProjects(arr); state.name=name; toast('Projeto salvo ✅');
+  if(!storeProjects(arr)){ toast('Não consegui salvar: o armazenamento do navegador está cheio ou bloqueado. Exporte o projeto em JSON (📂) para não perder.','error'); return; }
+  state.name=name; toast('Projeto salvo ✅');
 }
 function newProject(){ if(state.polygon.length>=3 && !confirm('Começar um novo projeto? A área atual será limpa.')) return; clearArea(); $('projName').value=''; state.name=''; }
 function openProjects(){ const arr=loadProjects(); const box=$('projectsList');
@@ -1151,7 +1163,9 @@ function openProjects(){ const arr=loadProjects(); const box=$('projectsList');
 }
 function closeProjects(){ $('projectsModal').classList.add('hidden'); }
 function openProject(id){ const p=loadProjects().find(x=>x.id===id); if(!p) return; $('projName').value=p.name; state.name=p.name; applySnapshot(p.data); closeProjects(); toast('Projeto carregado ✅'); if(p.result) odmLoadSavedResult(id); }
-function deleteProject(id){ const p=loadProjects().find(x=>x.id===id); if(!confirm('Excluir este projeto?'+((p&&p.result)?'\n\nOs produtos salvos (ortho/nuvem) também serão apagados do app.':''))) return; storeProjects(loadProjects().filter(x=>x.id!==id)); if(p&&p.result){ idbDel('result_'+id).catch(()=>{}); if(_odmResultProj===id) odmClearCard(); } openProjects(); toast('Projeto excluído'); }
+function deleteProject(id){ const p=loadProjects().find(x=>x.id===id); if(!confirm('Excluir este projeto?'+((p&&p.result)?'\n\nOs produtos salvos (ortho/nuvem) também serão apagados do app.':''))) return;
+  if(!storeProjects(loadProjects().filter(x=>x.id!==id))){ toast('Não consegui excluir: o armazenamento do navegador está bloqueado.','error'); return; }   // sem gravar a lista, os produtos NÃO são apagados
+  if(p&&p.result){ idbDel('result_'+id).catch(()=>{}); if(_odmResultProj===id) odmClearCard(); } openProjects(); toast('Projeto excluído'); }
 function exportProjectJSON(){
   const data={app:'OrtoFly',versao:APP_VERSION,nome:$('projName').value||'voo',exportado:new Date().toISOString(),projeto:snapshot()};
   downloadBlob(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}), 'ortofly_'+planName()+'.json');
@@ -1206,8 +1220,8 @@ function wire(){
   $('odmUrl').addEventListener('input',()=>{ clearTimeout(window._odmUrlT); window._odmUrlT=setTimeout(odmPing,700); });
   $('odmImages').addEventListener('change',e=>{ odmOnImages(e.target.files); });
   odmInitOpcoes();
-  _odmTask=localStorage.getItem(LS+'_odm_task')||null; if(_odmTask){ _odmSaved=false; _odmMeta=odmLerMeta(_odmTask); $('odmTaskCard').classList.remove('hidden'); if(odmUrlVal()) odmStartPoll(); }
-  window.addEventListener('beforeunload',e=>{ if(_odmTask && !_odmSaved && !_odmSavedMode){ e.preventDefault(); e.returnValue=''; return ''; } });
+  _odmTask=localStorage.getItem(LS+'_odm_task')||null; if(_odmTask){ _odmSaved=false; _odmMeta=odmLerMeta(_odmTask); odmTelaDaTarefa(_odmMeta); $('odmTaskCard').classList.remove('hidden'); if(odmUrlVal()) odmStartPoll(); }
+  window.addEventListener('beforeunload',e=>{ if(_odmEnvio || (_odmTask && !_odmSaved && !_odmSavedMode)){ e.preventDefault(); e.returnValue=''; return ''; } });   // envio em andamento também se perde ao sair
   $('importJson').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(f) importProjectFile(f); e.target.value=''; });
   $('photoInput').addEventListener('change',e=>{ const fs=e.target.files; if(fs&&fs.length) handlePhotoFiles(fs); e.target.value=''; });
   $('mosaicOpacity').addEventListener('input',()=>{ $('mosaicOpacityVal').textContent=$('mosaicOpacity').value+'%'; setMosaicOpacity(); });
@@ -1574,7 +1588,10 @@ async function handleRasterFile(file,cheia){
     rasterNote(full?'':rasterReducedNote(factor,srcW,srcH,cheiaBytes));
     renderCRS();
     toast('Raster carregado ✅');
-  }catch(e){ console.error('[Raster]',e); toast('Erro ao ler raster: '+e.message,'error'); rasterStatus(''); rasterNote(''); }
+  }catch(e){ console.error('[Raster]',e);
+    // o arquivo extraído de uma tarefa mora numa área temporária, apagada ao descartar/fechar a tarefa: reler depois disso falha
+    const sumiu=e&&(e.name==='NotFoundError'||e.name==='NotReadableError');
+    toast(sumiu?'O arquivo temporário deste produto já foi apagado — abra-o de novo pela aba ⚙️ Processar.':'Erro ao ler raster: '+e.message,'error'); rasterStatus(''); rasterNote(''); }
 }
 /* Aviso de resolução reduzida. Existe porque o app é ferramenta de MEDIÇÃO: quem
    roda estatística zonal ou índice sobre um raster reamostrado tem de saber em que
@@ -2568,10 +2585,12 @@ function odmOnImages(fs){
   });
 }
 function odmResEscolha(){ const s=$('odmRes'); return (s&&s.value)||'native'; }
-// resolução (cm/px) que será PEDIDA ao ODM; null = não pedir nada (fica o padrão dele)
-function odmResValor(){
+// resolução (cm/px) que será PEDIDA ao ODM; null = não pedir nada (fica o padrão dele).
+// `gsdFixo`: o GSD registrado de uma tarefa que já existe (reprocessar) — vale mais que o das fotos
+// escolhidas agora na tela, que podem ser de outro voo.
+function odmResValor(gsdFixo){
   const m=odmResEscolha(); if(m==='odm5') return null;
-  const k=(m==='2x')?2:1, g=(_odmExif&&_odmExif.gsd>0)?_odmExif.gsd:null;
+  const k=(m==='2x')?2:1, g=(gsdFixo>0)?gsdFixo:((_odmExif&&_odmExif.gsd>0)?_odmExif.gsd:null);
   return g ? Math.round(g*k*100)/100 : k;   // sem estimativa: pede 1 (ou 2) cm e o ODM limita pelo GSD que ele mesmo estima
 }
 function odmRenderOpcoes(){
@@ -2601,10 +2620,22 @@ function odmInitOpcoes(){
   if($('odmRS')) $('odmRS').checked=(rs==='1');
   odmRenderOpcoes();
 }
+/* Ao reabrir o app com uma tarefa no card, a tela volta a mostrar as opções com que ELA foi feita.
+   Sem isso, saída e "Economizar RAM" voltavam ao padrão e a correção de obturador — que o app marca
+   sozinho ao ler as fotos, sem guardar — aparecia desmarcada: o 🔁 Reprocessar, que usa as opções da
+   tela, deixava a correção cair sem ninguém ter pedido (visto no Chrome real em 2026-11-15). */
+function odmTelaDaTarefa(m){
+  if(!m||!m.modo) return;
+  const r=document.querySelector('input[name="odmOut"][value="'+m.modo+'"]'); if(r) r.checked=true;
+  const s=$('odmRes'); if(s&&m.resEscolha&&[...s.options].some(o=>o.value===m.resEscolha)) s.value=m.resEscolha;
+  if($('odmRS')) $('odmRS').checked=!!m.rs;
+  if($('odmLite')) $('odmLite').checked=!!m.lite;
+  odmRenderOpcoes();
+}
 // monta as opções a partir da tela. FONTE ÚNICA: o envio e o texto de Material e Métodos saem daqui.
-function odmMontarOpcoes(){
+function odmMontarOpcoes(gsdFixo){
   const out=(document.querySelector('input[name="odmOut"]:checked')||{}).value||'fast', denso=out!=='fast';
-  const lite=!!($('odmLite')&&$('odmLite').checked), rs=!!($('odmRS')&&$('odmRS').checked), res=odmResValor();
+  const lite=!!($('odmLite')&&$('odmLite').checked), rs=!!($('odmRS')&&$('odmRS').checked), res=odmResValor(gsdFixo);
   const opts=[];
   if(out==='fast') opts.push({name:'fast-orthophoto',value:true});                                   // só ortomosaico, pela nuvem esparsa
   else if(out==='dsm'){ opts.push({name:'dsm',value:true}); opts.push({name:'skip-3dmodel',value:true}); }   // DSM + orto SEM modelo 3D: pula a texturização (a etapa que estoura a RAM)
@@ -2619,8 +2650,15 @@ function odmMontarOpcoes(){
     if(denso) opts.push({name:'pc-quality',value:'low'});               // só existe nuvem densa nos modos com DSM
     const nuc=_odmInfo&&+_odmInfo.cpuCores; if(nuc>0) opts.push({name:'max-concurrency',value:Math.max(2,Math.floor(nuc/2))});   // ~1 GB de pico por thread
   }
-  return {opts, meta:{modo:out, lite, rs, res, resEscolha:odmResEscolha(), gsd:(_odmExif&&_odmExif.gsd>0)?Math.round(_odmExif.gsd*100)/100:null}};
+  const gsd=(gsdFixo>0)?gsdFixo:((_odmExif&&_odmExif.gsd>0)?_odmExif.gsd:null);
+  return {opts, meta:{modo:out, lite, rs, res, resEscolha:odmResEscolha(), gsd:gsd?Math.round(gsd*100)/100:null}};
 }
+// separa o que ESTE servidor conhece do que ele descartaria calado; sem a lista dele, vai tudo (como antes)
+async function odmFiltrarOpcoes(u,opts){
+  const conhecidas=await odmCarregarOpcoes(u);
+  return conhecidas ? {aceitas:opts.filter(o=>conhecidas.has(o.name)), ignoradas:opts.filter(o=>!conhecidas.has(o.name)).map(o=>o.name)} : {aceitas:opts, ignoradas:[]};
+}
+function odmAvisoIgnoradas(ig){ return ig.length ? ' · ⚠️ Esta versão do ODM não tem '+(ig.length>1?'as opções ':'a opção ')+ig.join(', ')+' — '+(ig.length>1?'ignoradas':'ignorada')+'.' : ''; }
 // nomes das opções que ESTE servidor conhece (GET /options). O NodeODM descarta opção desconhecida
 // SEM avisar — foi assim que `resize-to`, que não existe no ODM 3.5.6, ficou meses sem fazer nada.
 let _odmOpts=null, _odmOptsUrl=null;   // null = não deu para saber (aí o app envia tudo, como antes)
@@ -2666,23 +2704,128 @@ async function odmTest(){ const u=odmUrlVal(); if(!u){ toast('Informe a URL do N
       : rec==='http' ? '❌ Não conectou ('+msg+'): esta página é https e o endereço é http:// fora deste computador — o navegador recusa. Use o NodeODM por https (ex.: Cloudflare Tunnel).'
       : '❌ Não conectou ('+msg+'). NodeODM rodando? URL certa?', true);
     odmRenderHint(); } }
-async function odmCreate(){ const u=odmUrlVal(); if(!u){ toast('Configure e teste a URL do NodeODM','error'); return; }
+/* ───── Envio das fotos em PARTES (v1.26.0) ─────
+   Até a v1.25.0 todas as fotos iam num único POST /task/new: 300 fotos de 9,5 MB são ~2,9 GB num
+   pedido só, sem progresso (o fetch não informa o andamento de um envio), sem repetição — qualquer
+   oscilação de rede perdia tudo — e sem como cancelar. Um proxy que limite o corpo do pedido
+   (túneis e CDNs costumam limitar a ~100 MB) barrava qualquer conjunto real no modo Servidor.
+   O NodeODM tem a rota em três passos, lida no código dele (2.2.4) em 2026-11-15:
+     POST /task/new/init          multipart: name, options  -> {uuid}   (ainda não é tarefa)
+     POST /task/new/upload/<uuid> multipart: images[]       -> {success:true}
+     POST /task/new/commit/<uuid>                           -> {uuid}   (aqui a tarefa passa a existir)
+   Erro vem como HTTP 200 + {error}. Envio abandonado fica em tmp/<uuid> e o servidor apaga sozinho
+   (cleanupUploadsAfter, 2 dias por padrão) — não há rota para apagar antes do commit.
+   Limite conhecido: se um lote CHEGA e só a resposta se perde, a repetição manda as mesmas fotos de
+   novo e o servidor as guarda com outro nome. Por isso o card compara, depois, o número de imagens
+   do servidor com o de fotos escolhidas e avisa se diferir. */
+const ODM_LOTE_BYTES=40e6, ODM_LOTE_ARQS=4, ODM_LOTE_PARALELO=2;   // tamanho de cada pedido e quantos vão ao mesmo tempo (escolha do app)
+const ODM_LOTE_ESPERAS=[1000,3000,9000];                           // ms antes de cada nova tentativa de um lote que falhou
+let _odmEnvio=null;                                                // {ctrl} enquanto há envio em andamento — também é a trava de duplo clique
+function odmLotes(files){
+  const lotes=[]; let atual=[], tam=0;
+  for(const f of files){
+    if(atual.length&&(atual.length>=ODM_LOTE_ARQS||tam+(f.size||0)>ODM_LOTE_BYTES)){ lotes.push(atual); atual=[]; tam=0; }
+    atual.push(f); tam+=(f.size||0);
+  }
+  if(atual.length) lotes.push(atual);
+  return lotes;
+}
+function odmDormir(ms,signal){ return new Promise((res,rej)=>{ const t=setTimeout(res,ms); if(signal) signal.addEventListener('abort',()=>{ clearTimeout(t); rej(new DOMException('cancelado','AbortError')); },{once:true}); }); }
+// pedido ao NodeODM que devolve JSON; HTTP de erro vira exceção com a mensagem do servidor
+async function odmPedir(url,opts){ const r=await fetch(url,opts); const j=await r.json().catch(()=>null); if(!r.ok) throw new Error((j&&j.error)||('HTTP '+r.status)); return j||{}; }
+function odmEnvioProgresso(feitas,total,txt){ const f=$('odmEnvioFill'), t=$('odmEnvioTxt'); if(f) f.style.width=(total?Math.round(feitas/total*100):0)+'%'; if(t) t.textContent=txt||''; }
+function odmEnvioUI(ativo){ const b=$('odmCreateBtn'), box=$('odmEnvio'); if(b) b.disabled=!!ativo; if(box) box.classList.toggle('hidden',!ativo); if(!ativo) odmEnvioProgresso(0,0,''); }
+function odmCancelarEnvio(){ if(_odmEnvio) _odmEnvio.ctrl.abort(); }
+async function odmCreate(){
+  if(_odmEnvio) return;   // já há um envio em andamento: um segundo clique criaria outra tarefa e outro envio
+  const u=odmUrlVal(); if(!u){ toast('Configure e teste a URL do NodeODM','error'); return; }
   if(!_odmFiles||!_odmFiles.length){ toast('Selecione as imagens','error'); return; }
   if(_odmFiles.length<5 && !confirm('Poucas imagens ('+_odmFiles.length+'). O ODM costuma precisar de dezenas. Continuar?')) return;
-  if(_odmExifP){ odmStatus('Lendo a altura de voo nas fotos…'); await _odmExifP; }   // a resolução pedida depende desta leitura
-  if(!_odmInfo){ try{ const r=await fetch(u+'/info'); if(r.ok) _odmInfo=await r.json(); }catch(e){} }   // versão do ODM e núcleos, p/ o registro da tarefa
-  const {opts,meta}=odmMontarOpcoes();
-  const conhecidas=await odmCarregarOpcoes(u);
-  const aceitas=conhecidas?opts.filter(o=>conhecidas.has(o.name)):opts, ignoradas=conhecidas?opts.filter(o=>!conhecidas.has(o.name)).map(o=>o.name):[];
-  const fd=new FormData(); _odmFiles.forEach(f=>fd.append('images',f,f.name)); fd.append('name',($('odmName').value||'ortofly').trim()); fd.append('options',JSON.stringify(aceitas));
-  odmStatus('Enviando '+_odmFiles.length+' imagens… (pode demorar)');
-  try{ const r=await fetch(u+'/task/new',{method:'POST',body:fd}); const j=await r.json().catch(()=>({})); if(!r.ok||!j.uuid) throw new Error(j.error||('HTTP '+r.status));
+  const ctrl=new AbortController(), files=_odmFiles.slice(), total=files.length;
+  let uuid=null, criada=false;
+  _odmEnvio={ctrl}; odmEnvioUI(true); odmEnvioProgresso(0,total,'Preparando o envio…');
+  try{
+    if(_odmExifP){ odmStatus('Lendo a altura de voo nas fotos…'); await _odmExifP; }   // a resolução pedida depende desta leitura
+    if(!_odmInfo){ try{ const r=await fetch(u+'/info',{signal:ctrl.signal}); if(r.ok) _odmInfo=await r.json(); }catch(e){} }   // versão do ODM e núcleos, p/ o registro da tarefa
+    if(ctrl.signal.aborted) throw new DOMException('cancelado','AbortError');
+    const {opts,meta}=odmMontarOpcoes();
+    const {aceitas,ignoradas}=await odmFiltrarOpcoes(u,opts);
+    // 1) abre a tarefa: nome e opções (o servidor já recusa aqui uma opção com valor inválido)
+    const fdI=new FormData(); fdI.append('name',($('odmName').value||'ortofly').trim()); fdI.append('options',JSON.stringify(aceitas));
+    const ji=await odmPedir(u+'/task/new/init',{method:'POST',body:fdI,signal:ctrl.signal});
+    if(!ji.uuid) throw new Error(ji.error||'o servidor não abriu a tarefa');
+    uuid=ji.uuid; odmTrack(uuid);
+    // 2) as fotos, em lotes: cada lote é um pedido pequeno, que pode ser repetido sozinho
+    const fila=odmLotes(files); let feitas=0;
+    const mostra=()=>{ const t='Enviando '+feitas+'/'+total+' fotos ('+Math.round(feitas/total*100)+' %)…'; odmEnvioProgresso(feitas,total,t); odmStatus(t); };
+    const enviarLote=async lote=>{
+      for(let tent=0;;tent++){
+        try{
+          const fd=new FormData(); lote.forEach(f=>fd.append('images',f,f.name));
+          const j=await odmPedir(u+'/task/new/upload/'+uuid,{method:'POST',body:fd,signal:ctrl.signal});
+          if(j.success) return;
+          throw Object.assign(new Error(j.error||'o servidor não confirmou o recebimento das fotos'),{semRepetir:!!j.noRetry||/Invalid uuid/i.test(j.error||'')});
+        }catch(e){
+          if(ctrl.signal.aborted||e.semRepetir||tent>=ODM_LOTE_ESPERAS.length) throw e;
+          odmStatus('Falha ao enviar um lote ('+e.message+') — nova tentativa em '+Math.round(ODM_LOTE_ESPERAS[tent]/1000)+' s…');
+          await odmDormir(ODM_LOTE_ESPERAS[tent],ctrl.signal);
+        }
+      }
+    };
+    const trabalhador=async()=>{ while(fila.length){ const lote=fila.shift(); await enviarLote(lote); feitas+=lote.length; mostra(); } };
+    mostra();
+    try{ await Promise.all(Array.from({length:Math.min(ODM_LOTE_PARALELO,fila.length)},trabalhador)); }
+    catch(e){ fila.length=0; throw e; }   // um lote desistiu: ninguém pega lote novo
+    // 3) fecha o envio — é só aqui que a tarefa passa a existir no servidor e entra na fila
+    odmEnvioProgresso(total,total,'Fotos enviadas — iniciando o processamento…');
+    const jc=await odmPedir(u+'/task/new/commit/'+uuid,{method:'POST',signal:ctrl.signal});
+    if(!jc.uuid) throw new Error(jc.error||'o servidor não iniciou a tarefa');
+    criada=true;
     _odmSaved=false; _odmSavedMode=false; _odmZip=null; _odmZipFor=null; _odmZipRaw=null; _odmResultProj=null;   // sem isso, vindo de um resultado salvo, o card da tarefa nova mostraria o zip ANTIGO e esconderia o 💾 Salvar
-    _odmTask=j.uuid; localStorage.setItem(LS+'_odm_task',j.uuid); odmTrack(j.uuid);
-    odmGuardarMeta(j.uuid,{...meta, options:aceitas, n:_odmFiles.length, engineVersion:(_odmInfo&&_odmInfo.engineVersion)||null, nodeVersion:(_odmInfo&&_odmInfo.version)||null, ts:Date.now()});
-    odmStatus('✅ Tarefa criada: '+j.uuid+(ignoradas.length?' · ⚠️ Esta versão do ODM não tem '+(ignoradas.length>1?'as opções ':'a opção ')+ignoradas.join(', ')+' — '+(ignoradas.length>1?'ignoradas':'ignorada')+'.':''));
+    _odmTask=uuid; localStorage.setItem(LS+'_odm_task',uuid);
+    odmGuardarMeta(uuid,{...meta, options:aceitas, n:total, engineVersion:(_odmInfo&&_odmInfo.engineVersion)||null, nodeVersion:(_odmInfo&&_odmInfo.version)||null, ts:Date.now()});
+    odmStatus('✅ Tarefa criada: '+uuid+odmAvisoIgnoradas(ignoradas));
     $('odmTaskCard').classList.remove('hidden'); $('odmOutputs').classList.add('hidden'); odmRenderTaskOpts(aceitas); odmStartPoll(); toast('Tarefa enviada ✅');
-  }catch(e){ console.error('[ODM] create',e); odmStatus('❌ Falha ao criar tarefa: '+e.message,true); toast('Falha: '+e.message,'error'); } }
+  }catch(e){
+    const cancelado=ctrl.signal.aborted;
+    // antes do passo 3 a tarefa ainda não existe: as fotos que chegaram ficam numa área temporária que o
+    // próprio NodeODM apaga (cleanupUploadsAfter). O remove cobre o caso raro de o passo 3 ter sido aceito
+    // e só a resposta ter se perdido.
+    if(uuid&&!criada){ ctrl.abort(); await odmRemoveServer(uuid); odmUntrack(uuid); }
+    if(cancelado){ odmStatus('Envio cancelado. Nada entrou na fila do NodeODM; as fotos que já tinham chegado ficam numa área temporária, que o servidor apaga sozinho.'); toast('Envio cancelado'); }
+    else { console.error('[ODM] create',e); odmStatus('❌ Falha ao criar tarefa: '+e.message+(uuid&&!criada?'. Nada entrou na fila do NodeODM — confira a conexão e envie de novo.':''),true); toast('Falha: '+e.message,'error'); }
+  }finally{ _odmEnvio=null; odmEnvioUI(false); }
+}
+/* Reprocessar sem reenviar as fotos (v1.26.0). POST /task/restart aceita `uuid` + `options` (JSON em
+   texto) em urlencoded, e só para tarefa concluída, falha ou cancelada — lido no código do NodeODM 2.2.4
+   em 2026-11-15; as opções novas SUBSTITUEM as antigas. Antes, trocar de modo ou de resolução exigia
+   descartar a tarefa e enviar todas as fotos outra vez. */
+async function odmReprocessar(){
+  const u=odmUrlVal(), uuid=_odmTask;
+  if(!u||!uuid){ toast(_odmSavedMode?'Este resultado está salvo no app: a tarefa já não existe no servidor para ser reprocessada':'Sem tarefa no servidor para reprocessar','error'); return; }
+  const {opts,meta}=odmMontarOpcoes((_odmMeta&&_odmMeta.gsd>0)?_odmMeta.gsd:null);   // o GSD é o das fotos DESTA tarefa
+  const {aceitas,ignoradas}=await odmFiltrarOpcoes(u,opts);
+  const lista=aceitas.map(o=>o.value===true?o.name:(o.name+' '+o.value)).join(' · ');
+  // modo novo que gera MENOS produtos: os antigos ficam no servidor e no pacote (ver odmSemDsm)
+  const ORD={fast:0,dsm:1,full:2}, antes=_odmMeta&&_odmMeta.modo, menos=!!antes&&ORD[meta.modo]<ORD[antes];
+  const sobra=menos ? (meta.modo==='dsm'?'o modelo 3D':(antes==='full'?'o DSM e o modelo 3D':'o DSM')) : '';
+  if(!confirm('Reprocessar esta tarefa com as opções que estão na tela?\n\n'+lista+'\n\nAs fotos já estão no servidor e não são reenviadas. Os produtos atuais serão substituídos.'
+    +(menos?'\n\n⚠️ O modo escolhido gera menos produtos que o anterior, e o NodeODM não apaga os antigos: o pacote (.zip) continuará trazendo '+sobra+' do processamento anterior, que não corresponde ao ortomosaico novo. Para um pacote limpo, descarte a tarefa e envie as fotos de novo.':''))) return;
+  odmStatus('Pedindo o reprocessamento…');
+  try{
+    const j=await odmPedir(u+'/task/restart',{method:'POST',body:new URLSearchParams({uuid,options:JSON.stringify(aceitas)})});
+    if(!j.success) throw new Error(j.error||'o servidor não aceitou o reprocessamento');
+    if(uuid!==_odmTask) return;   // o card mudou de tarefa enquanto a resposta vinha
+    _odmZip=null; _odmZipFor=null; _odmZipRaw=null; _opfsLimpar(); _odmSaved=false;   // o pacote baixado é do processamento anterior
+    odmGuardarMeta(uuid,{...meta, options:aceitas, n:(_odmMeta&&_odmMeta.n)||null,
+      engineVersion:(_odmInfo&&_odmInfo.engineVersion)||(_odmMeta&&_odmMeta.engineVersion)||null, nodeVersion:(_odmInfo&&_odmInfo.version)||(_odmMeta&&_odmMeta.nodeVersion)||null, ts:Date.now()});
+    $('odmOutputs').classList.add('hidden'); odmRenderTaskOpts(aceitas);
+    odmStatus('🔁 Reprocessando com as opções da tela — as fotos não foram reenviadas.'+(menos?' ⚠️ O pacote (.zip) ainda trará '+sobra+' do processamento anterior.':'')+odmAvisoIgnoradas(ignoradas)); odmStartPoll(); toast('Reprocessamento pedido ✅');
+  }catch(e){
+    console.error('[ODM] restart',e);
+    odmStatus('❌ Não consegui reprocessar: '+e.message+(/cannot be restarted/i.test(e.message)?' — a tarefa ainda está em andamento: cancele antes, ou espere terminar.':''),true); toast('Falha ao reprocessar','error');
+  }
+}
 function odmStartPoll(){ if(_odmPoll) clearInterval(_odmPoll); odmRefresh(); _odmPoll=setInterval(odmRefresh,5000); }
 function odmClearCard(){ if(_odmPoll) clearInterval(_odmPoll); _opfsLimpar(); _odmTask=null; _odmZip=null; _odmZipFor=null; _odmZipRaw=null; _odmSavedMode=false; _odmResultProj=null; _odmSaved=false; _odmMeta=null; localStorage.removeItem(LS+'_odm_task'); $('odmTaskCard').classList.add('hidden'); $('odmOutputs').classList.add('hidden'); odmRenderTaskOpts(null); odmStatus(''); }
 /* O NodeODM responde HTTP 200 com {"error":"<uuid> not found"} quando a tarefa não existe mais
@@ -2694,7 +2837,9 @@ function odmTaskErro(msg){
   const ob=$('odmBar'); if(ob) ob.style.display='none';
   if(!/not found/i.test(msg||'')){ $('odmTaskStatus').textContent='O NodeODM respondeu com erro: '+msg; return; }
   odmUntrack(_odmTask); _odmSaved=true;   // não há nada a perder: desliga o aviso de saída da página
-  $('odmTaskStatus').textContent='Esta tarefa não existe mais no NodeODM — foi apagada por fora do app ou o servidor foi recriado.';
+  // três caminhos levam aqui: limpeza pelo terminal, container recriado, e o mais comum — o próprio NodeODM apaga as
+  // tarefas terminadas há mais de `cleanupTasksAfter` (2 dias por padrão; conferido no código do 2.2.4 em 2026-11-15)
+  $('odmTaskStatus').textContent='Esta tarefa não existe mais no NodeODM — ele apaga sozinho as tarefas terminadas há mais de 2 dias, ou ela foi apagada por fora do app (terminal, servidor recriado).';
   const box=$('odmOutputs'); if(!box) return;
   box.classList.remove('hidden');
   box.innerHTML='<p class="hint">O servidor não tem mais nada registrado para ela.</p><button class="btn sm block" onclick="odmClearCard()">✕ Fechar</button>';
@@ -2707,7 +2852,9 @@ async function odmRefresh(){ const u=odmUrlVal(), uuid=_odmTask; if(!u||!uuid) r
     odmRenderTaskOpts(j.options);   // o que o SERVIDOR aceitou — não o que o app acha que mandou
     const codes={10:'na fila',20:'processando',30:'falhou',40:'concluído',50:'cancelado'}; const st=j.status&&j.status.code;
     const pct=(st===20&&j.progress!=null)?Math.round(j.progress):null;
-    $('odmTaskStatus').textContent=`${j.name||_odmTask} · ${codes[st]||(st!=null?'código '+st:'status desconhecido')}${pct!=null?' · '+pct+'%':''}${j.imagesCount?' · '+j.imagesCount+' img':''}`;
+    $('odmTaskStatus').textContent=`${j.name||_odmTask} · ${codes[st]||(st!=null?'código '+st:'status desconhecido')}${pct!=null?' · '+pct+'%':''}${j.imagesCount?' · '+j.imagesCount+' img':''}`
+      // o envio em lotes pode duplicar fotos se uma resposta se perde e o lote é repetido: o servidor é quem sabe quantas tem
+      +((_odmMeta&&_odmMeta.n&&j.imagesCount&&j.imagesCount!==_odmMeta.n)?` · ⚠️ foram escolhidas ${_odmMeta.n} fotos e o servidor tem ${j.imagesCount}`+(j.imagesCount>_odmMeta.n?' (um lote pode ter chegado duas vezes) — descarte e envie de novo':' (alguma foto não foi aceita)'):'');
     const ob=$('odmBar'),ofl=$('odmBarFill'); if(ob){ if(st===20){ ob.style.display='block'; if(ofl) ofl.style.width=(pct||0)+'%'; } else ob.style.display='none'; }
     if(st===40){ if(_odmPoll) clearInterval(_odmPoll); odmShowOutputs(); }
     else if(st===30||st===50){ if(_odmPoll) clearInterval(_odmPoll); odmShowFailure(st, j.status&&j.status.errorMessage); }
@@ -2720,7 +2867,7 @@ function odmShowOutputs(){ const box=$('odmOutputs'); if(!box) return; box.class
     '<button class="btn sm" title="Pacote .zip com TODOS os produtos do ODM (ortomosaico, DSM, nuvem, malha 3D, relatório, metadados). Veja o README para o conteúdo." onclick="odmDownload(\'all.zip\')">⬇ Tudo (.zip)</button>'+
     '</div>'+(saved
       ? '<p class="hint">Guardado no app (acessível offline). Para apagar, exclua o projeto na lista de projetos.</p>'
-      : '<div class="btn-grid" style="margin-top:8px"><button class="btn sm" title="Guarda os produtos no app e APAGA a tarefa do NodeODM (libera o disco). Fica acessível mesmo com o NodeODM desligado." onclick="odmSaveResult()">💾 Salvar no projeto</button><button class="btn sm" title="Apaga as fotos e produtos do NodeODM (libera o disco) sem salvar." onclick="odmDiscard()">🗑️ Descartar</button></div><p class="hint">⚠️ Os dados ocupam disco no NodeODM até você <b>Salvar</b> (guarda no app + libera o servidor) ou <b>Descartar</b>. Esta versão entrega tudo no <b>all.zip</b> — o app baixa e extrai.</p>'); }
+      : '<div class="btn-grid" style="margin-top:8px"><button class="btn sm" title="Guarda os produtos no app e APAGA a tarefa do NodeODM (libera o disco). Fica acessível mesmo com o NodeODM desligado." onclick="odmSaveResult()">💾 Salvar no projeto</button><button class="btn sm" title="Apaga as fotos e produtos do NodeODM (libera o disco) sem salvar." onclick="odmDiscard()">🗑️ Descartar</button></div><p class="hint">⚠️ Os dados ocupam disco no NodeODM até você <b>Salvar</b> (guarda no app + libera o servidor) ou <b>Descartar</b>. <b>Não deixe para depois:</b> por padrão o NodeODM apaga sozinho as tarefas terminadas há mais de <b>2 dias</b>. Esta versão entrega tudo no <b>all.zip</b> — o app baixa e extrai.</p>'); }
 /* falha/cancelamento: mostra o motivo REAL do NodeODM (errorMessage + log do ODM), em vez de chutar "disco cheio" */
 function odmShowFailure(st,err){ const box=$('odmOutputs'); if(!box) return; box.classList.remove('hidden');
   const head=st===30?'❌ A tarefa <b>falhou</b>':'⏹️ Tarefa <b>cancelada</b>';
@@ -2809,19 +2956,44 @@ async function zipAbrir(blob){
            async extrair(nome){ return {blob:await z.files[nome].async('blob'), name:nome.split('/').pop()}; } };
 }
 let _odmZip=null,_odmZipFor=null;
+let _odmZipP=null,_odmZipPFor=null;   // download do pacote em andamento, e de qual tarefa (v1.26.0)
+const _mb=b=>(b/1048576).toFixed(b<10485760?1:0).replace('.',',');
 async function odmGetZip(){ if(_odmZip&&(_odmSavedMode||_odmZipFor===_odmTask)) return _odmZip;
-  const u=odmUrlVal(); if(!u||!_odmTask) throw new Error('sem tarefa');
-  odmStatus('Baixando pacote (all.zip)… pode demorar'); toast('Baixando all.zip…');
-  const r=await fetch(u+'/task/'+_odmTask+'/download/all.zip'); if(!r.ok) throw new Error('HTTP '+r.status);
-  // MEDIDO no Safari (19/08): `await r.blob()` de um pacote de 887 MB leva a memória a
-  // ~2,2 GB e SEGURA — o WebKit só assenta o Blob em disco depois. Trocar arrayBuffer por
-  // blob melhorou o repouso (1134 -> ~100 MB) e NÃO melhorou o pico. O corpo da resposta
-  // vai direto para o disco, em fluxo, e é lido de volta como arquivo.
-  _odmZipRaw = (r.body && navigator.storage && navigator.storage.getDirectory)
-    ? await _paraOPFS(r.body,'all.zip')                  // fluxo -> disco, sem passar pela memória
-    : await r.blob();                                    // sem OPFS: como antes (o pico é o preço)
-  _odmZip=await zipAbrir(_odmZipRaw); _odmZipFor=_odmTask; odmStatus('Pacote baixado ✅'); return _odmZip; }
-async function odmExtract(kind){ const zip=await odmGetZip(); const re=ODM_RE[kind];
+  const u=odmUrlVal(), uuid=_odmTask; if(!u||!uuid) throw new Error('sem tarefa');
+  // Um download por tarefa. Até a v1.25.0, clicar em Ortomosaico e em DSM em seguida (ou em Salvar durante
+  // um download) abria dois fluxos gravando no MESMO arquivo do OPFS: pacote corrompido ou erro de bloqueio.
+  if(!(_odmZipP&&_odmZipPFor===uuid)){
+    _odmZipPFor=uuid;
+    _odmZipP=(async()=>{
+      odmStatus('Baixando o pacote (all.zip)…'); toast('Baixando all.zip…');
+      const r=await fetch(u+'/task/'+uuid+'/download/all.zip'); if(!r.ok) throw new Error('HTTP '+r.status);
+      // progresso: o corpo passa por um contador a caminho do disco (o tamanho total só vem se o servidor mandar Content-Length)
+      const total=+(r.headers&&r.headers.get&&r.headers.get('Content-Length'))||0; let lidos=0, visto=0;
+      const conta=(typeof TransformStream==='function') ? new TransformStream({transform(parte,saida){
+        lidos+=parte.byteLength; const agora=Date.now();
+        if(agora-visto>400){ visto=agora; odmStatus('Baixando o pacote (all.zip)… '+_mb(lidos)+(total?' de '+_mb(total):'')+' MB'); }
+        saida.enqueue(parte); }}) : null;
+      // MEDIDO no Safari (19/08): `await r.blob()` de um pacote de 887 MB leva a memória a
+      // ~2,2 GB e SEGURA — o WebKit só assenta o Blob em disco depois. Trocar arrayBuffer por
+      // blob melhorou o repouso (1134 -> ~100 MB) e NÃO melhorou o pico. O corpo da resposta
+      // vai direto para o disco, em fluxo, e é lido de volta como arquivo.
+      const bruto = (r.body && navigator.storage && navigator.storage.getDirectory)
+        ? await _paraOPFS(r.body.pipeThrough&&conta ? r.body.pipeThrough(conta) : r.body,'all.zip')   // fluxo -> disco, sem passar pela memória
+        : await r.blob();                                    // sem OPFS: como antes (o pico é o preço)
+      const zip=await zipAbrir(bruto);
+      if(_odmTask!==uuid) throw new Error('a tarefa mudou durante o download');
+      _odmZipRaw=bruto; _odmZip=zip; _odmZipFor=uuid; odmStatus('Pacote baixado ✅ ('+_mb(bruto.size)+' MB)');
+    })().finally(()=>{ if(_odmZipPFor===uuid){ _odmZipP=null; _odmZipPFor=null; } });
+  }
+  await _odmZipP; return _odmZip; }
+/* O pacote pode trazer produto de um processamento ANTERIOR. Medido em 2026-11-16: uma tarefa feita com
+   DSM e depois reprocessada no modo Rápido (POST /task/restart) continua com o dsm.tif antigo na pasta e
+   no all.zip — o NodeODM não apaga o que o modo novo não regenera. Esse DSM é de outra reconstrução e pode
+   estar a metros do ortomosaico novo; o app só abre o DSM quando o registro da tarefa diz que ele foi gerado. */
+function odmSemDsm(){ return !!(_odmMeta&&_odmMeta.modo==='fast'); }
+async function odmExtract(kind){
+  if((kind==='dsm'||kind==='dtm')&&odmSemDsm()) throw new Error('esta tarefa foi processada no modo Rápido, que não gera DSM. Se o pacote tiver um dsm.tif, ele é de um processamento anterior e não corresponde a este ortomosaico — use 🔁 Reprocessar com "DSM + ortomosaico".');
+  const zip=await odmGetZip(); const re=ODM_RE[kind];
   const n=zip.names().find(k=>re.test(k)); if(!n) throw new Error((kind==='dsm'||kind==='dtm')?'DSM não gerado nesta tarefa — escolha "DSM + ortomosaico" ou "Completo" ao criar.':'não achei "'+kind+'" no all.zip');
   return await zip.extrair(n); }
 async function odmFetch(asset){ const u=odmUrlVal(); const r=await fetch(u+'/task/'+_odmTask+'/download/'+asset); if(!r.ok) throw new Error('HTTP '+r.status); return await r.blob(); }
@@ -2853,10 +3025,14 @@ async function odmCancel(){
 
 /* ───── Ciclo de vida limpo: salvar no app (IndexedDB) + apagar do NodeODM ───── */
 const IDB_NAME='ortofly_db', IDB_STORE='results';
-function _idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open(IDB_NAME,1); r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains(IDB_STORE)) r.result.createObjectStore(IDB_STORE); }; r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
-async function idbPut(k,v){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).put(v,k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
-async function idbGet(k){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readonly'); const q=tx.objectStore(IDB_STORE).get(k); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); }); }
-async function idbDel(k){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).delete(k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
+/* Quando falta espaço, o IndexedDB não dispara `onerror` na transação: ele a ABORTA (`onabort`). Até a
+   v1.25.0 só `oncomplete` e `onerror` eram tratados, então a promessa nunca resolvia e a tela ficava em
+   "Salvando no app…" para sempre, sem erro. `onblocked`: outra aba segura uma versão antiga do banco. */
+const _idbFalha=(tx,oque)=>(tx&&tx.error)||new Error(oque+' — falta espaço no navegador?');
+function _idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open(IDB_NAME,1); r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains(IDB_STORE)) r.result.createObjectStore(IDB_STORE); }; r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); r.onblocked=()=>rej(new Error('o armazenamento do app está em uso por outra aba — feche-a e tente de novo')); }); }
+async function idbPut(k,v){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).put(v,k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(_idbFalha(tx,'gravação recusada')); tx.onabort=()=>rej(_idbFalha(tx,'gravação interrompida')); }); }
+async function idbGet(k){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readonly'); const q=tx.objectStore(IDB_STORE).get(k); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); tx.onabort=()=>rej(_idbFalha(tx,'leitura interrompida')); }); }
+async function idbDel(k){ const db=await _idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).delete(k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(_idbFalha(tx,'exclusão recusada')); tx.onabort=()=>rej(_idbFalha(tx,'exclusão interrompida')); }); }
 // Remove a tarefa do servidor. Devolve {ok, motivo}: o motivo é o que o NodeODM respondeu (ou a falha
 // de rede), para a tela dizer a causa real em vez de chutar "servidor offline".
 async function odmRemoveServer(uuid){
@@ -2932,18 +3108,31 @@ async function odmSaveResult(){
     odmStatus('Salvando no app… (baixando o pacote, pode demorar)'); toast('Salvando…');
     await odmGetZip(); if(!_odmZipRaw) throw new Error('pacote indisponível');
     const nomes=_odmZip.names();
-    const has={ dsm:nomes.some(k=>ODM_RE.dsm.test(k)), laz:nomes.some(k=>ODM_RE.laz.test(k)) };
+    const has={ dsm:!odmSemDsm()&&nomes.some(k=>ODM_RE.dsm.test(k)), laz:nomes.some(k=>ODM_RE.laz.test(k)) };   // dsm.tif de processamento anterior não conta
     const arr=loadProjects(); let rec=arr.find(p=>p.name.toLowerCase()===name.toLowerCase());
     if(!rec){ rec={ id:slug(name)+'_'+Date.now().toString(36), name, ts:Date.now(), data:(state.polygon.length>=3?snapshot():{}) }; arr.unshift(rec); }
     rec.result={ ts:Date.now(), size:_odmZipRaw.size, has, meta:(_odmMeta||odmLerMeta(_odmTask)||null) };   // o registro do que foi pedido viaja com o resultado salvo
+    // cabe? O pacote já ocupa espaço no navegador (área temporária) e vai ser gravado de novo, no banco do app.
+    // Conferir ANTES evita gravar meio pacote e, sobretudo, nunca se apaga a tarefa do servidor sem a cópia garantida.
+    if(navigator.storage&&navigator.storage.estimate){
+      let est=null; try{ est=await navigator.storage.estimate(); }catch(e){}
+      const livre=est&&est.quota?(est.quota-(est.usage||0)):null;
+      if(livre!=null&&livre<_odmZipRaw.size*1.1) throw new Error('falta espaço no navegador para guardar o pacote ('+_mb(_odmZipRaw.size)+' MB; livres: '+_mb(Math.max(0,livre))+' MB). O resultado continua no NodeODM — baixe com ⬇ Tudo (.zip).');
+    }
+    let persistente=null;   // pede ao navegador para não apagar os dados do app sob pressão de disco
+    if(navigator.storage&&navigator.storage.persist){ try{ persistente=await navigator.storage.persist(); }catch(e){} }
     await idbPut('result_'+rec.id, _odmZipRaw);
-    storeProjects(arr); state.name=name; if($('projName')) $('projName').value=name;
+    // o projeto tem de ficar gravado ANTES de qualquer coisa ser apagada do servidor: sem o registro, o pacote
+    // guardado acima não teria projeto apontando para ele e o resultado estaria perdido
+    if(!storeProjects(arr)){ await idbDel('result_'+rec.id).catch(()=>{}); throw new Error('não consegui gravar o projeto no navegador (armazenamento cheio ou bloqueado). O resultado continua no NodeODM.'); }
+    state.name=name; if($('projName')) $('projName').value=name;
     const uuid=_odmTask; _odmSaved=true;
     const rem=await odmRemoveServer(uuid), removed=rem.ok; if(removed) odmUntrack(uuid);
     if(_odmPoll) clearInterval(_odmPoll);
     _odmTask=null; localStorage.removeItem(LS+'_odm_task'); _odmSavedMode=true; _odmResultProj=rec.id;
     odmShowOutputs();
-    odmStatus('✅ Salvo no projeto "'+name+'"'+(removed?' e removido do NodeODM (disco liberado).':' — mas não removi do NodeODM ('+rem.motivo+'). Apague depois pelo 🧹 Limpar tudo.'));
+    odmStatus('✅ Salvo no projeto "'+name+'"'+(removed?' e removido do NodeODM (disco liberado).':' — mas não removi do NodeODM ('+rem.motivo+'). Apague depois pelo 🧹 Limpar tudo.')
+      +(persistente===false?' ⚠️ O navegador não garantiu guardar os dados do app: se faltar espaço no aparelho ele pode apagá-los — mantenha também o ⬇ Tudo (.zip).':''));
     toast('Salvo no projeto ✅');
   }catch(e){ console.error('[ODM] save',e); _odmSaved=false; toast('Falha ao salvar: '+e.message,'error'); odmStatus('❌ '+e.message,true); }
 }
@@ -3112,7 +3301,9 @@ const cmpVersion=(a,b)=>{ const pa=String(a).replace(/^v/,'').split('.').map(n=>
 })();
 
 /* ═══════════════ init ═══════════════ */
-function init(){ try{ initMap(); }catch(e){ console.error('[Map] init falhou',e); toast('Mapa indisponível (sem conexão?) — controles e cálculos seguem funcionando','error'); } wire(); recompute(); loadSampleIfEmpty(); }
+function init(){ try{ initMap(); }catch(e){ console.error('[Map] init falhou',e); toast('Mapa indisponível (sem conexão?) — controles e cálculos seguem funcionando','error'); } wire(); recompute(); loadSampleIfEmpty();
+  _opfsLimpar();   // sobras de uma sessão anterior (o all.zip e os produtos extraídos ficam em disco se a aba fecha com um resultado aberto); na abertura nada ainda aponta para elas
+}
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
 if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
 </script>

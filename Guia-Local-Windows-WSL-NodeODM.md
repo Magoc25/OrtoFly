@@ -242,11 +242,13 @@ wsl --shutdown
 
 ## 🧹 Limpeza de disco (importante!)
 
-O NodeODM guarda **todas as tarefas** (fotos + resultados + intermediários) em disco **até você apagá-las**. Cada processamento — principalmente com **DSM (modo completo)** — pode ocupar **dezenas de GB**. Se não limpar, o disco enche e **novos processamentos falham** (falha de DSM quase sempre é **disco cheio**).
+O NodeODM guarda **todas as tarefas** (fotos + resultados + intermediários) em disco **até você apagá-las** — ou até ele mesmo apagar: por padrão, **tarefas terminadas há mais de 2 dias são removidas sozinhas**. Ou seja: **salve ou baixe o resultado logo**, e não conte com essa limpeza para liberar disco no meio do trabalho. Cada processamento — principalmente com **DSM (modo completo)** — pode ocupar **dezenas de GB**. Se não limpar, o disco enche e **novos processamentos falham** (falha de DSM quase sempre é **disco cheio**).
 
 **No dia a dia, pelo app:**
 - Ao concluir: **💾 Salvar no projeto** (guarda no app e apaga do servidor) ou **🗑️ Descartar** (apaga do servidor).
 - Tarefa que **falhou/cancelou** **também ocupa disco** → use **🗑️ Descartar**.
+- Quer **outro modo ou outra resolução** para as mesmas fotos? **🔁 Reprocessar** refaz a tarefa com as opções que estão na tela, **sem reenviar as fotos** (vale para tarefa concluída, falha ou cancelada).
+- O **envio das fotos** vai em lotes, com o andamento na tela; se a rede oscilar o lote é repetido sozinho, e há um botão **✖ Cancelar envio**.
 - Aba **⚙️ Processar → 🧹 Limpar tudo do NodeODM**: remove de uma vez todas as tarefas que o app criou — e, com uma confirmação à parte, as que estão no servidor e este navegador não registrou (criadas em outro navegador, por exemplo).
 - _(Até a v1.24.0 esses três botões mostravam erro e não apagavam nada; corrigido na v1.24.1.)_
 

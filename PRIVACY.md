@@ -1,6 +1,6 @@
 # Aviso de Privacidade — OrtoFly
 
-**Versão:** 1.2 · **Última atualização:** Setembro de 2026
+**Versão:** 1.3 · **Última atualização:** Novembro de 2026
 
 Este Aviso explica como o **OrtoFly** trata dados pessoais, em conformidade com a
 **Lei nº 13.709/2018 (LGPD)**. O OrtoFly é um aplicativo web (PWA) de planejamento de
@@ -32,7 +32,9 @@ dos dados que você gera **nunca sai do seu navegador**:
   computador ou num servidor seu —, **nunca ao controlador**. Se você usar um servidor remoto ou
   um túnel (ex.: Cloudflare Tunnel), as fotos passam por esse provedor, escolhido por você.
 - **Resultados do processamento** que você salva (💾) ficam no armazenamento do próprio navegador
-  (IndexedDB); o endereço do seu NodeODM e os identificadores das tarefas, no `localStorage`.
+  (IndexedDB); o endereço do seu NodeODM, os identificadores das tarefas, as opções de
+  processamento escolhidas e o registro do que foi pedido em cada tarefa (modo, resolução,
+  número de fotos, versão do ODM), no `localStorage`.
   **O controlador não tem acesso a eles.**
 
 ## 3. Quais dados são efetivamente tratados pelo controlador

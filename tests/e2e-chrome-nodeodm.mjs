@@ -26,11 +26,18 @@
   final, mesmo se o roteiro falhar no meio.
 
   MODO --completo (demorado): envia TODAS as fotos da pasta pelo app, espera o
-  processamento terminar e para aí, DEIXANDO a tarefa no servidor para o produto ser medido
-  (o uuid sai no fim, com o comando para removê-la). Serve para conferir que o que o app
-  manda produz o ortomosaico esperado — não só que as opções chegam.
+  processamento terminar, baixa o pacote (conferindo que dois pedidos viram um download só e
+  que o andamento aparece em MB), confere que os arquivos temporários somem ao reabrir o app
+  e para aí, DEIXANDO a tarefa no servidor para o produto ser medido (o uuid sai no fim, com
+  o comando para removê-la). Serve para conferir que o que o app manda produz o ortomosaico
+  esperado — não só que as opções chegam.
 
       node tests/e2e-chrome-nodeodm.mjs --fotos "/caminho/das/fotos" --completo
+
+  Com --completo --salvar, em vez de deixar a tarefa ele usa o "Salvar no projeto": confere
+  que o resultado vai para o app, que a tarefa é removida do servidor e que, reaberto o app,
+  o projeto devolve o resultado com o registro do que foi pedido.
+  --n 10 limita o número de fotos em qualquer modo (o padrão é 10; no --completo, todas).
 
   As fotos precisam ser de drone DJI com a altura relativa gravada (XMP); sem ela o app
   não tem como estimar o GSD e as conferências de resolução ficam vermelhas.
@@ -56,8 +63,8 @@ const arg = (nome, padrao) => { const i = process.argv.indexOf('--' + nome); ret
 const PASTA_FOTOS = arg('fotos', '');
 const ODM = String(arg('odm', 'http://127.0.0.1:3000')).replace(/\/+$/, '');
 const HTML = path.resolve(arg('html', path.join(aqui, '..', 'ortofly.html')));
-const COMPLETO = process.argv.includes('--completo');
-const N_FOTOS = COMPLETO ? Infinity : 10;
+const COMPLETO = process.argv.includes('--completo'), SALVAR = process.argv.includes('--salvar');
+const N_FOTOS = parseInt(arg('n', ''), 10) || (COMPLETO ? Infinity : 10);   // --n 10 limita o número de fotos em qualquer modo
 const FANTASMA = '00000000-0000-4000-8000-000000000000';   // uuid que não existe em servidor nenhum
 
 const dorme = ms => new Promise(r => setTimeout(r, ms));
@@ -162,11 +169,22 @@ async function main() {
   nota('obturador de rolagem', ((await texto('#odmRSInfo')).slice(0, 100) || '(sem leitura de velocidade)') + ' · marcado: ' + rsMarcado);
   confere('tarefa nova: o app lê a altura de voo das fotos de verdade e diz a resolução que vai pedir', leu && /GSD estimado/.test(infoGsd) && pedido > 0);
   await ev(`(()=>{ const r=document.querySelector('input[name="odmOut"][value="dsm"]'); if(r) r.checked=true; const n=document.getElementById('odmName'); if(n) n.value='ortofly-e2e-pelo-app'; return !!r; })()`);
-  await clicar('button[onclick="odmCreate()"]');
-  for (let i = 0; i < 1800 && !(await ev('_odmTask')) && !/❌/.test(await texto('#odmStatus')); i++) await dorme(500);   // o envio das fotos pode levar minutos
+  pedidos.length = 0; await clicar('button[onclick="odmCreate()"]');
+  const andamento = new Set(); let travou = null;
+  for (let i = 0; i < 3600 && !(await ev('_odmTask')) && !/❌/.test(await texto('#odmStatus')); i++) {   // o envio das fotos pode levar minutos
+    const t = await texto('#odmEnvioTxt'); if (/Enviando \d+\/\d+ fotos/.test(t)) andamento.add(t);
+    if (travou === null) travou = await ev(`!!(document.getElementById('odmCreateBtn')||{}).disabled`);
+    await dorme(250);
+  }
   const T1 = await ev('_odmTask');
   if (!T1) throw new Error('o app não criou a tarefa: ' + ((await texto('#odmStatus')) || 'sem mensagem na tela'));
   criadas.push(T1);
+  const rota = r => pedidos.filter(p => r.test(p.url)).length;
+  const nInit = rota(/\/task\/new\/init$/), nUp = rota(/\/task\/new\/upload\//), nCommit = rota(/\/task\/new\/commit\//), nUnico = rota(/\/task\/new$/);
+  nota('envio em partes', { init: nInit, lotes: nUp, commit: nCommit, pedidoUnico: nUnico, andamentoVistoNaTela: [...andamento].slice(0, 4) });
+  confere('envio: as fotos vão em vários pedidos pequenos (init → lotes → commit), não num pedido só', nInit === 1 && nUp >= 2 && nCommit === 1 && nUnico === 0);
+  confere('envio: a tela mostra o andamento em fotos e o botão Enviar trava enquanto envia', andamento.size >= 1 && travou === true);
+  confere('envio: o servidor ficou com exatamente as fotos escolhidas', (await odm('/task/' + T1 + '/info')).imagesCount === fotos.length);
   const chegou = (await odm('/task/' + T1 + '/info')).options || [], val = n => (chegou.find(o => o.name === n) || {}).value;
   nota('opções que chegaram ao servidor', chegou.filter(o => !['pc-ept', 'cog', 'gltf'].includes(o.name)));
   confere('tarefa nova: orthophoto-resolution chega ao servidor com o valor mostrado na tela', pedido > 0 && Math.abs(val('orthophoto-resolution') - pedido) < 0.011);
@@ -181,6 +199,46 @@ async function main() {
     const info2 = await odm('/task/' + T1 + '/info');
     nota('fim do processamento', { status: st, minutos: Math.round((info2.processingTime || 0) / 6000) / 10, imagens: info2.imagesCount });
     confere('--completo: a tarefa criada pelo app termina com sucesso', st.code === 40);
+    if (st.code !== 40) { deixar.push(T1); return; }
+
+    /* pacote: dois pedidos ao mesmo tempo têm de virar UM download, com o andamento em MB na tela */
+    await esperar(async () => /conclu/.test(await texto('#odmTaskStatus')), 15000);
+    pedidos.length = 0;
+    await ev(`window.__zip=null; Promise.all([odmGetZip(), odmGetZip()]).then(()=>{ window.__zip='ok'; }, e=>{ window.__zip='erro: '+(e&&e.message); }); 1`);
+    const mbVistos = new Set();
+    for (let i = 0; i < 2400 && !(await ev('window.__zip')); i++) { const s = await texto('#odmStatus'); if (/Baixando o pacote.*\d.* MB/.test(s)) mbVistos.add(s); await dorme(150); }
+    nota('pacote', { resultado: await ev('window.__zip'), downloads: rota(/\/download\/all\.zip$/), andamento: [...mbVistos].slice(-2), statusFinal: (await texto('#odmStatus')).slice(0, 60) });
+    confere('pacote: dois pedidos simultâneos do all.zip fazem UM download', (await ev('window.__zip')) === 'ok' && rota(/\/download\/all\.zip$/) === 1);
+    confere('pacote: a tela mostra o andamento do download em MB', mbVistos.size >= 1);
+    const noOpfs = () => ev(`navigator.storage.getDirectory().then(d=>d.getDirectoryHandle('ortofly-tmp')).then(h=>h.getFileHandle('all.zip')).then(()=>true,()=>false)`);
+    const tinhaTemp = await noOpfs();
+
+    if (SALVAR) {
+      /* Salvar no projeto: guarda o pacote no app, grava o projeto e SÓ ENTÃO apaga a tarefa do servidor */
+      await ev(`document.getElementById('projName').value='e2e-salvar'; state.name='e2e-salvar'; 1`);
+      await ev(`window.__sv=null; odmSaveResult().then(()=>{ window.__sv='fim'; }, e=>{ window.__sv='erro: '+(e&&e.message); }); 1`);
+      await esperar(async () => !!(await ev('window.__sv')), 240000);
+      const stSalvar = await texto('#odmStatus');
+      nota('Salvar no projeto', stSalvar.slice(0, 200));
+      confere('salvar: o resultado é guardado no app e a tarefa é removida do servidor', /Salvo no projeto/.test(stSalvar) && /removido do NodeODM/.test(stSalvar) && !(await odm('/task/list')).some(t => t.uuid === T1));
+      const projeto = await ev(`(()=>{ const p=loadProjects().find(x=>x.name==='e2e-salvar'); return p&&p.result ? {tamanho:p.result.size, modo:p.result.meta&&p.result.meta.modo, opcoes:(p.result.meta&&p.result.meta.options||[]).length} : null; })()`);
+      nota('projeto gravado', projeto);
+      confere('salvar: o projeto guarda o tamanho do pacote e o registro do que foi pedido', !!projeto && projeto.tamanho > 0 && projeto.modo === 'dsm' && projeto.opcoes >= 3);
+      /* reabrir o app e o projeto: o resultado tem de voltar do banco do app, sem servidor */
+      await abrir();
+      await ev(`(()=>{ const p=loadProjects().find(x=>x.name==='e2e-salvar'); if(p) openProject(p.id); return !!p; })()`);
+      const voltouSalvo = await esperar(async () => /Resultado salvo/.test(await texto('#odmTaskStatus')), 60000);
+      nota('projeto reaberto', (await texto('#odmTaskStatus')).slice(0, 60) + ' · ' + (await texto('#odmTaskOpts')).slice(0, 110));
+      confere('salvar: reaberto o app, o projeto devolve o resultado salvo e as opções com que ele foi feito', voltouSalvo && /orthophoto-resolution/.test(await texto('#odmTaskOpts')));
+      const mm = String(await ev('citeText().mm'));
+      confere('salvar: o Material e Métodos do resultado salvo descreve o processamento que o gerou', /DSM/.test(mm) && /cm\/px/.test(mm));
+      await ev(`(()=>{ const p=loadProjects().find(x=>x.name==='e2e-salvar'); if(p){ window.confirm=()=>true; deleteProject(p.id); } return 1; })()`);   // limpa o perfil temporário
+      return;
+    }
+
+    /* temporários: reabrir o app apaga o que a sessão anterior deixou em disco */
+    await abrir(); await dorme(600);
+    confere('temporários: o all.zip baixado some da área temporária ao reabrir o app', tinhaTemp === true && (await noOpfs()) === false);
     deixar.push(T1);
     return;
   }
@@ -201,6 +259,18 @@ async function main() {
   nota('Cancelar: corpo do pedido', tipoCancel);
   confere('cancelar: o pedido sai num formato que o NodeODM lê (urlencoded, não multipart)', tipoCancel.length === 1 && tipoCancel[0] === 'application/x-www-form-urlencoded');
   confere('cancelar: a tarefa fica CANCELADA no servidor', cancelou);
+
+  /* 2b) Reprocessar a tarefa cancelada com outra saída — as fotos já estão no servidor */
+  await ev(`(()=>{ const r=document.querySelector('input[name="odmOut"][value="fast"]'); if(r) r.checked=true; return !!r; })()`);
+  pedidos.length = 0; await ev('window.__c.length=0; 1'); await clicar('button[onclick="odmReprocessar()"]');
+  const reiniciou = await esperar(async () => { const j = await odm('/task/' + T1 + '/info'); return [10, 20].includes((j.status || {}).code) && (j.options || []).some(o => o.name === 'fast-orthophoto'); }, 20000);
+  const depoisRe = await odm('/task/' + T1 + '/info'), tipoRe = pedidos.filter(p => /\/task\/restart$/.test(p.url)).map(p => p.tipo);
+  nota('Reprocessar', { corpo: tipoRe, status: depoisRe.status, opcoes: (depoisRe.options || []).filter(o => !['pc-ept', 'cog', 'gltf'].includes(o.name)).map(o => o.name), imagens: depoisRe.imagesCount, tela: (await texto('#odmStatus')).slice(0, 80) });
+  confere('reprocessar: o pedido sai em urlencoded e o servidor volta a processar a MESMA tarefa', tipoRe.length === 1 && tipoRe[0] === 'application/x-www-form-urlencoded' && reiniciou);
+  confere('reprocessar: as opções novas substituem as antigas no servidor (Rápido no lugar de DSM)', (depoisRe.options || []).some(o => o.name === 'fast-orthophoto') && !(depoisRe.options || []).some(o => o.name === 'dsm'));
+  confere('reprocessar: nenhuma foto é reenviada e o servidor mantém as mesmas', rota(/\/task\/new/) === 0 && depoisRe.imagesCount === fotos.length);
+  confere('reprocessar: o app pergunta antes e diz que as fotos não são reenviadas', ((await ev('__c')) || []).length === 1);
+  confere('reprocessar: depois de reabrir o app, a correção de obturador que a tarefa usava é mantida', (depoisRe.options || []).some(o => o.name === 'rolling-shutter') === (rsMarcado === true));
 
   /* 3) Descartar */
   pedidos.length = 0; await clicar('button[onclick="odmDiscard()"]');

@@ -1,7 +1,7 @@
 # Inventário de Tratamento de Dados — OrtoFly
 
 **Agente:** Marlon Gomes da Costa (MGC Dev) · **Porte:** ATPP (Resolução CD/ANPD nº 2/2022)
-**Atualizado em:** Setembro de 2026
+**Atualizado em:** Novembro de 2026
 
 Registro simplificado das operações de tratamento, conforme **art. 37 da LGPD**. Versão
 adequada a Agente de Tratamento de Pequeno Porte.
@@ -10,7 +10,7 @@ adequada a Agente de Tratamento de Pequeno Porte.
 
 | # | Dado | Categoria | Origem | Finalidade | Base legal (Art. 7º) | Compartilhamento | Transf. internacional | Retenção | Medidas de segurança |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | Projetos de voo (áreas, coordenadas, parâmetros), preferências, resultados de processamento salvos, endereço do NodeODM | Dado de uso / não pessoal | Próprio usuário | Funcionamento do app e persistência local | Sem coleta pelo controlador (permanece no dispositivo) | Nenhum | Não | Enquanto o usuário mantiver no navegador | Armazenamento local; HTTPS; exportação/exclusão pelo usuário |
+| 1 | Projetos de voo (áreas, coordenadas, parâmetros), preferências, resultados de processamento salvos, endereço do NodeODM, opções de processamento e registro do que foi pedido em cada tarefa | Dado de uso / não pessoal | Próprio usuário | Funcionamento do app e persistência local | Sem coleta pelo controlador (permanece no dispositivo) | Nenhum | Não | Enquanto o usuário mantiver no navegador | Armazenamento local; HTTPS; exportação/exclusão pelo usuário |
 | 2 | Nome + comentário + nota (estrelas) + data e hora da avaliação + caixa «Já apoiei via PIX ☕» (autodeclaração; vem marcada, o usuário pode desmarcar) | Identificação (pseudônimo possível) | Próprio usuário (envio voluntário) | Exibir avaliações compartilhadas do app | Consentimento (Art. 7º, I) | Supabase (hospedagem) | Sim (servidores podem estar fora do BR) | Indeterminada / até pedido de remoção | RLS + constraints anti-XSS, limite de tamanho e rate limit; HTTPS |
 | 3 | Identificador aleatório de dispositivo + nome do app + versão + data | Identificador técnico (não vinculado a pessoa) | Gerado no dispositivo | Métrica agregada de dispositivos ativos | Legítimo interesse (Art. 7º, IX) | Supabase (hospedagem) | Sim | Agregada | Identificador aleatório sem dados pessoais; HTTPS; ping 1x/dia |
 | 4 | Endereço IP e dados técnicos do navegador | Dado de conexão | Requisições de rede | Carregar mapas, hospedagem do app (incl. bibliotecas, servidas pelo **próprio site** desde a v1.19.0) e QR de PIX | Legítimo interesse (Art. 7º, IX) | Esri, OpenStreetMap, GitHub Pages, api.qrserver.com | Sim | Conforme política de cada provedor | HTTPS; não armazenado pelo controlador |

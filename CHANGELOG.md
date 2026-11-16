@@ -5,6 +5,34 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.26.0] — Novembro 2026
+
+### 🆕 Adicionado
+
+- **Envio das fotos em lotes, com andamento, repetição e cancelamento.** Até a v1.25.0 todas as fotos iam num pedido só: 300 fotos de 9,5 MB são ~2,9 GB de uma vez, a tela ficava em "Enviando… pode demorar", qualquer oscilação de rede perdia tudo e não havia como cancelar. Agora o app abre a tarefa, manda as fotos em **lotes de até 4 fotos ou 40 MB** (dois ao mesmo tempo) e fecha o envio:
+  - a tela mostra **"Enviando 7/10 fotos (70 %)"** e uma barra;
+  - um lote que falha é **repetido sozinho** (3 novas tentativas, com espera crescente); só então o envio desiste — e diz o motivo;
+  - botão **✖ Cancelar envio**; o botão Enviar trava durante o envio (um segundo clique criava outra tarefa e outro envio); fechar a aba no meio pede confirmação;
+  - se o servidor ficar com um número de fotos diferente do escolhido, **o card avisa**.
+- **🔁 Reprocessar — outro modo ou outra resolução sem reenviar as fotos.** Refaz a tarefa (concluída, falha ou cancelada) com as opções que estão na tela; o app lista as opções e pede confirmação. Ao reabrir o app com uma tarefa no card, a tela volta a mostrar **as opções com que ela foi feita**, para o Reprocessar não trocar o que ninguém pediu para trocar.
+- **Andamento do download do pacote** em MB ("Baixando o pacote… 63 de 139 MB").
+
+### 🐛 Corrigido
+
+- **Dois cliques baixavam o pacote duas vezes para o mesmo arquivo.** Clicar em Ortomosaico e em DSM em seguida (ou em Salvar durante um download) abria dois downloads do `all.zip` gravando no mesmo arquivo temporário — pacote corrompido ou erro. Agora há **um download por tarefa**, e os pedidos seguintes esperam por ele.
+- **"Salvar no projeto" podia ficar preso para sempre.** Quando falta espaço, o navegador **aborta** a gravação em vez de devolver erro, e o app só tratava o erro: a tela ficava em "Salvando no app…" sem fim. Agora a gravação abortada vira mensagem. Antes de gravar, o app **confere se o pacote cabe** e, se não couber, avisa quanto falta — sem tocar na tarefa do servidor; e pede ao navegador para **não apagar os dados do app** sob pressão de disco, avisando quando ele não garante.
+- **Falha ao gravar o projeto era anunciada como sucesso — e podia custar o resultado.** Com o armazenamento do navegador cheio ou bloqueado, o 💾 mostrava "Projeto salvo ✅" por cima do erro, e o "Salvar no projeto" **apagava a tarefa do servidor** mesmo sem ter gravado o projeto: o pacote ficava no app sem nenhum projeto apontando para ele. Agora, sem o projeto gravado, **nada é apagado do servidor** e a tela diz o que aconteceu.
+- **Arquivos temporários de centenas de MB ficavam no disco do navegador.** O pacote baixado e os produtos extraídos só eram apagados ao descartar a tarefa; fechar a aba com um resultado aberto os deixava lá. Agora o app **limpa a área temporária ao abrir**. E, se um produto for reaberto depois de o temporário ter sido apagado, a mensagem diz isso em vez de um erro genérico.
+- **Reprocessar num modo que gera menos produtos deixava o DSM antigo no pacote.** Medido no NodeODM: uma tarefa feita com DSM e reprocessada no modo Rápido continua com o `dsm.tif` do processamento anterior na pasta e no `all.zip` — o servidor não apaga o que o modo novo não regenera, e esse DSM é de outra reconstrução. O app **avisa antes de reprocessar** e **não abre** o DSM de uma tarefa cujo último processamento foi no modo Rápido.
+
+### 🔧 Melhorado
+
+- **O app passa a dizer que o NodeODM apaga sozinho as tarefas terminadas há mais de 2 dias** (padrão do servidor, conferido no código dele): no aviso de resultado pronto ("não deixe para depois"), na mensagem da tarefa que sumiu e nos guias — que afirmavam que as tarefas ficavam "até você apagá-las".
+- **Documentação:** os guias de Windows e macOS ganharam o Reprocessar e o envio em lotes; `PRIVACY.md` e `DATA_INVENTORY.md` descrevem o que passou a ficar no navegador (opções de processamento e o registro do que foi pedido em cada tarefa).
+- **Verificação:** smoke 119 → **147 asserções**. O NodeODM falso passou a imitar o envio em três passos, o reprocessamento e o download; há um IndexedDB falso que **aborta** a gravação como o navegador faz com a cota cheia. Contra a v1.25.0, **42 vermelhas**; 6 mutações derrubam o que deviam (duas revelaram asserções que uma segunda defesa do app neutralizava, e foram reforçadas). `check.js` barra a volta do envio num pedido só e da gravação sem tratar transação abortada. No **Chrome de verdade** contra o NodeODM (`tests/e2e-chrome-nodeodm.mjs`, 21 → 29 conferências): 10 fotos subiram em 3 lotes, com o andamento na tela; a tarefa cancelada foi reprocessada em outro modo sem reenviar nada. No modo `--completo`: dois pedidos simultâneos do pacote viraram um download de 139 MB, com o andamento em MB, e o temporário sumiu ao reabrir o app; com `--salvar`: o resultado (145 MB) foi guardado no app, a tarefa saiu do servidor e, reaberto o app, o projeto devolveu o resultado com as opções e o Material e Métodos do processamento que o gerou.
+
+---
+
 ## [1.25.0] — Novembro 2026
 
 ### 🐛 Corrigido
