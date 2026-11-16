@@ -320,6 +320,43 @@ if (alfaFixo) fail(`raster: banda tratada como alfa pelo número de bandas ("${a
 else if (!/function _alfaDoTiff\s*\(/.test(jsCode)) fail('raster: _alfaDoTiff não encontrada — a asserção de alfa fixo passaria de graça');
 else ok('raster: o alfa vem do ExtraSamples do arquivo, nunca do número de bandas');
 
+/* ── 4k) teclado, leitor de tela e identificador em onclick (v1.28.0) ───────
+   O ACCESSIBILITY.md prometia `aria-label` em botões só de ícone e modais operáveis por teclado; o
+   arquivo tinha DOIS atributos aria-* no total. Estas são as garantias que se leem no fonte; o
+   comportamento (foco preso e devolvido, Enter/Espaço, aria-selected/pressed) é o cenário 8 do smoke.
+   (1) todo <button> do HTML estático cujo texto não tem letra nem número (só ícone) tem aria-label;
+   (2) todo modal é role="dialog" aria-modal="true" com aria-labelledby apontando para um id que existe;
+   (3) o #toast é anunciado (aria-live);
+   (4) AUSÊNCIA: nenhum on*="…('${…}')…" — identificador vindo do armazenamento interpolado como texto
+       num manipulador executa código se tiver aspas (o id de projeto era assim). */
+const htmlEstatico = html.replace(/<script[\s\S]*?<\/script>/g, ' ').replace(/<!--[\s\S]*?-->/g, ' ');
+const botoes = [...htmlEstatico.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)];
+const soIcone = botoes.filter(([, at, inner]) => !/[A-Za-zÀ-ÿ0-9]/.test(inner.replace(/<[^>]*>/g, '')) && !/aria-label\s*=/.test(at));
+console.log('       [captura] botões no HTML estático = ' + botoes.length);
+if (!botoes.length) fail('acessibilidade: nenhum <button> encontrado no HTML estático — a extração secou');
+else if (soIcone.length) fail(`acessibilidade: ${soIcone.length} botão(ões) só de ícone sem aria-label (leitor de tela lê só o símbolo): ${soIcone.slice(0, 4).map(([b]) => b.slice(0, 70)).join(' | ')}`);
+else ok(`acessibilidade: os ${botoes.length} botões do HTML estático têm nome legível (texto ou aria-label)`);
+const modais = [...htmlEstatico.matchAll(/<div\b[^>]*class="modal[ "][^>]*>/g)].map(m => m[0]);
+const modalRuim = modais.filter(m => !/role="dialog"/.test(m) || !/aria-modal="true"/.test(m) || !ids.has((m.match(/aria-labelledby="([\w-]+)"/) || [])[1]));
+if (!modais.length) fail('acessibilidade: nenhum modal encontrado — a extração secou');
+else if (modalRuim.length) fail(`acessibilidade: modal sem role="dialog"/aria-modal/aria-labelledby válido: ${modalRuim.map(m => (m.match(/id="(\w+)"/) || [])[1]).join(', ')}`);
+else ok(`acessibilidade: os ${modais.length} modais são diálogos com título (role="dialog", aria-modal, aria-labelledby)`);
+if (!/<div id="toast"[^>]*aria-live=/.test(html)) fail('acessibilidade: o #toast não é anunciado pelo leitor de tela (aria-live ausente)');
+else ok('acessibilidade: o #toast é anunciado (aria-live)');
+// (5) img-src cobre EXATAMENTE as origens de imagem que o código usa (derivadas do código, não escritas à mão),
+//     e não volta a aceitar qualquer https: (v1.28.0 — antes era `img-src 'self' data: blob: https:`)
+const cspApp = (html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/) || [])[1] || '';
+const imgSrc = (cspApp.match(/img-src([^;]*)/) || [])[1] || '';
+const hostsImg = [...js.matchAll(/tileLayer\(\s*'https:\/\/([^/']+)/g)].map(m => m[1].replace(/^\{s\}\./, '*.'))
+  .concat(js.includes('https://api.qrserver.com/') ? ['api.qrserver.com'] : []);
+console.log('       [captura] img-src = "' + imgSrc.trim() + '" · origens de imagem no código = ' + JSON.stringify(hostsImg));
+if (!imgSrc || hostsImg.length < 2) fail('CSP: img-src ou as origens de imagem do código não foram encontrados — a extração secou');
+else if (/(^|\s)https:(\s|$)/.test(imgSrc)) fail('CSP: img-src voltou a aceitar qualquer https:');
+else { const faltam = hostsImg.filter(h => !imgSrc.includes('https://' + h)); if (faltam.length) fail(`CSP: img-src não cobre origem que o código usa (${faltam.join(', ')}) — o mapa/QR quebraria`); else ok(`CSP: img-src restrito às ${hostsImg.length} origens de imagem que o código usa`); }
+const idInterpolado = (js.match(/on[a-z]+="[^"]*'\$\{[^}]*\}'[^"]*"/) || [])[0];
+if (idInterpolado) fail(`segurança: valor interpolado entre aspas num manipulador inline (${idInterpolado.slice(0, 80)}) — use data-* e um ouvinte`);
+else ok("segurança: nenhum valor interpolado entre aspas num manipulador inline (on*=\"…('${…}')\")");
+
 /* ── 5) apresentacao.html — a página pública do §37 ────────────────────────
    Estas asserções existem porque NENHUM passo do release toca este arquivo:
    ele não é recompilado, não entra no smoke do app e ninguém o reabre. Sem

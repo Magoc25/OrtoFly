@@ -5,6 +5,20 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.28.0] — Novembro 2026
+
+### 🔧 Melhorado
+
+- **Teclado e leitor de tela, de verdade.** O `ACCESSIBILITY.md` prometia `aria-label` em botões só de ícone e navegação por teclado nos modais — e o arquivo tinha **dois** atributos de acessibilidade no total: o foco ficava **atrás** do modal, o `Tab` saía dele e não voltava ao fechar, e a avaliação por estrelas só funcionava com mouse. Agora: todo botão só de ícone tem nome; as abas são abas (`aria-selected`); os modais são diálogos — o foco entra, o `Tab` fica dentro, o `Esc` fecha e o foco volta ao botão de origem; as estrelas são botões (dá para avaliar só pelo teclado); o aviso da base da tela é anunciado (erro como alerta); nome do projeto e linha de foto respondem a `Enter`/`Espaço`. Conferido no Chrome só com teclado: 7 de 7 modais, e uma avaliação de 4 estrelas sem mouse. O `ACCESSIBILITY.md` foi reescrito para dizer só o que existe — e o que ainda não foi avaliado (leitor de tela real, contraste).
+- **O comando sugerido deixa o NodeODM só para o seu computador.** `docker run -p 3000:3000` publica o servidor em **todas** as conexões, e o NodeODM não tem senha: qualquer aparelho no mesmo Wi-Fi podia listar, baixar e apagar as tarefas (medido num Mac com Colima: respondeu pelo IP da rede local). A dica do app e o guia do macOS passam a usar `-p 127.0.0.1:3000:3000` (medido: só `127.0.0.1` escuta, o IP da rede é recusado, e o Testar do app conecta normalmente), e o guia explica como conferir e recriar um container antigo. O guia do Windows/WSL continua com o comando antigo até o encaminhamento do WSL2 ser testado com o novo.
+- **Política de segurança de conteúdo mais estreita.** Imagens só do próprio app e dos três serviços que ele usa (mapa Esri, mapa OpenStreetMap, QR do PIX) — antes, qualquer endereço `https:`. A permissão de avaliar código em texto (`'unsafe-eval'`) foi testada e **continua**: sem ela, o decodificador de nuvem `.laz` quebra (medido no Chrome e no WebKit); o `SECURITY.md` registra os riscos aceitos e por quê.
+
+### 🐛 Corrigido
+
+- **Um projeto com aspas no identificador executava código ao ser aberto.** A lista de projetos colocava o identificador (lido do armazenamento do navegador) dentro de um `onclick`. Os identificadores que o app gera são seguros, mas um registro antigo ou adulterado com aspas rodava script ao clicar em Abrir. Agora o identificador vai num atributo de dados, escapado, e um ouvinte único decide a ação — e o verificador estático barra a volta do padrão.
+
+---
+
 ## [1.27.0] — Novembro 2026
 
 ### 🆕 Adicionado

@@ -1473,6 +1473,94 @@ async function main() {
     try { w7.close(); } catch (e) {}
   }
 
+  /* -- cenario 8: TECLADO, LEITOR DE TELA e o id de projeto num onclick (v1.28.0) -------------------------
+     O ACCESSIBILITY.md prometia modais operaveis por teclado: o foco ficava atras do modal, o Tab saia dele e
+     ao fechar nao voltava; as estrelas eram <span> (nao dava para avaliar sem mouse). E a lista de projetos
+     interpolava o id (vindo do localStorage) num onclick: um registro com aspas no id executava codigo. */
+  {
+    const errs8 = [], rej8 = rejeicoes.length;
+    const vc8 = new VirtualConsole(); vc8.on('jsdomError', e => errs8.push('jsdomError: ' + ((e && e.message) || e)));
+    const ID_MAU = "x');window.__xss=1;//";
+    const dom8 = new JSDOM(html, {
+      url: 'https://magoc25.github.io/OrtoFly/ortofly.html', runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc8,
+      beforeParse(window) {
+        window.L = chainProxy(); window.fetch = () => Promise.reject(new Error('offline (stub)'));
+        window.URL.createObjectURL = () => 'blob:stub'; window.URL.revokeObjectURL = () => {};
+        window.matchMedia = window.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
+        window.scrollTo = () => {}; window.structuredClone = window.structuredClone || structuredClone;
+        window.localStorage.setItem('ortofly_beta_ack', '1');
+        window.localStorage.setItem('ortofly_projects', JSON.stringify([{ id: ID_MAU, name: 'Projeto com id adulterado', ts: 1, data: { polygon: [[-7.01, -45.49], [-7.01, -45.48], [-7.02, -45.48]], droneId: 'mavic3', params: {} } }]));
+      }
+    });
+    const w8 = dom8.window, doc8 = w8.document, ev8 = evOf(w8);
+    await new Promise((res, rej) => { const t = setTimeout(() => rej(new Error('cenario 8: load nao disparou em 5 s')), 5000);
+      if (w8.document.readyState === 'complete') { clearTimeout(t); res(); } else w8.addEventListener('load', () => { clearTimeout(t); res(); }); });
+    const tique = () => new Promise(r => setTimeout(r, 20));   // o observador dos modais roda depois da troca de classe
+    const tecla = (alvo, key, extra) => { const e = new w8.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...(extra || {}) }); (alvo || doc8).dispatchEvent(e); return e; };
+    const ativo = () => doc8.activeElement;
+
+    // (a) modal "Como usar" aberto pelo botao: o foco entra, o Tab nao sai, o Esc fecha e o foco volta ao botao
+    const btnAjuda = doc8.querySelector('button[onclick="openAbout()"]');
+    if (btnAjuda) { btnAjuda.focus(); btnAjuda.click(); }
+    await tique();
+    const modalAjuda = el(doc8, 'aboutModal');
+    const dentro = () => !!modalAjuda && !!ativo() && modalAjuda.contains(ativo());
+    check('teclado: abrir um modal leva o foco PARA DENTRO dele (antes: ficava atras)', !!btnAjuda && has(doc8, 'aboutModal', 'hidden') === false && dentro());
+    const focaveis = modalAjuda ? [...modalAjuda.querySelectorAll('button,[href],input,select,textarea')].filter(n => !n.closest('.hidden')) : [];
+    if (focaveis.length) focaveis[focaveis.length - 1].focus();
+    const evTab = tecla(ativo(), 'Tab');
+    check('teclado: o Tab no ultimo controle volta ao primeiro do modal, sem sair dele', focaveis.length >= 2 && evTab.defaultPrevented && ativo() === focaveis[0]);
+    if (focaveis.length) focaveis[0].focus();   // parte do PRIMEIRO de proposito: sem o tratamento, o foco ficaria nele e a assercao falha
+    const evShift = tecla(ativo(), 'Tab', { shiftKey: true });
+    check('teclado: Shift+Tab no primeiro vai ao ultimo do modal', focaveis.length >= 2 && evShift.defaultPrevented && ativo() === focaveis[focaveis.length - 1]);
+    tecla(ativo(), 'Escape'); await tique();
+    check('teclado: Esc fecha o modal e o foco VOLTA ao botao que o abriu', has(doc8, 'aboutModal', 'hidden') === true && ativo() === btnAjuda);
+    check('leitor de tela: o modal e um dialogo com titulo', !!modalAjuda && modalAjuda.getAttribute('role') === 'dialog' && modalAjuda.getAttribute('aria-modal') === 'true'
+      && !!el(doc8, modalAjuda.getAttribute('aria-labelledby')) && /Como usar/.test(txt(doc8, modalAjuda.getAttribute('aria-labelledby'))));
+
+    // (b) abas: aria-selected acompanha a aba ativa
+    const abaProc = doc8.querySelector('button.tab[data-tab="proc"]'); if (abaProc) abaProc.click();
+    check('leitor de tela: as abas sao role="tab" e aria-selected acompanha a aba ativa',
+      !!abaProc && abaProc.getAttribute('role') === 'tab' && abaProc.getAttribute('aria-selected') === 'true'
+      && doc8.querySelector('button.tab[data-tab="voo"]').getAttribute('aria-selected') === 'false' && el(doc8, 'tab-proc').getAttribute('role') === 'tabpanel');
+
+    // (c) estrelas: botoes de verdade, com nome e estado
+    ev8("openReviewsModal('form')"); await tique();
+    const estrelas = qsa(doc8, '.star-btn');
+    if (estrelas[3]) estrelas[3].click();
+    check('teclado: as estrelas da avaliacao sao <button> com nome (antes: <span>, fora do alcance do teclado)',
+      estrelas.length === 5 && estrelas.every(b => b.tagName === 'BUTTON' && /estrela/.test(b.getAttribute('aria-label') || '')));
+    check('leitor de tela: escolher 4 estrelas marca aria-pressed nas 4 primeiras e grava 4', val(doc8, 'reviewStarInput') === '4'
+      && estrelas.map(b => b.getAttribute('aria-pressed')).join(',') === 'true,true,true,true,false');
+    ev8('closeReviewsModal()'); await tique();
+
+    // (d) toast anunciado; erro como alerta
+    ev8("toast('teste de erro','error')");
+    const tEl = el(doc8, 'toast');
+    check('leitor de tela: o toast e anunciado (aria-live) e o de erro vira alerta', !!tEl && !!tEl.getAttribute('aria-live') && tEl.getAttribute('role') === 'alert');
+    ev8("toast('teste comum')");
+    check('leitor de tela: toast comum fica como status (nao interrompe)', !!tEl && tEl.getAttribute('role') === 'status');
+
+    // (e) id adulterado na lista de projetos: nada executa, e o projeto abre pelo teclado
+    ev8('openProjects()'); await tique();
+    const nome = doc8.querySelector('#projectsList .pn');
+    if (nome) nome.click();
+    const btnAbrir = qsa(doc8, '#projectsList button').find(b => /Abrir/.test(b.textContent));
+    if (btnAbrir) btnAbrir.click();
+    console.log('       [captura] id adulterado: __xss = ' + JSON.stringify(w8.__xss) + ' · nome do projeto = ' + JSON.stringify(val(doc8, 'projName')));
+    check('seguranca: id de projeto com aspas NAO executa codigo ao clicar no nome nem em Abrir (antes: executava)', !!nome && !!btnAbrir && w8.__xss === undefined);
+    check('seguranca: e o projeto abre normalmente pelo id de verdade', val(doc8, 'projName') === 'Projeto com id adulterado');
+    ev8("$('projName').value=''; openProjects()"); await tique();
+    const nome2 = doc8.querySelector('#projectsList .pn');
+    if (nome2) nome2.focus(); tecla(nome2, 'Enter');
+    check('teclado: o nome do projeto (role="button") abre o projeto com Enter', !!nome2 && nome2.getAttribute('tabindex') === '0' && val(doc8, 'projName') === 'Projeto com id adulterado');
+
+    await tique();
+    check('cenario 8: nenhuma excecao nao tratada', errs8.length === 0 && rejeicoes.length === rej8);
+    errs8.forEach(e => console.error('       ' + e));
+    try { w8.close(); } catch (e) {}
+  }
+
   check('harness: nenhuma promessa rejeitada sem tratamento, em cenario algum', rejeicoes.length === 0);
   rejeicoes.slice(0, rej0).forEach(e => console.error('       ' + e));
 

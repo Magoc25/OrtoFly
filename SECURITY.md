@@ -1,6 +1,6 @@
 # Política de Segurança — OrtoFly
 
-**Versão:** 1.2 · **Última atualização:** Setembro de 2026
+**Versão:** 1.3 · **Última atualização:** Novembro de 2026
 
 Este documento descreve as medidas de segurança do **OrtoFly**, o canal de reporte de
 vulnerabilidades e o plano de resposta a incidentes, em linha com a
@@ -29,6 +29,20 @@ O OrtoFly opera em camadas com responsabilidades distintas:
   scripts, estilos, conexões e quadros, como defesa em profundidade contra XSS.
   Desde a **v1.19.0**, `script-src`/`style-src` não permitem **nenhuma origem externa**:
   todas as bibliotecas são servidas pelo próprio site (`vendor/`, versões pinadas).
+  Desde a **v1.28.0**, `img-src` aceita só o próprio site, `data:`/`blob:` e os três serviços
+  de imagem que o app usa (mapa Esri, mapa OpenStreetMap e o gerador do QR do PIX) — antes,
+  qualquer endereço `https:`.
+  **Riscos aceitos, medidos em 2026-11-16 (Chrome 157 e WebKit 605.1.15, percurso completo:
+  mapas, QR, GeoTIFF, índice, recorte, estatística, nuvem `.laz`, avaliações):**
+  - `'unsafe-eval'` continua: sem ele o **decodificador de nuvem `.laz` (laz-perf)** quebra
+    ("Evaluating a string as JavaScript violates the following Content Security Policy
+    directive"); com ele, nenhuma violação nos dois motores.
+  - `'unsafe-inline'` continua: o app tem 127 manipuladores em linha (`onclick`…); migrá-los
+    é desproporcional agora. A defesa contra XSS é a sanitização abaixo, e nenhum valor vindo
+    do armazenamento é interpolado dentro de um manipulador (conferido a cada versão pelo
+    `check.js`).
+  - `connect-src https:` continua: o modo Servidor aceita **qualquer** NodeODM em https que o
+    usuário informe.
 - **Sanitização de saída (`esc()`)** aplicada a todos os campos de texto fornecidos por
   usuários (incluindo avaliações vindas de fonte compartilhada) antes de serem inseridos
   no HTML, prevenindo *Cross-Site Scripting* (XSS).
@@ -38,6 +52,8 @@ O OrtoFly opera em camadas com responsabilidades distintas:
 - **Banco de avaliações com restrições (constraints) no servidor:** limites de tamanho de
   campos e bloqueio de marcações perigosas (`<script>`, `<iframe>`, `javascript:`,
   manipuladores `on*=`), além de limitação de frequência de envio.
+
+- **NodeODM local só no próprio computador:** o servidor de processamento **não tem autenticação** e responde com `Access-Control-Allow-Origin: *`. Por isso o comando que o app e o guia do macOS sugerem publica a porta só no *loopback* (`-p 127.0.0.1:3000:3000`): com `-p 3000:3000`, qualquer aparelho na mesma rede poderia listar, baixar e apagar as tarefas (medido em 2026-11-16 num Mac com Colima). O guia do Windows/WSL ainda traz o comando antigo, até o encaminhamento de `localhost` do WSL2 ser conferido com o comando novo. No modo Servidor (VM), proteger o NodeODM (túnel com acesso controlado, *token*) é responsabilidade de quem o mantém.
 
 > Camadas não aplicáveis a esta versão: sanitização de HTML rico (o app não possui editor
 > de texto rico) e armazenamento de tokens OAuth (o app não usa autenticação de terceiros).

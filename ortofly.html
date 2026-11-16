@@ -10,7 +10,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>OrtoFly</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https: blob: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; font-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none';" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://server.arcgisonline.com https://*.tile.openstreetmap.org https://api.qrserver.com; connect-src 'self' https: blob: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; font-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none';" />
 <meta name="description" content="Planeje voos fotogramétricos, calcule GSD e sobreposição e exporte missões (KMZ/WPML, KML, CSV) para drones DJI — no navegador, offline." />
 <meta name="theme-color" content="#0e7c63" />
 <link rel="manifest" href="./manifest.json" />
@@ -198,16 +198,16 @@ footer{
   <div class="logo"><img src="./icon-192.png" alt="OrtoFly" /> OrtoFly</div>
   <button class="beta-badge" type="button" title="Versão em testes — toque para detalhes" onclick="showBeta()">beta</button>
   <div class="grow"></div>
-  <button class="icon-btn" title="Projetos salvos" onclick="openProjects()">📂</button>
-  <button class="icon-btn" title="Como usar" onclick="openAbout()">❓</button>
+  <button class="icon-btn" title="Projetos salvos" aria-label="Projetos salvos" onclick="openProjects()">📂</button>
+  <button class="icon-btn" title="Como usar" aria-label="Como usar" onclick="openAbout()">❓</button>
 </header>
 
-<div class="wrap">
+<div class="wrap" role="main">
   <div id="map">
     <div class="map-tools">
-      <button class="icon-btn" title="Desenhar área" onclick="startDraw()">✏️</button>
-      <button class="icon-btn" title="Limpar área" onclick="clearArea()">🗑️</button>
-      <button class="icon-btn" title="Minha localização" onclick="locateMe()">📍</button>
+      <button class="icon-btn" title="Desenhar área" aria-label="Desenhar área" onclick="startDraw()">✏️</button>
+      <button class="icon-btn" title="Limpar área" aria-label="Limpar área" onclick="clearArea()">🗑️</button>
+      <button class="icon-btn" title="Minha localização" aria-label="Minha localização" onclick="locateMe()">📍</button>
     </div>
     <div class="draw-bar" id="drawBar">
       <span>Toque no mapa para marcar os vértices · <b id="drawCount">0</b> ponto(s)</span>
@@ -223,20 +223,20 @@ footer{
     <!-- Barra de projeto (sempre visível) -->
     <div class="proj-bar">
       <input id="projName" type="text" maxlength="60" placeholder="Nome do projeto" aria-label="Nome do projeto" />
-      <button class="btn sm" onclick="saveProject()" title="Salvar projeto">💾</button>
-      <button class="btn sm" onclick="newProject()" title="Novo projeto">✨</button>
+      <button class="btn sm" onclick="saveProject()" title="Salvar projeto" aria-label="Salvar projeto">💾</button>
+      <button class="btn sm" onclick="newProject()" title="Novo projeto" aria-label="Novo projeto">✨</button>
     </div>
     <input type="file" id="importJson" accept=".json,.geojson" class="hidden" />
 
     <!-- Abas -->
     <div class="tabs" role="tablist">
-      <button class="tab active" data-tab="voo" onclick="setTab('voo')">✈️ Voo</button>
-      <button class="tab" data-tab="imagens" onclick="setTab('imagens')">📷 Imagens</button>
-      <button class="tab" data-tab="proc" onclick="setTab('proc')">⚙️ Processar</button>
+      <button class="tab active" data-tab="voo" id="tabbtn-voo" role="tab" aria-selected="true" aria-controls="tab-voo" onclick="setTab('voo')">✈️ Voo</button>
+      <button class="tab" data-tab="imagens" id="tabbtn-imagens" role="tab" aria-selected="false" aria-controls="tab-imagens" onclick="setTab('imagens')">📷 Imagens</button>
+      <button class="tab" data-tab="proc" id="tabbtn-proc" role="tab" aria-selected="false" aria-controls="tab-proc" onclick="setTab('proc')">⚙️ Processar</button>
     </div>
 
     <!-- ABA: Imagens -->
-    <div id="tab-imagens" class="tab-panel hidden">
+    <div id="tab-imagens" class="tab-panel hidden" role="tabpanel" aria-labelledby="tabbtn-imagens">
 
     <!-- Imagens & EXIF -->
     <div class="card">
@@ -396,7 +396,7 @@ footer{
     </div><!-- /tab-imagens -->
 
     <!-- ABA: Voo -->
-    <div id="tab-voo" class="tab-panel">
+    <div id="tab-voo" class="tab-panel" role="tabpanel" aria-labelledby="tabbtn-voo">
     <!-- Drone / câmera -->
     <div class="card">
       <h2>Drone / Câmera</h2>
@@ -499,7 +499,7 @@ footer{
     </div><!-- /tab-voo -->
 
     <!-- ABA: Processar (NodeODM / Fase 5) -->
-    <div id="tab-proc" class="tab-panel hidden">
+    <div id="tab-proc" class="tab-panel hidden" role="tabpanel" aria-labelledby="tabbtn-proc">
       <div class="card">
         <h2>⚙️ Processar (NodeODM)</h2>
         <p class="hint" style="margin-top:0">Gera ortomosaico/DSM/3D a partir das fotos, num servidor <b>NodeODM</b> — no seu <b>PC (Docker)</b> ou numa <b>VM (nuvem)</b>.</p>
@@ -593,36 +593,36 @@ footer{
 </footer>
 
 <!-- PIX modal -->
-<div id="citeModal" class="modal hidden">
+<div id="citeModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="citeModal-titulo">
   <div class="modal-backdrop" onclick="closeCiteModal()"></div>
   <div class="modal-content">
-    <div class="modal-header"><div class="modal-title">📑 Como citar (app + ODM)</div><button class="modal-close-btn" type="button" onclick="closeCiteModal()">✕</button></div>
+    <div class="modal-header"><div class="modal-title" id="citeModal-titulo">📑 Como citar (app + ODM)</div><button class="modal-close-btn" type="button" aria-label="Fechar" onclick="closeCiteModal()">✕</button></div>
     <p class="hint" style="margin-top:0">Cite o <b>OrtoFly</b> e o motor <b>OpenDroneMap (ODM)</b>. A versão do ODM é a detectada quando você está conectado.</p>
     <div id="citeBody"></div>
   </div>
 </div>
-<div id="mmModal" class="modal hidden">
+<div id="mmModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="mmTitle">
   <div class="modal-backdrop" onclick="closeMM()"></div>
   <div class="modal-content">
-    <div class="modal-header"><div class="modal-title" id="mmTitle">📝 Material e Métodos</div><button class="modal-close-btn" type="button" onclick="closeMM()">✕</button></div>
+    <div class="modal-header"><div class="modal-title" id="mmTitle">📝 Material e Métodos</div><button class="modal-close-btn" type="button" aria-label="Fechar" onclick="closeMM()">✕</button></div>
     <p class="hint" style="margin-top:0">Texto pronto para a seção de <b>Material e Métodos</b> do seu trabalho. Revise e adapte (o app não substitui a responsabilidade técnica do autor).</p>
     <div id="mmBody"></div>
   </div>
 </div>
-<div id="betaModal" class="modal hidden">
+<div id="betaModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="betaModal-titulo">
   <div class="modal-backdrop" onclick="closeBeta()"></div>
   <div class="modal-content">
-    <div class="modal-header"><div class="modal-title">🧪 Versão em testes (beta)</div><button class="modal-close-btn" type="button" onclick="closeBeta()">✕</button></div>
+    <div class="modal-header"><div class="modal-title" id="betaModal-titulo">🧪 Versão em testes (beta)</div><button class="modal-close-btn" type="button" aria-label="Fechar" onclick="closeBeta()">✕</button></div>
     <p style="font-size:.9rem;line-height:1.5;margin:0 0 10px">O OrtoFly já está <b>funcional</b> — use à vontade. O processamento é feito pelo <b>OpenDroneMap</b>, motor de fotogrametria usado em pesquisa e produção no mundo todo.</p>
     <p style="font-size:.9rem;line-height:1.5;margin:0 0 10px">Como em <b>todo levantamento fotogramétrico</b>, a qualidade dos produtos (ortomosaico, DSM, nuvem de pontos, medidas e índices) depende das <b>suas fotos</b> e do <b>apoio de campo</b>. Para <b>laudos ou decisões técnicas</b>, vale conferir os resultados — de preferência com <b>pontos de controle (GCP/RTK)</b> e/ou no <b>QGIS</b>. <b>Sem pontos de controle</b>, a posição vem do GPS das fotos: espere erro de <b>alguns metros</b> e de escala da ordem de <b>1 %</b> (mais de 2 % em área) — com as mesmas fotos, três soluções diferentes ficaram a 2–6 m uma da outra. O card da tarefa mostra a precisão que o próprio ODM estimou.</p>
     <p class="hint" style="margin:0 0 14px">💬 Testou? Sua opinião ajuda muito — conte como foi e como ficaram os produtos pela aba <b>⭐ Avaliações</b> (no rodapé).</p>
     <button type="button" class="primary-btn" style="width:100%" onclick="ackBeta()">Entendi — vou validar os produtos</button>
   </div>
 </div>
-<div id="pixModal" class="modal hidden">
+<div id="pixModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="pixModal-titulo">
   <div class="modal-backdrop" onclick="closePixModal()"></div>
   <div class="modal-content">
-    <div class="modal-header"><div class="modal-title">☕ Apoiar o Projeto</div><button class="modal-close-btn" type="button" onclick="closePixModal()">✕</button></div>
+    <div class="modal-header"><div class="modal-title" id="pixModal-titulo">☕ Apoiar o Projeto</div><button class="modal-close-btn" type="button" aria-label="Fechar" onclick="closePixModal()">✕</button></div>
     <p style="font-size:.85rem;color:var(--muted);margin:0 0 12px">O OrtoFly é gratuito. Se foi útil, considere apoiar via PIX.</p>
     <div id="pixQrContainer" style="text-align:center;margin-bottom:.75rem;min-height:210px;display:flex;align-items:center;justify-content:center"></div>
     <div style="text-align:center;margin-bottom:1rem"><button type="button" id="pixCopyBtn" onclick="copyPixCode()" class="secondary-btn">Copiar código PIX</button></div>
@@ -632,10 +632,10 @@ footer{
 </div>
 
 <!-- Reviews modal -->
-<div id="reviewsModal" class="modal hidden">
+<div id="reviewsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="reviewsModal-titulo">
   <div class="modal-backdrop" onclick="closeReviewsModal()"></div>
   <div class="modal-content">
-    <div class="modal-header"><div class="modal-title">⭐ Avaliações</div><button class="modal-close-btn" type="button" onclick="closeReviewsModal()">✕</button></div>
+    <div class="modal-header"><div class="modal-title" id="reviewsModal-titulo">⭐ Avaliações</div><button class="modal-close-btn" type="button" aria-label="Fechar" onclick="closeReviewsModal()">✕</button></div>
     <div id="reviewListMode">
       <div id="reviewsList" style="max-height:300px;overflow-y:auto;margin-bottom:.75rem"></div>
       <hr style="border-color:var(--border);margin:.5rem 0 .75rem" />
@@ -644,11 +644,11 @@ footer{
     <div id="reviewFormMode" class="hidden">
       <p style="font-size:.82rem;color:var(--muted);margin-bottom:.75rem">Obrigado pelo apoio! Deixe sua avaliação.</p>
       <div style="text-align:center;margin-bottom:.5rem">
-        <span class="star-btn" onclick="setReviewStar(1)" style="font-size:1.8rem;cursor:pointer;color:#4b5563">★</span>
-        <span class="star-btn" onclick="setReviewStar(2)" style="font-size:1.8rem;cursor:pointer;color:#4b5563">★</span>
-        <span class="star-btn" onclick="setReviewStar(3)" style="font-size:1.8rem;cursor:pointer;color:#4b5563">★</span>
-        <span class="star-btn" onclick="setReviewStar(4)" style="font-size:1.8rem;cursor:pointer;color:#4b5563">★</span>
-        <span class="star-btn" onclick="setReviewStar(5)" style="font-size:1.8rem;cursor:pointer;color:#4b5563">★</span>
+        <button type="button" class="star-btn" onclick="setReviewStar(1)" aria-label="1 estrela" aria-pressed="false" style="font-size:1.8rem;cursor:pointer;color:#4b5563;background:none;border:0;padding:0 2px;line-height:1">★</button>
+        <button type="button" class="star-btn" onclick="setReviewStar(2)" aria-label="2 estrelas" aria-pressed="false" style="font-size:1.8rem;cursor:pointer;color:#4b5563;background:none;border:0;padding:0 2px;line-height:1">★</button>
+        <button type="button" class="star-btn" onclick="setReviewStar(3)" aria-label="3 estrelas" aria-pressed="false" style="font-size:1.8rem;cursor:pointer;color:#4b5563;background:none;border:0;padding:0 2px;line-height:1">★</button>
+        <button type="button" class="star-btn" onclick="setReviewStar(4)" aria-label="4 estrelas" aria-pressed="false" style="font-size:1.8rem;cursor:pointer;color:#4b5563;background:none;border:0;padding:0 2px;line-height:1">★</button>
+        <button type="button" class="star-btn" onclick="setReviewStar(5)" aria-label="5 estrelas" aria-pressed="false" style="font-size:1.8rem;cursor:pointer;color:#4b5563;background:none;border:0;padding:0 2px;line-height:1">★</button>
       </div>
       <input type="hidden" id="reviewStarInput" value="0" />
       <div style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:.5rem">
@@ -668,10 +668,10 @@ footer{
 </div>
 
 <!-- Projects modal -->
-<div id="projectsModal" class="modal hidden">
+<div id="projectsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="projectsModal-titulo">
   <div class="modal-backdrop" onclick="closeProjects()"></div>
   <div class="modal-content">
-    <div class="modal-header"><div class="modal-title">📂 Projetos salvos</div><button class="modal-close-btn" type="button" onclick="closeProjects()">✕</button></div>
+    <div class="modal-header"><div class="modal-title" id="projectsModal-titulo">📂 Projetos salvos</div><button class="modal-close-btn" type="button" aria-label="Fechar" onclick="closeProjects()">✕</button></div>
     <div id="projectsList"></div>
     <hr style="border-color:var(--border);margin:.6rem 0" />
     <div class="btn-grid">
@@ -682,10 +682,10 @@ footer{
 </div>
 
 <!-- About modal -->
-<div id="aboutModal" class="modal hidden">
+<div id="aboutModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="aboutModal-titulo">
   <div class="modal-backdrop" onclick="closeAbout()"></div>
   <div class="modal-content">
-    <div class="modal-header"><div class="modal-title">❓ Como usar o OrtoFly</div><button class="modal-close-btn" type="button" onclick="closeAbout()">✕</button></div>
+    <div class="modal-header"><div class="modal-title" id="aboutModal-titulo">❓ Como usar o OrtoFly</div><button class="modal-close-btn" type="button" aria-label="Fechar" onclick="closeAbout()">✕</button></div>
     <ol style="padding-left:18px;font-size:13.5px;color:var(--text);line-height:1.6">
       <li>Toque em <b>✏️</b> e marque os vértices da área a mapear. Toque em <b>Concluir</b>.</li>
       <li>Escolha o <b>drone</b> e ajuste <b>altura</b>, <b>GSD</b> e <b>sobreposições</b>. Se a <b>borda</b> da área interessa, escolha uma <b>Margem além da área</b>: sem ela a grade termina no limite, e o que fica no limite das fotos sai deformado no ortomosaico.</li>
@@ -699,13 +699,13 @@ footer{
 </div>
 
 <!-- Visualizador 3D -->
-<div id="viewer3dModal" class="modal hidden">
+<div id="viewer3dModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="viewer3dModal-titulo">
   <div class="modal-backdrop" onclick="close3DModal()"></div>
   <div class="viewer3d-content">
     <div class="viewer3d-bar">
-      <span class="modal-title" style="font-size:14px">🧊 Visualizador 3D</span>
+      <span class="modal-title" id="viewer3dModal-titulo" style="font-size:14px">🧊 Visualizador 3D</span>
       <span id="viewer3dStatus" class="muted" style="font-size:12px;flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
-      <button class="modal-close-btn" type="button" onclick="close3DModal()">✕</button>
+      <button class="modal-close-btn" type="button" aria-label="Fechar" onclick="close3DModal()">✕</button>
     </div>
     <div id="viewer3dCanvas" class="viewer3d-canvas"></div>
     <div id="viewer3dCtrls" class="viewer3d-ctrls hidden">
@@ -719,7 +719,7 @@ footer{
   </div>
 </div>
 
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <!-- libs self-hosted em ./vendor/ (versões pinadas — ver vendor/README.md); o SW pré-cacheia tudo p/ uso offline em campo -->
 <script src="./vendor/leaflet/leaflet.js"></script>
@@ -737,7 +737,7 @@ footer{
 <script src="./vendor/three/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly — © 2026 MGC Dev (versão: só em APP_VERSION) ═══════════════ */
-const APP_VERSION = '1.27.0';
+const APP_VERSION = '1.28.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -746,7 +746,8 @@ const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 const $ = id => document.getElementById(id);
 const fmt = (n,d=0) => (isFinite(n) ? Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d}) : '—');
 let _toastT;
-function toast(msg, type){ const t=$('toast'); t.textContent=msg; t.className='show'+(type==='error'?' error':''); clearTimeout(_toastT); _toastT=setTimeout(()=>t.className='',2600); }
+function toast(msg, type){ const t=$('toast'); t.setAttribute('role',type==='error'?'alert':'status'); t.textContent=msg; t.className='show'+(type==='error'?' error':'');   // erro é anunciado na hora pelo leitor de tela (alert); o resto, sem interromper (status)
+  clearTimeout(_toastT); _toastT=setTimeout(()=>t.className='',2600); }
 function downloadBlob(blob, filename){
   const url=URL.createObjectURL(blob); const a=document.createElement('a');
   a.href=url; a.download=filename; document.body.appendChild(a); a.click();
@@ -1231,11 +1232,13 @@ function saveProject(){
 }
 function newProject(){ if(state.polygon.length>=3 && !confirm('Começar um novo projeto? A área atual será limpa.')) return; clearArea(); $('projName').value=''; state.name=''; }
 function openProjects(){ const arr=loadProjects(); const box=$('projectsList');
+  // o id vem do localStorage: vai em data-id (escapado) e um ouvinte único em #projectsList decide a ação —
+  // nunca interpolado num onclick, onde um registro com aspas no id executaria código (v1.28.0)
   box.innerHTML = arr.length ? arr.map(p=>`<div class="proj-item">
-      <div><div class="pn" onclick="openProject('${p.id}')">${esc(p.name)}${p.result?' <span title="Tem ortomosaico salvo no app (offline)">🗺️</span>':''}</div><div class="pd">${new Date(p.ts).toLocaleString('pt-BR')}</div></div>
+      <div><div class="pn" role="button" tabindex="0" data-acao="abrir" data-id="${esc(p.id)}">${esc(p.name)}${p.result?' <span title="Tem ortomosaico salvo no app (offline)">🗺️</span>':''}</div><div class="pd">${new Date(p.ts).toLocaleString('pt-BR')}</div></div>
       <div style="margin-left:auto;display:flex;gap:6px">
-        <button class="btn sm" onclick="openProject('${p.id}')">Abrir</button>
-        <button class="btn sm" onclick="deleteProject('${p.id}')" title="Excluir">🗑️</button>
+        <button class="btn sm" data-acao="abrir" data-id="${esc(p.id)}">Abrir</button>
+        <button class="btn sm" data-acao="excluir" data-id="${esc(p.id)}" title="Excluir" aria-label="Excluir o projeto ${esc(p.name)}">🗑️</button>
       </div></div>`).join('') : '<p class="empty">Nenhum projeto salvo ainda.</p>';
   $('projectsModal').classList.remove('hidden');
 }
@@ -1303,6 +1306,9 @@ function wire(){
   odmInitOpcoes();
   _odmTask=ls.get(LS+'_odm_task')||null; if(_odmTask){ _odmSaved=false; _odmMeta=odmLerMeta(_odmTask); odmTelaDaTarefa(_odmMeta); $('odmTaskCard').classList.remove('hidden'); if(odmUrlVal()) odmStartPoll(); }
   window.addEventListener('beforeunload',e=>{ if(_odmEnvio || (_odmTask && !_odmSaved && !_odmSavedMode)){ e.preventDefault(); e.returnValue=''; return ''; } });   // envio em andamento também se perde ao sair
+  $('projectsList').addEventListener('click',e=>{ const a=e.target.closest&&e.target.closest('[data-acao]'); if(!a) return;
+    const id=a.getAttribute('data-id'); if(a.getAttribute('data-acao')==='abrir') openProject(id); else if(a.getAttribute('data-acao')==='excluir') deleteProject(id); });
+  prepararAcessibilidade();
   $('importJson').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(f) importProjectFile(f); e.target.value=''; });
   $('photoInput').addEventListener('change',e=>{ const fs=e.target.files; if(fs&&fs.length) handlePhotoFiles(fs); e.target.value=''; });
   $('mosaicOpacity').addEventListener('input',()=>{ $('mosaicOpacityVal').textContent=$('mosaicOpacity').value+'%'; setMosaicOpacity(); });
@@ -1314,12 +1320,39 @@ function wire(){
   document.addEventListener('keydown',e=>{ if(e.key!=='Escape') return; if(drawing) cancelDraw(); if(_cropDrawing) cancelCropDraw(); if(_zonalPicking) zonalPickToggle(); document.querySelectorAll('.modal:not(.hidden)').forEach(m=>m.classList.add('hidden')); });   // único listener de Esc do app
   onDroneChange(true); syncRangeLabels(); updateDirUI();
 }
+/* ───── Teclado e leitor de tela (v1.28.0) ─────
+   O ACCESSIBILITY.md prometia navegação por teclado nos modais e o HTML não entregava: o foco ficava
+   ATRÁS do modal, o Tab saía dele e, ao fechar, não voltava ao botão de origem. FONTE ÚNICA para todos
+   os modais: em vez de cada função de abrir/fechar cuidar do foco, um observador vê a classe `hidden` sair/entrar
+   — vale para todo caminho que abre ou fecha um modal, inclusive o Esc. E elemento com role="button"
+   que não é <button> (nome do projeto, linha de foto) responde a Enter e Espaço como um botão. */
+const _modalPilha=[];   // {m, volta}: modais abertos, o de cima por último, e quem tinha o foco antes
+function _focaveis(el){ return [...el.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')]
+  .filter(n=>!n.disabled&&n.type!=='hidden'&&!n.closest('.hidden')); }
+function _modalAbriu(m){ _modalPilha.push({m, volta:document.activeElement});
+  const f=_focaveis(m.querySelector('.modal-content')||m); if(f[0]) try{ f[0].focus({preventScroll:true}); }catch(e){} }
+function _modalFechou(i){ const {volta}=_modalPilha.splice(i,1)[0];
+  if(!_modalPilha.length&&volta&&volta.isConnected&&!volta.closest('.hidden')) try{ volta.focus({preventScroll:true}); }catch(e){} }
+function prepararAcessibilidade(){
+  document.querySelectorAll('.modal').forEach(m=>{ if(typeof MutationObserver!=='function') return;
+    new MutationObserver(()=>{ const aberto=!m.classList.contains('hidden'), i=_modalPilha.findIndex(x=>x.m===m);
+      if(aberto&&i<0) _modalAbriu(m); else if(!aberto&&i>=0) _modalFechou(i); }).observe(m,{attributes:true,attributeFilter:['class']}); });
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Tab'&&_modalPilha.length){   // o Tab fica dentro do modal de cima
+      const f=_focaveis(_modalPilha[_modalPilha.length-1].m); if(!f.length) return;
+      const i=f.indexOf(document.activeElement);
+      if(e.shiftKey&&i<=0){ e.preventDefault(); f[f.length-1].focus(); } else if(!e.shiftKey&&(i<0||i===f.length-1)){ e.preventDefault(); f[0].focus(); }
+      return; }
+    const t=e.target;
+    if((e.key==='Enter'||e.key===' ')&&t&&t.getAttribute&&t.getAttribute('role')==='button'&&t.tagName!=='BUTTON'){ e.preventDefault(); t.click(); }
+  });
+}
 function openAbout(){ $('aboutModal').classList.remove('hidden'); }
 function closeAbout(){ $('aboutModal').classList.add('hidden'); }
 function setTab(name){
   ['voo','imagens','proc'].forEach(t=>{
     const p=$('tab-'+t); if(p) p.classList.toggle('hidden', t!==name);
-    const b=document.querySelector('.tab[data-tab="'+t+'"]'); if(b) b.classList.toggle('active', t===name);
+    const b=document.querySelector('.tab[data-tab="'+t+'"]'); if(b){ b.classList.toggle('active', t===name); b.setAttribute('aria-selected', t===name?'true':'false'); }
   });
 }
 
@@ -1420,7 +1453,7 @@ function renderPhotoList(){
   const box=$('photoList'); if(!photos.length){ box.innerHTML=''; return; }
   box.innerHTML=photos.map((p,i)=>{ const g=isFinite(p.lat)&&isFinite(p.lon); const alt=p.relAlt!=null?p.relAlt:p.alt;
     const t=p.time?new Date(p.time).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
-    return `<div class="photo-row${g?'':' nogps'}" onclick="flyToPhoto(${i})"><span class="pn">${g?'📍':'⚠️'} ${esc(p.name)}</span><span class="pm">${(alt!=null&&isFinite(alt))?alt.toFixed(0)+'m ':''}${esc(t)}</span></div>`; }).join('');
+    return `<div class="photo-row${g?'':' nogps'}" role="button" tabindex="0" onclick="flyToPhoto(${i})"><span class="pn">${g?'📍':'⚠️'} ${esc(p.name)}</span><span class="pm">${(alt!=null&&isFinite(alt))?alt.toFixed(0)+'m ':''}${esc(t)}</span></div>`; }).join('');
 }
 function flyToPhoto(i){ const p=photos[i]; if(!p||!isFinite(p.lat)||!isFinite(p.lon)){ toast('Sem GPS nesta imagem'); return; } if(!photosVisible) togglePhotos();   // popup exige o marker no mapa (re-render refaz p._m)
   if(map){ map.setView([p.lat,p.lon],Math.max(map.getZoom(),17)); if(p._m) showPhotoPopup(p._m,p); } }
@@ -2621,7 +2654,7 @@ function odmRecusa(u){
 }
 function odmRenderHint(){ const h=$('odmModeHint'); if(!h) return;
   h.innerHTML = _odmMode==='local'
-    ? '💻 <b>Local:</b> instale o Docker e rode <code>docker run -d -p 3000:3000 opendronemap/nodeodm</code> — depois use <code>http://127.0.0.1:3000</code>.'
+    ? '💻 <b>Local:</b> instale o Docker e rode <code>docker run -d -p 127.0.0.1:3000:3000 opendronemap/nodeodm</code> — depois use <code>http://127.0.0.1:3000</code>. (O <code>127.0.0.1:</code> deixa o NodeODM só para este computador: ele não tem senha, e com <code>-p 3000:3000</code> qualquer aparelho no mesmo Wi-Fi poderia listar, baixar e apagar as suas tarefas.)'
       + (odmRecusa(odmUrlVal())==='safari' ? '<br>⚠️ <b>No Safari o PC Local não conecta:</b> esta página é <b>https</b> e o Safari recusa pedidos a <code>http://</code>, mesmo para o seu próprio computador. Para processar, abra o OrtoFly no <b>Chrome</b> ou no <b>Edge</b> — o resto do app funciona aqui.' : '')
     : '☁️ <b>Servidor:</b> um NodeODM remoto que você controle (VPS/outro PC) por <b>HTTPS</b> (ex.: via Cloudflare Tunnel). Cole a URL <code>https://…</code>. <i>(Esta página é https: o navegador recusa NodeODM por <code>http://</code>. No Chrome e no Edge, só o próprio computador é exceção; no Safari, nem ele.)</i>';
 }
@@ -3511,7 +3544,7 @@ async function openReviewsModal(mode='list'){
   if(mode==='form'){ setReviewStar(0); $('reviewNameInput').value=''; $('reviewCommentInput').value=''; $('reviewDonatedCheck').checked=true; }
 }
 function closeReviewsModal(){ $('reviewsModal').classList.add('hidden'); }
-function setReviewStar(n){ $('reviewStarInput').value=n; document.querySelectorAll('.star-btn').forEach((b,i)=>b.style.color=i<n?'#facc15':'#4b5563'); }
+function setReviewStar(n){ $('reviewStarInput').value=n; document.querySelectorAll('.star-btn').forEach((b,i)=>{ b.style.color=i<n?'#facc15':'#4b5563'; b.setAttribute('aria-pressed',i<n?'true':'false'); }); }
 async function submitReview(){
   const stars=parseInt($('reviewStarInput').value||'0'); const name=$('reviewNameInput').value.trim(); const comment=$('reviewCommentInput').value.trim(); const donated=$('reviewDonatedCheck').checked;
   if(!stars){ alert('Selecione uma avaliação de 1 a 5 estrelas.'); return; }

@@ -56,7 +56,7 @@ Agora siga **a opção que você escolheu**:
 
    🟢 **Abra o Terminal** — *Launchpad → Terminal* (ou *⌘+Espaço → "Terminal"*). **Cole** o comando abaixo (**⌘+V**) e tecle **Enter**:
    ```bash
-   docker run -d --name nodeodm --restart unless-stopped -p 3000:3000 opendronemap/nodeodm
+   docker run -d --name nodeodm --restart unless-stopped -p 127.0.0.1:3000:3000 opendronemap/nodeodm
    ```
    *(baixa a imagem ~1,5 GB na 1ª vez e sobe o NodeODM)*
 5. **Confira:** abra **http://127.0.0.1:3000/info** no navegador → JSON com `"version"`. ✅
@@ -86,11 +86,15 @@ Agora siga **a opção que você escolheu**:
 
    🟢 **No Terminal** — **cole** e tecle **Enter**:
    ```bash
-   docker run -d --name nodeodm --restart unless-stopped -p 3000:3000 opendronemap/nodeodm
+   docker run -d --name nodeodm --restart unless-stopped -p 127.0.0.1:3000:3000 opendronemap/nodeodm
    ```
 5. **Confira:** **http://127.0.0.1:3000/info** no navegador → JSON. ✅
 
 ---
+
+> 🔒 **Por que `127.0.0.1:3000:3000` e não só `3000:3000`?** O NodeODM **não tem senha** e aceita pedidos de qualquer site. Com `-p 3000:3000` ele escuta em **todas** as conexões do Mac — qualquer aparelho no mesmo Wi-Fi pode **listar, baixar e apagar** as suas tarefas (medido num Mac com Colima: respondeu pelo IP da rede local). Com `127.0.0.1:` ele só atende **este computador**, e o app funciona igual.
+>
+> **Já tem o container antigo (instalado com `-p 3000:3000`)?** Confira com 🟢 `lsof -nP -iTCP:3000 -sTCP:LISTEN` — se aparecer `*:3000`, ele está aberto para a rede. Para fechar: **(1)** no app, **salve ou descarte** as tarefas que ainda estão no NodeODM (recriar o container **apaga** as que ficaram nele); **(2)** 🟢 `docker rm -f nodeodm`; **(3)** rode o `docker run` acima. Confira de novo: tem de aparecer `127.0.0.1:3000`.
 
 ## ▶ Configurar no app
 1. Abra o OrtoFly **no Chrome ou no Edge** (não no Safari): **https://magoc25.github.io/OrtoFly/ortofly.html**
@@ -187,7 +191,7 @@ docker system prune -f
   colima stop
   colima delete
   colima start --cpu 6 --memory 8
-  docker run -d --name nodeodm --restart unless-stopped -p 3000:3000 opendronemap/nodeodm
+  docker run -d --name nodeodm --restart unless-stopped -p 127.0.0.1:3000:3000 opendronemap/nodeodm
   ```
   *(você já salva os produtos no app, então não perde resultados)*
   > ⚠️ `colima delete` **apaga a VM, os containers, as imagens e as configurações** — mas **não desinstala** o Colima. Por isso: **(1)** no `colima start` use os **mesmos números** de `--cpu/--memory` da seção **🧠 Memória e CPU** — só `colima start` *sem flags* volta ao default **2 GB**!; **(2)** o `docker run` vai **baixar a imagem (~1,5 GB)** de novo (precisa de internet); **(3)** confira o `totalMemory` em **http://127.0.0.1:3000/info**.

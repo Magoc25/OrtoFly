@@ -1,6 +1,6 @@
 # Declaração de Acessibilidade — OrtoFly
 
-**Versão:** 1.0 · **Última auditoria:** Maio de 2026 · **Próxima revisão prevista:** Maio de 2027
+**Versão:** 1.1 · **Última auditoria:** Novembro de 2026 · **Próxima revisão prevista:** Novembro de 2027
 
 ## Compromisso
 
@@ -16,23 +16,33 @@ técnicas da **ABNT NBR 17225:2025** e das **WCAG 2.2 (W3C)**.
 
 ## Status de conformidade
 
-**Parcialmente conforme.** A maior parte da interface (painéis, formulários, botões,
-modais e tabelas de resultados) segue o nível AA. Há limitações conhecidas no componente
-de **mapa interativo**, descritas abaixo.
+**Parcialmente conforme.** A auditoria de novembro de 2026 encontrou que esta declaração
+prometia mais do que o app entregava (botões só de ícone sem nome, modais que não prendiam
+nem devolviam o foco, avaliação por estrelas só com mouse); isso foi corrigido na
+**v1.28.0**. A lista abaixo descreve **só o que existe e foi conferido**; o que ainda não
+foi avaliado está em *Limitações conhecidas*.
 
 ## Recursos de acessibilidade implementados
 
 - Idioma da página declarado (`<html lang="pt-BR">`).
-- Estrutura semântica (cabeçalhos, `nav`, `main`, `footer`, rótulos `label` associados aos campos).
-- Navegação por teclado nos controles, botões e modais (`Tab`, `Enter`, `Esc`).
-- **Foco visível** em elementos interativos.
-- Contraste de cores buscando o mínimo de **4,5:1** para texto normal.
-- Alvos de toque com tamanho adequado (mínimo de 24×24 px — WCAG 2.2).
-- Informações não transmitidas apenas por cor (uso de texto e ícones de apoio).
-- Textos alternativos em imagens informativas e `aria-label` em botões somente-ícone.
+- Regiões da página: `header`, área principal (`role="main"`) e `footer`; rótulos `label` associados aos campos de formulário.
+- **Nome acessível em todo botão só de ícone** (📂, ❓, ✏️, 🗑️, 📍, 💾, ✨, ✕ de fechar…), por `aria-label` — conferido a cada versão pelo verificador estático (`check.js`).
+- **Abas** (✈️ Voo, 📷 Imagens, ⚙️ Processar) com `role="tab"`/`tabpanel` e `aria-selected` acompanhando a aba ativa.
+- **Modais como diálogos** (`role="dialog"`, `aria-modal`, título associado): ao abrir, o foco entra no modal; `Tab` e `Shift+Tab` ficam dentro dele; `Esc` fecha; ao fechar, o foco volta ao botão que o abriu.
+- **Avaliação por estrelas operável por teclado** (cada estrela é um botão com nome — "4 estrelas" — e estado `aria-pressed`).
+- **Mensagens anunciadas** pelo leitor de tela: o aviso na base da tela é `role="status"` (sem interromper) e, quando é erro, `role="alert"`.
+- Itens de lista clicáveis (nome do projeto, linha de foto) alcançáveis por `Tab` e acionáveis com `Enter` ou `Espaço`.
+- **Foco visível** (contorno) em campos e botões navegados por teclado.
 - Mensagens de erro descritas em texto.
 
 ## Limitações conhecidas
+
+- **Não avaliado com leitor de tela real** (VoiceOver/NVDA) nesta auditoria: o comportamento
+  acima foi conferido por testes automatizados no navegador simulado e pelo teclado; a leitura
+  em voz é a próxima verificação.
+- **Contraste de cores e tamanho dos alvos de toque** não foram medidos nesta auditoria.
+- **Ordem de foco do painel lateral:** os controles seguem a ordem do documento; não há atalho
+  para pular o mapa.
 
 - O **desenho da área no mapa** (criação e edição de polígonos) depende de interação por
   ponteiro/toque e **não é totalmente operável por teclado nem por leitor de tela**. Como
