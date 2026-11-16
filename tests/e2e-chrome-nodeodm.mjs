@@ -38,6 +38,10 @@
   que o resultado vai para o app, que a tarefa é removida do servidor e que, reaberto o app,
   o projeto devolve o resultado com o registro do que foi pedido.
   --n 10 limita o número de fotos em qualquer modo (o padrão é 10; no --completo, todas).
+  --gcp <arquivo> (v1.27.0) escolhe também um gcp_list.txt no app antes de enviar: confere que ele sobe
+  junto sem contar como foto e, no --completo, que o log do ODM registra o uso dos pontos de controle.
+  No --completo o roteiro confere ainda a precisão lida do relatório do ODM (card) e o contorno da área
+  coberta pelas fotos ao abrir o ortomosaico, com o recorte por ele.
 
   As fotos precisam ser de drone DJI com a altura relativa gravada (XMP); sem ela o app
   não tem como estimar o GSD e as conferências de resolução ficam vermelhas.
@@ -64,6 +68,7 @@ const PASTA_FOTOS = arg('fotos', '');
 const ODM = String(arg('odm', 'http://127.0.0.1:3000')).replace(/\/+$/, '');
 const HTML = path.resolve(arg('html', path.join(aqui, '..', 'ortofly.html')));
 const COMPLETO = process.argv.includes('--completo'), SALVAR = process.argv.includes('--salvar');
+const GCP = arg('gcp', '') ? path.resolve(arg('gcp', '')) : '';
 const N_FOTOS = parseInt(arg('n', ''), 10) || (COMPLETO ? Infinity : 10);   // --n 10 limita o número de fotos em qualquer modo
 const FANTASMA = '00000000-0000-4000-8000-000000000000';   // uuid que não existe em servidor nenhum
 
@@ -92,6 +97,7 @@ async function main() {
   const fotos = readdirSync(PASTA_FOTOS).filter(f => /\.jpe?g$/i.test(f)).sort().slice(0, N_FOTOS).map(f => path.join(PASTA_FOTOS, f));
   if (fotos.length < 5) throw new Error('a pasta precisa de pelo menos 5 fotos .JPG (achei ' + fotos.length + ')');
   if (!existsSync(HTML)) throw new Error('não achei o app em ' + HTML);
+  if (GCP && !existsSync(GCP)) throw new Error('não achei o arquivo de pontos de controle ' + GCP);
   const info = await odm('/info');
   if (!info || !info.version) throw new Error('o NodeODM não respondeu em ' + ODM + '/info — ele está no ar?');
   const exe = [process.env.CHROME, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -165,6 +171,13 @@ async function main() {
   const leu = await esperar(async () => /GSD estimado|Não consegui/.test(await texto('#odmGsdInfo')), 90000);
   const infoGsd = await texto('#odmGsdInfo'), pedido = parseFloat(((infoGsd.match(/pedido a ([\d,]+) cm\/px/) || [])[1] || '').replace(',', '.'));
   const rsMarcado = await ev(`!!(document.getElementById('odmRS')||{}).checked`);
+  if (GCP) {   // pontos de controle pelo campo de arquivo, como o usuário
+    const campoG = await cmd('DOM.querySelector', { nodeId: raizDom.result.root.nodeId, selector: '#odmGcp' });
+    await cmd('DOM.setFileInputFiles', { files: [GCP], nodeId: campoG.result.nodeId });
+    const leuG = await esperar(async () => /ponto\(s\)|❌/.test(await texto('#odmGcpInfo')), 10000);
+    nota('pontos de controle', (await texto('#odmGcpInfo')).slice(0, 170));
+    confere('GCP: o app lê o arquivo e diz quantos pontos e marcações ele tem', leuG && /\d+ ponto\(s\), \d+ marcaç/.test(await texto('#odmGcpInfo')));
+  }
   nota('fotos escolhidas', fotos.length); nota('GSD lido das fotos', infoGsd.slice(0, 160));
   nota('obturador de rolagem', ((await texto('#odmRSInfo')).slice(0, 100) || '(sem leitura de velocidade)') + ' · marcado: ' + rsMarcado);
   confere('tarefa nova: o app lê a altura de voo das fotos de verdade e diz a resolução que vai pedir', leu && /GSD estimado/.test(infoGsd) && pedido > 0);
@@ -184,7 +197,7 @@ async function main() {
   nota('envio em partes', { init: nInit, lotes: nUp, commit: nCommit, pedidoUnico: nUnico, andamentoVistoNaTela: [...andamento].slice(0, 4) });
   confere('envio: as fotos vão em vários pedidos pequenos (init → lotes → commit), não num pedido só', nInit === 1 && nUp >= 2 && nCommit === 1 && nUnico === 0);
   confere('envio: a tela mostra o andamento em fotos e o botão Enviar trava enquanto envia', andamento.size >= 1 && travou === true);
-  confere('envio: o servidor ficou com exatamente as fotos escolhidas', (await odm('/task/' + T1 + '/info')).imagesCount === fotos.length);
+  confere('envio: o servidor ficou com exatamente as fotos escolhidas' + (GCP ? ' (o gcp_list.txt não conta como imagem)' : ''), (await odm('/task/' + T1 + '/info')).imagesCount === fotos.length);
   const chegou = (await odm('/task/' + T1 + '/info')).options || [], val = n => (chegou.find(o => o.name === n) || {}).value;
   nota('opções que chegaram ao servidor', chegou.filter(o => !['pc-ept', 'cog', 'gltf'].includes(o.name)));
   confere('tarefa nova: orthophoto-resolution chega ao servidor com o valor mostrado na tela', pedido > 0 && Math.abs(val('orthophoto-resolution') - pedido) < 0.011);
@@ -200,6 +213,12 @@ async function main() {
     nota('fim do processamento', { status: st, minutos: Math.round((info2.processingTime || 0) / 6000) / 10, imagens: info2.imagesCount });
     confere('--completo: a tarefa criada pelo app termina com sucesso', st.code === 40);
     if (st.code !== 40) { deixar.push(T1); return; }
+    if (GCP) {   // o NodeODM passa o arquivo ao ODM como --gcp: o log registra
+      let log = []; try { log = await (await fetch(ODM + '/task/' + T1 + '/output')).json(); } catch (e) { log = []; }
+      const linhasGcp = (Array.isArray(log) ? log : []).filter(l => /gcp/i.test(l));
+      nota('log do ODM sobre os pontos de controle', linhasGcp.slice(0, 4).map(l => String(l).slice(0, 150)));
+      confere('GCP: o log do ODM registra o arquivo de pontos de controle', linhasGcp.some(l => /gcp_list\.txt/.test(l)));
+    }
 
     /* pacote: dois pedidos ao mesmo tempo têm de virar UM download, com o andamento em MB na tela */
     await esperar(async () => /conclu/.test(await texto('#odmTaskStatus')), 15000);
@@ -210,6 +229,22 @@ async function main() {
     nota('pacote', { resultado: await ev('window.__zip'), downloads: rota(/\/download\/all\.zip$/), andamento: [...mbVistos].slice(-2), statusFinal: (await texto('#odmStatus')).slice(0, 60) });
     confere('pacote: dois pedidos simultâneos do all.zip fazem UM download', (await ev('window.__zip')) === 'ok' && rota(/\/download\/all\.zip$/) === 1);
     confere('pacote: a tela mostra o andamento do download em MB', mbVistos.size >= 1);
+    /* precisão (v1.27.0): lida do odm_report/stats.json do pacote baixado */
+    const prec = await texto('#odmPrecisao');
+    nota('precisão no card', prec.slice(0, 230));
+    confere('precisão: o card mostra o relatório do ODM (GSD, reprojeção, CE90) assim que o pacote é baixado', /Relatório do ODM/.test(prec) && /reprojeção [\d,]+ px/.test(prec) && /CE90/.test(prec));
+    if (GCP) confere('precisão: com GCP, o card mostra o erro NOS pontos de controle', /pontos de controle \(CE90\)/.test(prec) && /com pontos de controle/.test(prec));
+    /* contorno da área coberta pelas fotos ao abrir o ortomosaico, e o recorte por ele */
+    await ev(`window.__ab=null; odmOpenZip('ortho','2d').then(()=>{ window.__ab='fim'; }); 1`);
+    await esperar(async () => !!(await ev('window.__ab')) && /área coberta/.test(await texto('#rasterCobertura')), 240000);
+    const cob = await ev(`({vertices:_cobertura&&_cobertura.length, camada:!!_coberturaLayer, raster:_rasterMeta&&(_rasterMeta.gr.width+'x'+_rasterMeta.gr.height), alfa:_rasterMeta&&_rasterMeta.alphaIdx})`);
+    nota('contorno das fotos', { ...cob, nota: (await texto('#rasterCobertura')).slice(0, 110) });
+    confere('contorno: ao abrir o ortomosaico, o app desenha a área coberta pelas fotos (shots.geojson) e explica', !!cob && cob.vertices >= 3 && cob.camada === true);
+    confere('4ª banda: o ortomosaico do ODM declara o alfa (ExtraSamples) e o app o reconhece na banda 4', !!cob && cob.alfa === 3);
+    await clicar('#rasterCobertura button');
+    const recortou = await esperar(async () => (await ev('!!_rasterUncropped')) === true && /Recorte/.test(await texto('#rasterStatus')), 120000);
+    nota('recorte pela área das fotos', (await texto('#rasterStatus')).slice(0, 80));
+    confere('contorno: o botão recorta o ortomosaico pela área das fotos', recortou);
     const noOpfs = () => ev(`navigator.storage.getDirectory().then(d=>d.getDirectoryHandle('ortofly-tmp')).then(h=>h.getFileHandle('all.zip')).then(()=>true,()=>false)`);
     const tinhaTemp = await noOpfs();
 

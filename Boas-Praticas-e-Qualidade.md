@@ -74,7 +74,7 @@ Quase todo drone lê o sensor **linha a linha** (obturador eletrônico). Se a fo
 - **Não use** com câmera de **obturador mecânico** (ex.: Phantom 4 Pro/RTK, Mavic 3E) nem em missão que **para em cada foto** (o KMZ exportado por este app para em cada ponto).
 
 ### O que o processamento NÃO resolve: a borda do levantamento
-- **A borda sai deformada** quando a área de interesse encosta no limite das fotos: ali cada ponto do terreno aparece em poucas fotos, todas de um lado só. No mesmo voo de teste, um prédio que ficou **fora da grade de voo** saiu com os painéis solares rasgados — e um programa comercial, com as mesmas fotos, deixou **buracos** no mesmo lugar. Nenhuma opção de processamento corrige isso. **Voe uma faixa além da área que você quer.**
+- **A borda sai deformada** quando a área de interesse encosta no limite das fotos: ali cada ponto do terreno aparece em poucas fotos, todas de um lado só. No mesmo voo de teste, um prédio que ficou **fora da grade de voo** saiu com os painéis solares rasgados — e um programa comercial, com as mesmas fotos, deixou **buracos** no mesmo lugar. Nenhuma opção de processamento corrige isso. **Voe além da área que você quer:** desde a v1.27.0 a aba ✈️ Voo tem **Margem além da área** — *Automática* acrescenta uma faixa de cada lado e estende cada faixa por meia foto nas duas pontas (a missão fica maior; o app conta isso nos Resultados). Depois de processar, o app desenha sobre o ortomosaico o **contorno da área coberta pelas fotos** (lido do relatório do ODM): fora dele, não meça; o botão **✂️ Recortar pela área das fotos** tira a borda.
 - **Ortomosaico não é "ortofoto verdadeira":** fachadas e beirais de objetos altos podem aparecer levemente inclinados, mesmo nos modos densos.
 
 ### Economizar RAM (`feature-quality=medium` + `pc-quality=low` + menos threads) — soma a qualquer modo
@@ -136,7 +136,7 @@ O OrtoFly **não tenta substituir** Pix4D, Agisoft Metashape ou DroneDeploy. Ele
 O NodeODM é só a **API** do **OpenDroneMap** — usado mundialmente em **pesquisa, agricultura, mapeamento humanitário** (OpenAerialMap, HOT) e ensino. É **confiável** dentro dos limites da fotogrametria:
 
 - **Precisão relativa** (medidas internas, áreas, volumes) costuma ser **boa**.
-- **Precisão absoluta** (posição no mundo) é **limitada pelo GPS do drone** — tipicamente **metros** sem apoio. Com **GCPs** ou **RTK/PPK**, chega a **centímetros**.
+- **Precisão absoluta** (posição no mundo) é **limitada pelo GPS do drone** — tipicamente **metros** sem apoio. Com **GCPs** ou **RTK/PPK**, chega a **centímetros**. Medido num voo de teste (34 fotos, sem GCP): ODM padrão, ODM com correção de obturador e um programa comercial ficaram a **2–6 m** um do outro em posição e a **~1 %** em escala (≈ 2 % em área) — nenhum deles pode ser dito "o certo" sem pontos de controle. Desde a v1.27.0 o card da tarefa mostra a precisão que o ODM estimou (`odm_report/stats.json`) e o app aceita um **`gcp_list.txt`** no envio; no teste com 5 pontos, o ODM usou os 25 marcações e o erro nos pontos de controle (CE90) foi de 0,24 m.
 - **Qualidade = qualidade da entrada:** sobreposição, luz, textura e nº de fotos mandam no resultado.
 
 **Recomendação:** para **visualização, agro, inspeção e estudo**, use à vontade. Para **topografia/cadastro com valor legal**, use **GCPs/RTK** e **valide** os produtos (checar pontos conhecidos).

@@ -295,6 +295,31 @@ const semAbort = idbFns.filter(([, f]) => !f || !/tx\.onabort\s*=/.test(f)).map(
 if (semAbort.length) fail(`armazenamento: ${semAbort.join(' e ')} não trata(m) tx.onabort — com a cota cheia a gravação fica pendurada para sempre`);
 else ok(`armazenamento: idbPut e idbDel tratam transação abortada (capturado: ${idbFns.map(([, f]) => f.length).join(' e ')} caracteres)`);
 
+/* ── 4j) abertura em campo e medição (v1.27.0) ──────────────────────────────
+   Lints baratos; o comportamento é provado pelos cenários 3, 6 e 7 do smoke.
+   (1) AUSÊNCIA: nenhum `localStorage.` fora do objeto `ls` — com o armazenamento bloqueado, cada acesso
+       direto lança SecurityError (até a v1.26.0 isso matava wire() e o app abria "morto"). O `ls` lê
+       `window.localStorage` sem ponto em seguida, então a asserção vale para o arquivo inteiro.
+   (2) PRESENÇA: o ramo do HTML no sw.js tem tempo-limite, só grava resposta ok e procura com ignoreSearch.
+   (3) AUSÊNCIA: nenhuma banda tratada como alfa pelo NÚMERO de bandas (`nb===4||nb===2`, `bands>=4`,
+       `vals[3]`) — quem diz se há alfa é o ExtraSamples do arquivo (um R-G-B-NIR perdia os pixels com NIR = 0). */
+const lsDireto = (jsCode.match(/[^\n]{0,40}localStorage\s*\.[^\n]{0,30}/) || [])[0];
+if (!/const ls=\(\(\)=>\{/.test(jsCode) || !/window\.localStorage/.test(jsCode)) fail('armazenamento: o objeto `ls` não foi encontrado — a asserção de acesso direto passaria de graça');
+else if (lsDireto) fail(`armazenamento: acesso direto ao localStorage fora do \`ls\` ("${lsDireto.trim()}") — com o armazenamento bloqueado isso lança e pode matar a abertura`);
+else ok('armazenamento: todo acesso passa pelo `ls` (nenhum `localStorage.` direto)');
+const swHtml = (swSrc.match(/if \(isHTML\) \{[\s\S]*?\n    return;\n  \}/) || [])[0];
+console.log('       [captura] ramo HTML do sw.js = ' + (swHtml ? swHtml.split('\n').length + ' linhas' : 'NÃO ENCONTRADO'));
+if (!swHtml) fail('sw.js: o ramo do HTML não foi encontrado — a extração secou');
+else {
+  const falta = [[/HTML_ESPERA_MS/, 'tempo-limite'], [/if \(resp\.ok\)[^\n]*put\(/, 'só resposta ok entra no cache'], [/ignoreSearch:\s*true/, 'ignoreSearch']].filter(([re]) => !re.test(swHtml)).map(([, n]) => n);
+  if (falta.length) fail(`sw.js: o ramo do HTML perdeu ${falta.join(', ')} — em campo, com sinal fraco, o app volta a demorar ou um erro substitui o app no cache`);
+  else ok('sw.js: HTML com tempo-limite, só resposta ok no cache e busca com ignoreSearch');
+}
+const alfaFixo = (jsCode.match(/[^\n]{0,30}(?:nb===4\|\|nb===2|bands>=4|nb>=4\?vals\[3\]|origA=\(nb>=4\))[^\n]{0,20}/) || [])[0];
+if (alfaFixo) fail(`raster: banda tratada como alfa pelo número de bandas ("${alfaFixo.trim()}") — quem diz é o ExtraSamples do arquivo`);
+else if (!/function _alfaDoTiff\s*\(/.test(jsCode)) fail('raster: _alfaDoTiff não encontrada — a asserção de alfa fixo passaria de graça');
+else ok('raster: o alfa vem do ExtraSamples do arquivo, nunca do número de bandas');
+
 /* ── 5) apresentacao.html — a página pública do §37 ────────────────────────
    Estas asserções existem porque NENHUM passo do release toca este arquivo:
    ele não é recompilado, não entra no smoke do app e ninguém o reabre. Sem

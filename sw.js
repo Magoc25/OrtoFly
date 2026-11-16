@@ -1,6 +1,7 @@
 /* OrtoFly — Service Worker (a versão vive só no CACHE_NAME abaixo) */
 
-const CACHE_NAME = 'ortofly-v58';
+const CACHE_NAME = 'ortofly-v59';
+const HTML_ESPERA_MS = 3500;   // quanto a abertura espera a rede antes de usar a cópia do cache (escolha do app)
 
 // Tudo que o app precisa para funcionar OFFLINE (uso em campo, sem sinal):
 // libs self-hosted (vendor/) + manifest + ícones. O HTML fica de fora da
@@ -38,15 +39,29 @@ self.addEventListener('fetch', event => {
 
   const isHTML = event.request.mode === 'navigate' || event.request.url.includes('ortofly.html');
 
-  // App (HTML/navegação): network-first — sempre pega a versão nova quando online
-  // e cai no cache só se estiver offline. Evita ter de dar Ctrl+F5 a cada atualização.
+  // App (HTML/navegação): network-first — pega a versão nova quando a rede responde
+  // e cai no cache quando ela não responde. Evita ter de dar Ctrl+F5 a cada atualização.
+  // v1.27.0 — três defeitos do ramo anterior, todos de uso em campo:
+  //  · sem tempo-limite: com sinal que conecta e não responde, a abertura esperava o fetch
+  //    desistir (dezenas de segundos) antes de usar o cache. Agora espera HTML_ESPERA_MS;
+  //    a rede pode responder depois, e então a cópia nova entra no cache para a próxima vez
+  //    (quem avisa que há versão nova é o banner do app_config, que compara versões);
+  //  · gravava QUALQUER resposta: um 404/5xx substituía o app bom no cache. Só resposta ok entra;
+  //    e resposta de erro com cópia boa no cache devolve a cópia;
+  //  · sem ignoreSearch, a URL com ?… não achava o app no cache.
   if (isHTML) {
+    const doCache = () => caches.match(event.request, { ignoreSearch: true });
+    let gravou = Promise.resolve();
+    const daRede = fetch(event.request).then(resp => {
+      if (resp.ok) { const copia = resp.clone(); gravou = caches.open(CACHE_NAME).then(c => c.put(event.request, copia)); }
+      return resp;
+    });
+    event.waitUntil(daRede.then(() => gravou).catch(() => {}));
+    const espera = new Promise((_, rej) => setTimeout(() => rej(new Error('a rede não respondeu a tempo')), HTML_ESPERA_MS));
     event.respondWith(
-      fetch(event.request).then(response => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-        return response;
-      }).catch(() => caches.match(event.request).then(c => c || new Response('Offline', { status: 503 })))
+      Promise.race([daRede, espera])
+        .then(resp => (resp.ok || resp.type === 'opaqueredirect') ? resp : doCache().then(c => c || resp))   // redirecionamento de navegação passa direto
+        .catch(() => doCache().then(c => c || daRede.catch(() => new Response('Offline', { status: 503 }))))
     );
     return;
   }

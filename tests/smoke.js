@@ -157,6 +157,33 @@ async function main() {
   const oGsd = txt(doc, 'oGsd'), oPhotos = txt(doc, 'oPhotos');
   check('plano: Resultados preenchidos na UI', oGsd !== undefined && oGsd !== '—' && oPhotos !== undefined && oPhotos !== '—');
 
+  /* margem além da área (v1.27.0). "Sem margem" tem de reproduzir a grade de antes PONTO POR PONTO: a
+     referência abaixo foi MEDIDA na v1.26.0 (commit 9bf4347), com a AOI de exemplo e os padrões da tela —
+     198 fotos, 9 faixas, e o hash das coordenadas com 9 casas. Com "Automática", a grade ganha uma faixa
+     de cada lado e as pontas passam meia pegada (no sentido do voo) além do polígono. */
+  const hashGrade = () => require('crypto').createHash('sha256').update(String(ev('JSON.stringify(state.lastPlan.grid.waypoints.map(p=>[p.lat.toFixed(9),p.lon.toFixed(9)]))'))).digest('hex').slice(0, 16);
+  const REF_V126 = { wp: 198, linhas: 9, hash: '7477e61bdbd8ccff' };
+  const margemPadrao = val(doc, 'margem');
+  const g0 = { wp: ev('state.lastPlan.grid.waypoints.length'), linhas: ev('state.lastPlan.grid.nLines'), hash: hashGrade() };
+  console.log('       [captura] grade sem margem = ' + JSON.stringify(g0) + ' · referência v1.26.0 = ' + JSON.stringify(REF_V126));
+  check('margem: "Sem margem" dá a MESMA grade da v1.26.0, ponto por ponto (198 fotos, 9 faixas, mesmo hash)',
+    margemPadrao === 'none' && g0.wp === REF_V126.wp && g0.linhas === REF_V126.linhas && g0.hash === REF_V126.hash);
+  const selMargem = el(doc, 'margem');
+  if (selMargem) { selMargem.value = 'auto'; selMargem.dispatchEvent(new w.Event('change')); }
+  const fora = ev(`(function(){ var p=state.lastPlan, f=localFrame(state.polygon), b=p.bearing*Math.PI/180, dv=[Math.sin(b),Math.cos(b)];
+    var d=function(q){ return q[0]*dv[0]+q[1]*dv[1]; }, W=p.grid.waypoints.map(function(x){ return d(f.toXY([x.lat,x.lon])); }), P=state.polygon.map(function(q){ return d(f.toXY(q)); });
+    return JSON.stringify({linhas:p.grid.nLines, wp:p.grid.waypoints.length, meia:p.footAlong/2, alem:Math.max.apply(null,W)-Math.max.apply(null,P), aquem:Math.min.apply(null,P)-Math.min.apply(null,W)}); })()`);
+  const fa = fora ? JSON.parse(fora) : {};
+  console.log('       [captura] grade com margem automática = ' + fora + ' · dica = ' + JSON.stringify(String(txt(doc, 'margemHint')).slice(0, 90)));
+  check('margem: "Automática" acrescenta uma faixa de cada lado (9 -> 11)', fa.linhas === REF_V126.linhas + 2);
+  check('margem: com "Automática" as pontas das faixas passam meia pegada além da área (±1 m), nas duas pontas',
+    Math.abs(fa.alem - fa.meia) <= 1 && Math.abs(fa.aquem - fa.meia) <= 1);
+  check('margem: os Resultados contam as fotos da margem', String(txt(doc, 'oPhotos')) === Number(fa.wp).toLocaleString('pt-BR'));
+  const snapM = ev('JSON.stringify(snapshot().params)');
+  check('margem: a escolha vai no projeto salvo', /"margem":"auto"/.test(String(snapM)));
+  ev("applySnapshot({polygon:state.polygon, droneId:state.droneId, params:{alt:100, fo:75, so:65, speed:+$('speed').value, dir:'auto', dirDeg:0, cross:false}})");
+  check('margem: projeto salvo ANTES da margem existir abre sem margem — o plano com que foi salvo', val(doc, 'margem') === 'none' && hashGrade() === REF_V126.hash);
+
   /* rodapé (r38): versão exibida = APP_VERSION embutida.
      O valor lido fica numa variável ANTES de virar operando (r91d): `undefined`
      usado direto em concatenação/método decapita a fase inteira. */
@@ -375,7 +402,7 @@ async function main() {
   const gr3 = await w3.parseGeoraster([banda3, banda3, banda3, alfaOrig],
     { noDataValue: null, projection: 31983, xmin: 443000, ymax: 9224000, pixelWidth: 1, pixelHeight: 1 });
   w3.__gr = gr3;
-  ev3('_rasterMeta={gr:__gr,bands:4,mn:0,mx:255,ycc:false,factor:1,orig:{xmin:__gr.xmin,xmax:__gr.xmax,ymin:__gr.ymin,ymax:__gr.ymax}}');
+  ev3('_rasterMeta={gr:__gr,bands:4,mn:0,mx:255,ycc:false,factor:1,alphaIdx:3,orig:{xmin:__gr.xmin,xmax:__gr.xmax,ymin:__gr.ymin,ymax:__gr.ymax}}');
   ev3('rasterLayer=buildRasterLayer().addTo(map); $("rasterCtrls").classList.remove("hidden"); renderCRS()');
 
   /* CRS na tela -- o que o usuario precisa ANTES de colar os pontos */
@@ -451,7 +478,7 @@ async function main() {
 
   /* mascara do poligono se SOMA a do arquivo (nao substitui) */
   w3.performCrop = performCropReal;   // volta o recorte de verdade para medir a mascara
-  ev3('_rasterMeta={gr:__gr,bands:4,mn:0,mx:255,ycc:false,factor:1,orig:{xmin:__gr.xmin,xmax:__gr.xmax,ymin:__gr.ymin,ymax:__gr.ymax}}');
+  ev3('_rasterMeta={gr:__gr,bands:4,mn:0,mx:255,ycc:false,factor:1,alphaIdx:3,orig:{xmin:__gr.xmin,xmax:__gr.xmax,ymin:__gr.ymin,ymax:__gr.ymax}}');
   const llCanto = (E, N) => w3.utmToLatLon(E, N, 23, true);
   await w3.performCrop([llCanto(443002, 9223998), llCanto(443038, 9223998), llCanto(443038, 9223962), llCanto(443002, 9223962)], true);
   const semDadoVirouDado = ev3('(function(){ var a=_rasterMeta.gr.values[3], n=0; for(var r=0;r<18;r++) for(var c=0;c<a[r].length;c++) if(a[r][c]!==0) n++; return n; })()');
@@ -463,7 +490,7 @@ async function main() {
      nao desenhava nada -- nem antes nem depois do recorte. */
   w3.downloadBlob = () => {};
   w3.JSZip = function () { this.file = () => {}; this.generateAsync = () => Promise.resolve(new w3.Blob([''])); };
-  ev3('_rasterMeta={gr:__gr,bands:4,mn:0,mx:255,ycc:false,factor:1,orig:{xmin:__gr.xmin,xmax:__gr.xmax,ymin:__gr.ymin,ymax:__gr.ymax}}');
+  ev3('_rasterMeta={gr:__gr,bands:4,mn:0,mx:255,ycc:false,factor:1,alphaIdx:3,orig:{xmin:__gr.xmin,xmax:__gr.xmax,ymin:__gr.ymin,ymax:__gr.ymax}}');
   const campoPts = el(doc3, 'zonalPts'), campoRaio = el(doc3, 'zonalRadius');
   if (campoPts) campoPts.value = 'P1 443010 9223990\nP2 443020 9223980';
   if (campoRaio) campoRaio.value = '5';
@@ -540,6 +567,63 @@ async function main() {
     has(doc3, 'xhairV', 'on') === true && !!xv && xv.style.left === '200px');
   ev3('cancelCropDraw()');
   check('fio-cruz: some ao cancelar o recorte', has(doc3, 'xhairV', 'on') === false);
+
+  /* 4a BANDA (v1.27.0): quem diz se ela e alfa e o ARQUIVO (tag ExtraSamples), nao o numero de bandas.
+     Dois rasters de 4 bandas identicos, com a 4a banda = 0 na metade de cima: num RGBA ela e mascara
+     (metade dos pixels sai), num R-G-B-NIR ela e dado (todos os pixels entram, e a banda e reportada). */
+  check('4a banda: ExtraSamples decide o alfa (2 -> ultima banda; 0 -> nenhum; sem a tag -> nenhum; [0,2] em 5 bandas -> a 5a)',
+    ev3('_alfaDoTiff({ExtraSamples:2},4)') === 3 && ev3('_alfaDoTiff({ExtraSamples:[0]},4)') === -1 && ev3('_alfaDoTiff({},4)') === -1
+    && ev3('_alfaDoTiff({ExtraSamples:[0,2]},5)') === 4 && ev3('_alfaDoTiff({ExtraSamples:new Uint16Array([1])},2)') === 1);
+  const quarta = []; for (let r = 0; r < 40; r++) quarta.push(new Uint8Array(40).fill(r < 20 ? 0 : 90));
+  w3.__gr4 = await w3.parseGeoraster([banda3, banda3, banda3, quarta], { noDataValue: null, projection: 31983, xmin: 443000, ymax: 9224000, pixelWidth: 1, pixelHeight: 1 });
+  const area4 = alfa => { ev3('_rasterMeta={gr:__gr4,bands:4,mn:0,mx:255,ycc:false,factor:1,alphaIdx:' + alfa + ',orig:{xmin:__gr4.xmin,xmax:__gr4.xmax,ymin:__gr4.ymin,ymax:__gr4.ymax}}; _rasterIndex=null; zonalAreaStats()');
+    const r = ev3('JSON.stringify(_zonalResults&&_zonalResults.results[0]?{n:_zonalResults.results[0].n,bandas:_zonalResults.labels.length}:null)'); return r ? JSON.parse(r) : null; };
+  const comAlfa = area4(3), semAlfa = area4(-1);
+  console.log('       [captura] 4 bandas — RGBA: ' + JSON.stringify(comAlfa) + ' · R-G-B-NIR: ' + JSON.stringify(semAlfa));
+  check('4a banda: RGBA declarado -> 3 bandas reportadas e a area sem dado fica de fora (800 de 1600 px)', !!comAlfa && comAlfa.bandas === 3 && comAlfa.n === 800);
+  check('4a banda: R-G-B-NIR (sem alfa declarado) -> as 4 bandas reportadas e NENHUM pixel descartado por NIR = 0 (antes: metade sumia)', !!semAlfa && semAlfa.bandas === 4 && semAlfa.n === 1600);
+  // recorte com mascara num raster SEM alfa: a mascara vira banda NOVA, a 4a continua sendo dado
+  ev3('_rasterMeta={gr:__gr4,bands:4,mn:0,mx:255,ycc:false,factor:1,alphaIdx:-1,orig:{xmin:__gr4.xmin,xmax:__gr4.xmax,ymin:__gr4.ymin,ymax:__gr4.ymax}}');
+  await w3.performCrop([llCanto(443002, 9223998), llCanto(443038, 9223998), llCanto(443038, 9223962), llCanto(443002, 9223962)], true);
+  check('4a banda: recortar um R-G-B-NIR por poligono acrescenta a mascara como 5a banda e preserva o NIR', ev3('_rasterMeta.bands') === 5 && ev3('_rasterMeta.alphaIdx') === 4 && ev3('_rasterMeta.gr.values[3][30][20]') === 90);
+
+  /* SIRGAS 2000 GEOGRAFICO (EPSG:4674): e graus, como o 4326 (v1.27.0 -- antes: "nao reprojeta" e raio em metros lido como grau) */
+  const bandaG2 = []; for (let r = 0; r < 100; r++) bandaG2.push(new Float32Array(100).fill(7));
+  w3.__gr4674 = await w3.parseGeoraster([bandaG2], { noDataValue: null, projection: 4674, xmin: -45.4850, ymax: -7.0140, pixelWidth: 0.0001, pixelHeight: 0.0001 });
+  ev3('_rasterMeta={gr:__gr4674,bands:1,mn:7,mx:7,ycc:false,factor:1,alphaIdx:-1,orig:{xmin:__gr4674.xmin,xmax:__gr4674.xmax,ymin:__gr4674.ymin,ymax:__gr4674.ymax}}; renderCRS()');
+  const nome4674 = String(txt(doc3, 'crsName'));
+  console.log('       [captura] faixa de CRS (4674) = ' + JSON.stringify(nome4674.slice(0, 80)) + ' · aviso oculto = ' + has(doc3, 'crsWarn', 'hidden'));
+  check('SIRGAS geografico: a faixa diz "graus" e NAO avisa que o app nao reprojeta', /SIRGAS 2000/.test(nome4674) && /graus/.test(nome4674) && has(doc3, 'crsWarn', 'hidden') === true);
+  if (campoPts) campoPts.value = '-7.0190, -45.4800';
+  if (campoRaio) campoRaio.value = '20';
+  ev3('_rasterIndex=null; zonalCompute()');
+  const z4674 = ev3('JSON.stringify(_zonalResults&&_zonalResults.results[0]?{n:_zonalResults.results[0].n,erro:_zonalResults.results[0].error||null,media:_zonalResults.results[0].bands&&_zonalResults.results[0].bands[0]&&_zonalResults.results[0].bands[0].mean}:null)');
+  console.log('       [captura] zonal em 4674 = ' + z4674);
+  const zz = z4674 ? JSON.parse(z4674) : {};
+  // 20 m de raio a -7° = ~0,00018° de lat: com pixel de 0,0001° sao ~1,8 px de raio -> 9 a 13 px. Raio lido como GRAU pegaria o raster inteiro (10.000).
+  check('SIRGAS geografico: ponto em lat/lon cai no raster e o raio de 20 m vira GRAUS na latitude (poucos pixels, nao o raster inteiro)',
+    !zz.erro && zz.n > 0 && zz.n < 40 && zz.media === 7);
+
+  /* CONTORNO DA AREA COBERTA PELAS FOTOS (v1.27.0): vem do shots.geojson do pacote; desenhado tracejado,
+     com a nota e o botao de recorte. 5 centros: os 4 cantos e um no meio (que nao entra na envoltoria). */
+  const shots = { type: 'FeatureCollection', features: [[-45.484, -7.0145], [-45.478, -7.0145], [-45.478, -7.0185], [-45.484, -7.0185], [-45.481, -7.0165]]
+    .map((c, i) => ({ type: 'Feature', properties: { filename: 'DJI_' + i + '.JPG' }, geometry: { type: 'Point', coordinates: [c[0], c[1], 100] } })) };
+  w3.__shots = JSON.stringify(shots);
+  ev3("window.__zipF={names:function(){ return ['odm_report/shots.geojson','odm_orthophoto/odm_orthophoto.tif']; }, extrair:function(n){ return Promise.resolve({blob:new Blob([window.__shots]),name:'shots.geojson'}); }}; 1");
+  const cobR = await (async () => { try { return await w3.eval('odmLerCobertura(__zipF)'); } catch (e) { return 'erro: ' + e.message; } })();
+  console.log('       [captura] cobertura lida = ' + JSON.stringify(cobR));
+  check('contorno: lido do shots.geojson do pacote — envoltoria dos centros (4 vertices; o do meio fica de fora)', !!cobR && cobR.n === 5 && Array.isArray(cobR.hull) && cobR.hull.length === 4);
+  w3.__cob = cobR; ev3('mostrarCobertura(__cob)');
+  const notaCob = String(txt(doc3, 'rasterCobertura'));
+  check('contorno: o app desenha o tracejado e diz o que ele significa (fora dele a borda pode sair deformada)',
+    ev3('!!_coberturaLayer') === true && /área coberta pelas fotos/.test(notaCob) && /deformad/.test(notaCob));
+  let recortouCom = null; const pcReal = w3.performCrop;
+  w3.performCrop = (poly, mask) => { recortouCom = { n: poly.length, mask }; return Promise.resolve(); };
+  const btnCob = doc3.querySelector('#rasterCobertura button'); if (btnCob) btnCob.click();
+  check('contorno: o botao recorta o raster PELA envoltoria das fotos (com mascara)', !!btnCob && !!recortouCom && recortouCom.n === 4 && recortouCom.mask === true);
+  w3.performCrop = pcReal;
+  ev3('clearRaster()');
+  check('contorno: some com o raster (o proximo produto nao herda o contorno de outro)', ev3('_coberturaLayer') === null && String(txt(doc3, 'rasterCobertura')) === '');
 
   check('cenario 3: nenhuma excecao nao tratada', errs3.length === 0);
   errs3.forEach(e => console.error('       ' + e));
@@ -648,6 +732,21 @@ async function main() {
   const poste = ev4('parseZonalPoints(__l)');
   check('pontos: "nome ID E N" nao vira coordenada deslocada com raio de 9.221 km',
     Array.isArray(poste) && poste.length === 1 && poste[0].v0 === 443162.71 && poste[0].v1 === 9221928.44 && poste[0].r === null && /21/.test(poste[0].name));
+  /* VIRGULA DECIMAL (v1.27.0): "21 443162,71 9221928,44" virava 21, 443162, 71, 9221928, 44 -- o ponto ia
+     parar em outro lugar, sem erro. E os pares de GCP tiravam numero do ROTULO ("P1" dava a coordenada 1). */
+  const pz = l => { w4.__l = l; const r = ev4('JSON.stringify(parseZonalPoints(__l))'); return r ? JSON.parse(r) : null; };
+  const vBR = pz('21 443162,71 9221928,44'), vLat = pz('-7,019; -45,480'), vP2 = pz('P2, -7.019, -45.480'), vJunto = pz('443162,9221928');
+  console.log('       [captura] virgula decimal = ' + JSON.stringify({ vBR, vLat, vP2, vJunto }));
+  check('virgula decimal: "21 443162,71 9221928,44" -> ponto 21 em E 443162,71 / N 9221928,44, sem raio',
+    !!vBR && vBR.length === 1 && vBR[0].name === '21' && vBR[0].v0 === 443162.71 && vBR[0].v1 === 9221928.44 && vBR[0].r === null);
+  check('virgula decimal: "-7,019; -45,480" -> lat -7,019 / lon -45,48', !!vLat && vLat.length === 1 && vLat[0].v0 === -7.019 && vLat[0].v1 === -45.48);
+  check('virgula decimal: o que ja funcionava continua igual ("P2, -7.019, -45.480" e "443162,9221928")',
+    !!vP2 && vP2.length === 1 && vP2[0].name === 'P2' && vP2[0].v0 === -7.019 && vP2[0].v1 === -45.48 && !!vJunto && vJunto.length === 1 && vJunto[0].v0 === 443162 && vJunto[0].v1 === 9221928);
+  w4.__g = 'P1 443160,10 9221930,50 => 443162,71 9221928,44';
+  const parBR = ev4('JSON.stringify(parseGcpPairs(__g))'), pBR = parBR ? JSON.parse(parBR) : null;
+  console.log('       [captura] par de GCP com rotulo e virgula = ' + parBR);
+  check('virgula decimal: par de GCP com rotulo "P1" e virgula -> UM par, dx ~2,61 m (o "1" do rotulo nao vira coordenada)',
+    !!pBR && pBR.length === 1 && pBR[0].f0 === 443160.1 && Math.abs((pBR[0].t0 - pBR[0].f0) - 2.61) < 0.001 && Math.abs((pBR[0].t1 - pBR[0].f1) + 2.06) < 0.001);
   // GCP: a linha de dado vira UM par; a de instrucao ("ou clique...") e ignorada
   w4.__g = exGcp;
   const paresEx = ev4('parseGcpPairs(__g)');
@@ -785,16 +884,18 @@ async function main() {
         const ab = fake.abertas.get(mu[1]); if (!ab) return json({ error: 'Invalid uuid (not found)' });
         if (cfg.uploadPendura) return new Promise((_, rej) => { const s = o && o.signal; if (s) s.addEventListener('abort', () => rej(new DOMException('abortado', 'AbortError'))); });
         if (fake.cont.upload <= (cfg.falhaUpload || 0)) return Promise.reject(new TypeError('Failed to fetch'));   // rede caiu no meio: o lote NAO chegou
-        let n = 0; try { n = o.body.getAll('images').length; } catch (e) { n = 0; }
-        if (!n) return json({ error: 'Need at least 1 file.', noRetry: true });
-        ab.nImg += n; return json({ success: true });
+        // o NodeODM 2.2.4 move todo .txt para a pasta gcp/ (libs/taskNew.js): ele nao conta como imagem
+        let arqs = []; try { arqs = o.body.getAll('images'); } catch (e) { arqs = []; }
+        if (!arqs.length) return json({ error: 'Need at least 1 file.', noRetry: true });
+        const txts = arqs.filter(f => /\.txt$/i.test(String(f && f.name)));
+        ab.nImg += arqs.length - txts.length; ab.gcp = (ab.gcp || []).concat(txts.map(f => String(f.name))); return json({ success: true });
       }
       const mc = p.match(/^\/task\/new\/commit\/([^/]+)$/);
       if (mc) {
         fake.cont.commit++; const ab = fake.abertas.get(mc[1]); if (!ab) return json({ error: 'Invalid uuid (not found)' });
         const aceitas = ab.pedidas.filter(x => OPCOES.includes(x.name));   // o NodeODM guarda so o que conhece
         fake.abertas.delete(mc[1]); fake.tarefas.set(mc[1], { code: 20, options: aceitas, nImg: ab.nImg });
-        fake.criadas.push({ uuid: mc[1], pedidas: ab.pedidas, aceitas, nImg: ab.nImg, nome: ab.nome });
+        fake.criadas.push({ uuid: mc[1], pedidas: ab.pedidas, aceitas, nImg: ab.nImg, nome: ab.nome, gcp: ab.gcp || [] });
         return json({ uuid: mc[1] });
       }
       // reprocessar: urlencoded/JSON com uuid + options (JSON em texto); so tarefa concluida (40), falha (30) ou cancelada (50)
@@ -1211,10 +1312,166 @@ async function main() {
     c2.fechar();
   }
 
+  /* -- cenario 5, 4a parte: precisao do produto e pontos de controle (v1.27.0) ---------------------------
+     O stats.json abaixo traz os numeros da tarefa C da auditoria (34 fotos do voo de teste, com correcao de
+     obturador): GSD das fotos 1,78 cm, reprojecao 1,02 px, CE90 pelo GPS 2,82 m, sem GCP. */
+  const statsC = { reconstruction_statistics: { has_gcp: false, initial_shots_count: 34, reconstructed_shots_count: 34, reprojection_error_pixels: 1.0197 },
+    gps_errors: { ce90: 2.8197 }, gcp_errors: {}, odm_processing_statistics: { average_gsd: 1.7847 } };
+  const zipCom = (w5, stats) => { w5.__stats = JSON.stringify(stats);
+    return "({names:function(){ return ['odm_report/stats.json','odm_orthophoto/odm_orthophoto.tif']; }, extrair:function(){ return Promise.resolve({blob:new Blob([window.__stats]),name:'stats.json'}); }})"; };
+  { // (v) precisao: lida do stats.json do pacote baixado, no card, no registro da tarefa e no M&M
+    const meta = { modo: 'dsm', gsd: 1.8, n: 34, res: 1.8, rs: true, options: [{ name: 'dsm', value: true }, { name: 'orthophoto-resolution', value: 1.8 }, { name: 'rolling-shutter', value: true }], engineVersion: '3.5.6' };
+    const c = await subir5({ nome: '5v', tarefas: [[T_VIVA, { code: 40, options: meta.options }]], ls: { ...lsTarefa(T_VIVA, [T_VIVA]), ['ortofly_odm_meta_' + T_VIVA]: JSON.stringify(meta) } });
+    await c.esperar(() => c.fake.cont.info > 0 && has(c.doc, 'odmOutputs', 'hidden') === false);
+    const antes = String(txt(c.doc, 'odmPrecisao'));
+    const zexpr = zipCom(c.w, statsC);
+    const r = await c.aguardar('odmCarregarPrecisao(' + zexpr + ', _odmTask).then(function(p){ return p?"leu":"nada"; })');
+    const card = String(txt(c.doc, 'odmPrecisao')), mm = String(c.ev('citeText().mm')), reg = c.ls('ortofly_odm_meta_' + T_VIVA) || '';
+    console.log('       [captura] precisao: antes = ' + JSON.stringify(antes.slice(0, 80)) + ' · card = ' + JSON.stringify(card.slice(0, 200)));
+    console.log('       [captura] M&M com precisao = ' + JSON.stringify(mm.slice(-260)));
+    check('precisao: com a tarefa concluida e o pacote ainda nao baixado, o card diz onde a precisao vai aparecer', /quando o pacote for baixado/.test(antes));
+    check('precisao: o card mostra GSD das fotos, erro de reprojecao e CE90 do ODM, e diz que nao ha pontos de controle',
+      r === 'leu' && /1,78 cm/.test(card) && /1,02 px/.test(card) && /CE90/.test(card) && /2,8 m/.test(card) && /sem pontos de controle/.test(card));
+    check('precisao: o numero fica no registro da tarefa (vai junto ao Salvar no projeto)', /"precisao"/.test(reg) && /2\.8197/.test(reg));
+    check('precisao: o M&M passa a citar a reprojecao e a ausencia de pontos de controle', /reprojeção foi de 1,02 px/.test(mm) && /Não foram usados pontos de controle/.test(mm) && /2,8 m/.test(mm));
+    // com GCP usado, o card fala do erro NOS PONTOS DE CONTROLE (e nao do GPS das fotos)
+    const zg = zipCom(c.w, { ...statsC, reconstruction_statistics: { ...statsC.reconstruction_statistics, has_gcp: true }, gcp_errors: { ce90: 0.041 } });
+    await c.aguardar('odmCarregarPrecisao(' + zg + ', _odmTask)');
+    const cardG = String(txt(c.doc, 'odmPrecisao'));
+    check('precisao: com GCP no processamento, o card mostra o erro nos pontos de controle', /pontos de controle \(CE90\) 0,04 m/.test(cardG) && /com pontos de controle/.test(cardG));
+    c.fechar();
+  }
+  { // (w) pontos de controle: o arquivo vai junto, com o nome que o NodeODM entende, e nao conta como foto
+    const c = await subir5({ nome: '5w', exif: exifVoo(2, 13) });
+    c.selecionar(6); await gsdLido(c);
+    const gcpTxt = 'EPSG:31983\n443100.1 9222000.2 30.5 2736 1824 DJI_0001.JPG GCP1\n443100.1 9222000.2 30.5 2700 1800 DJI_0002.JPG GCP1\n'
+      + '443150.0 9222050.0 31.0 1000 900 DJI_0003.JPG GCP2\n443200.0 9221980.0 29.8 4000 3000 DJI_0004.JPG GCP3\n';
+    const escolherGcp = (conteudo, nome) => { try { const inp = c.doc.getElementById('odmGcp'); Object.defineProperty(inp, 'files', { configurable: true, value: [new c.w.File([conteudo], nome, { type: 'text/plain' })] }); inp.dispatchEvent(new c.w.Event('change')); return true; } catch (e) { return false; } };
+    const foiG = escolherGcp(gcpTxt, 'meus_pontos.txt');
+    await c.esperar(() => /ponto/.test(String(txt(c.doc, 'odmGcpInfo'))));
+    const info = String(txt(c.doc, 'odmGcpInfo'));
+    console.log('       [captura] GCP escolhido = ' + JSON.stringify(info.slice(0, 160)));
+    check('GCP: o app confere o arquivo e diz quantos pontos, marcacoes e fotos ele tem', foiG && /3 ponto/.test(info) && /4 marcaç/.test(info) && /4 foto/.test(info) && /EPSG:31983/.test(info));
+    const t = await c.enviar();
+    console.log('       [captura] envio com GCP: ' + JSON.stringify(t && { nImg: t.nImg, gcp: t.gcp }) + ' · uploads = ' + c.fake.cont.upload);
+    check('GCP: o arquivo sobe junto, com o nome gcp_list.txt, e as 6 fotos continuam sendo 6 imagens', !!t && t.nImg === 6 && t.gcp.length === 1 && t.gcp[0] === 'gcp_list.txt');
+    const mm = String(c.ev('citeText().mm'));
+    check('GCP: o M&M diz que o arquivo foi ENVIADO (que foi usado, so o relatorio do ODM pode afirmar)', /arquivo de pontos de controle \(GCP\) com 3 ponto/.test(mm) && !/usou/.test(mm));
+    c.fechar();
+    // arquivo sem a linha do sistema: nao envia nada e diz o que falta
+    const c2 = await subir5({ nome: '5w2', exif: exifVoo(2, 13) });
+    c2.selecionar(6); await gsdLido(c2);
+    try { const inp = c2.doc.getElementById('odmGcp'); Object.defineProperty(inp, 'files', { configurable: true, value: [new c2.w.File(['443100.1 9222000.2 30.5 2736 1824 DJI_0001.JPG\n'], 'x.txt')] }); inp.dispatchEvent(new c2.w.Event('change')); } catch (e) {}
+    await c2.esperar(() => /❌/.test(String(txt(c2.doc, 'odmGcpInfo'))));
+    c2.clicar('button[onclick="odmCreate()"]'); await new Promise(r => setTimeout(r, 60));
+    console.log('       [captura] GCP fora do formato: ' + JSON.stringify(String(txt(c2.doc, 'odmGcpInfo')).slice(0, 120)) + ' · toast = ' + JSON.stringify(c2.toast()));
+    check('GCP: arquivo sem a linha do sistema de coordenadas e recusado ANTES do envio, com o motivo', /sistema de coordenadas/.test(String(txt(c2.doc, 'odmGcpInfo'))) && c2.toast().erro === true && c2.fake.cont.init === 0);
+    c2.fechar();
+  }
+
   await new Promise(r => setTimeout(r, 50));
   const rejC5 = rejeicoes.slice(rej5);
   check('cenario 5: nenhuma excecao nao tratada (nem promessa rejeitada sem tratamento)', errs5.length === 0 && rejC5.length === 0);
   [...errs5, ...rejC5].forEach(e => console.error('       ' + e));
+
+  /* -- cenario 6: o SERVICE WORKER abrindo o app com sinal fraco (v1.27.0) ---------------------------------
+     O jsdom nao roda service worker; aqui o sw.js de verdade roda num contexto do Node com `caches`, `fetch` e
+     relogio FALSOS -- o tempo-limite dispara quando o teste manda, sem esperar 3,5 s. Antes: sem tempo-limite
+     (a abertura esperava a rede desistir), qualquer resposta entrava no cache (um 500 substituia o app bom) e a
+     URL com ?... nao achava o app. Quem confere no navegador de verdade e o roteiro do V7 (plano). */
+  {
+    const vm = require('vm');
+    const swFile = fs.existsSync(path.join(path.dirname(file), 'sw.js')) ? path.join(path.dirname(file), 'sw.js') : path.join(__dirname, '..', 'sw.js');
+    const ORIG = 'https://magoc25.github.io';
+    const subirSW = () => {
+      const h = {}, store = new Map(), timers = [];
+      class Resp { constructor(body, init) { this.body = body; this.status = (init && init.status) || 200; this.ok = this.status >= 200 && this.status < 300; this.type = (init && init.type) || 'basic'; } clone() { return new Resp(this.body, { status: this.status, type: this.type }); } }
+      const chave = (u, ign) => ign ? String(u).split('?')[0] : String(u);
+      const ctx = {
+        self: { location: { origin: ORIG }, addEventListener: (t, f) => { h[t] = f; }, skipWaiting: () => Promise.resolve() },
+        clients: { claim: () => Promise.resolve() },
+        caches: { open: async () => ({ put: async (req, r) => { store.set(chave(req.url || req), r); }, addAll: async () => {} }),
+                  match: async (req, o) => { const ign = o && o.ignoreSearch; for (const [k, v] of store) if (chave(k, ign) === chave(req.url || req, ign)) return v; return undefined; },
+                  keys: async () => [], delete: async () => true },
+        fetch: () => new Promise(() => {}), Response: Resp, Promise, Error, console,
+        setTimeout: (fn) => { timers.push(fn); return timers.length; }, clearTimeout: () => {}
+      };
+      vm.createContext(ctx); vm.runInContext(fs.readFileSync(swFile, 'utf8'), ctx, { filename: 'sw.js' });
+      const navegar = url => { const ev = { request: { method: 'GET', url, mode: 'navigate' }, esperas: [], respondWith(p) { this.resposta = Promise.resolve(p); }, waitUntil(p) { this.esperas.push(p); } }; h.fetch(ev); return ev; };
+      const comTeto = (p, ms = 300) => Promise.race([p, new Promise(r => setTimeout(() => r('NUNCA RESPONDEU'), ms))]);
+      return { ctx, store, timers, Resp, navegar, comTeto, dispararRelogio: () => timers.splice(0).forEach(f => f()) };
+    };
+    const APP = ORIG + '/OrtoFly/ortofly.html';
+    let sw = null; try { sw = subirSW(); } catch (e) { console.error('       sw.js nao carregou: ' + e.message); }
+    check('sw: o sw.js de verdade carrega no arreio e registra o fetch (o arreio foi exercitado, r91)', !!sw && typeof sw.ctx.self === 'object');
+    if (sw) {
+      // (a) sinal que conecta e nao responde: a abertura usa a copia do cache ao estourar o tempo-limite
+      sw.store.set(APP, new sw.Resp('app-bom'));
+      let soltarRede; sw.ctx.fetch = () => new Promise(res => { soltarRede = res; });
+      const ev = sw.navegar(APP);
+      const semRelogio = await sw.comTeto(ev.resposta, 50);
+      sw.dispararRelogio();
+      const r1 = await sw.comTeto(ev.resposta);
+      console.log('       [captura] sw, rede parada: antes do tempo-limite = ' + JSON.stringify(semRelogio === 'NUNCA RESPONDEU' ? 'esperando' : semRelogio && semRelogio.body) + ' · depois = ' + JSON.stringify(r1 && r1.body));
+      check('sw: com a rede parada, a abertura usa a copia do cache quando o tempo-limite estoura (antes: esperava a rede desistir)', semRelogio === 'NUNCA RESPONDEU' && !!r1 && r1.body === 'app-bom');
+      soltarRede(new sw.Resp('app-novo')); await Promise.all(ev.esperas);
+      check('sw: se a rede responde DEPOIS do tempo-limite, a copia nova entra no cache para a proxima abertura', (sw.store.get(APP) || {}).body === 'app-novo');
+      // (b) 500 do servidor com copia boa no cache: entrega a copia e NAO a substitui
+      sw.ctx.fetch = () => Promise.resolve(new sw.Resp('erro do servidor', { status: 500 }));
+      const ev2 = sw.navegar(APP); const r2 = await sw.comTeto(ev2.resposta); await Promise.all(ev2.esperas);
+      check('sw: resposta de erro (500) nao substitui o app no cache, e a abertura usa a copia boa', !!r2 && r2.body === 'app-novo' && (sw.store.get(APP) || {}).body === 'app-novo');
+      // (c) URL com ?... e sem rede: acha o app mesmo assim
+      sw.ctx.fetch = () => Promise.reject(new TypeError('Failed to fetch'));
+      const ev3b = sw.navegar(APP + '?utm=qr'); const r3 = await sw.comTeto(ev3b.resposta);
+      check('sw: offline, a URL com ?... ainda acha o app no cache (ignoreSearch)', !!r3 && r3.body === 'app-novo');
+      // (d) rede normal: entrega a da rede e atualiza o cache (continua network-first)
+      sw.ctx.fetch = () => Promise.resolve(new sw.Resp('app-v2'));
+      const ev4b = sw.navegar(APP); const r4 = await sw.comTeto(ev4b.resposta); await Promise.all(ev4b.esperas);
+      check('sw: com rede normal, abre a versao da rede e ela entra no cache (network-first mantido)', !!r4 && r4.body === 'app-v2' && (sw.store.get(APP) || {}).body === 'app-v2');
+      // (e) redirecionamento de navegacao passa direto (nao vira copia do cache)
+      sw.ctx.fetch = () => Promise.resolve(new sw.Resp(null, { status: 0, type: 'opaqueredirect' }));
+      const ev5b = sw.navegar(APP); const r5 = await sw.comTeto(ev5b.resposta);
+      check('sw: redirecionamento da navegacao passa direto ao navegador', !!r5 && r5.type === 'opaqueredirect');
+    }
+  }
+
+  /* -- cenario 7: ARMAZENAMENTO BLOQUEADO (cookies/dados do site bloqueados) (v1.27.0) -----------------------
+     Ler window.localStorage lanca SecurityError. Ate a v1.26.0 isso estourava dentro de wire(), antes de ligar
+     a importacao de fotos/raster/3D: a tela aparecia e nada respondia, sem mensagem. */
+  {
+    const errs7 = [], rej7 = rejeicoes.length;
+    const vc7 = new VirtualConsole();
+    vc7.on('jsdomError', e => errs7.push('jsdomError: ' + ((e && e.message) || e)));
+    const dom7 = new JSDOM(html, {
+      url: 'https://magoc25.github.io/OrtoFly/ortofly.html', runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc7,
+      beforeParse(window) {
+        window.L = chainProxy();
+        Object.defineProperty(window, 'localStorage', { configurable: true, get() { throw new window.DOMException('O acesso ao armazenamento foi negado', 'SecurityError'); } });
+        window.fetch = () => Promise.reject(new Error('offline (stub)'));
+        window.URL.createObjectURL = () => 'blob:stub'; window.URL.revokeObjectURL = () => {};
+        window.matchMedia = window.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
+        window.scrollTo = () => {}; window.structuredClone = window.structuredClone || structuredClone;
+      }
+    });
+    const w7 = dom7.window, doc7 = w7.document, ev7 = evOf(w7);
+    await new Promise((res, rej) => { const t = setTimeout(() => rej(new Error('cenario 7: load nao disparou em 5 s')), 5000);
+      if (w7.document.readyState === 'complete') { clearTimeout(t); res(); } else w7.addEventListener('load', () => { clearTimeout(t); res(); }); });
+    let bloqueado = false; try { void w7.localStorage; } catch (e) { bloqueado = e.name === 'SecurityError'; }
+    await new Promise(r => setTimeout(r, 1000));   // o aviso sai depois do aviso do exemplo (700 ms)
+    const toast7 = el(doc7, 'toast');
+    console.log('       [captura] armazenamento bloqueado: toast = ' + JSON.stringify(toast7 ? toast7.textContent.slice(0, 110) : null) + ' · cSw = ' + JSON.stringify(val(doc7, 'cSw')));
+    check('armazenamento bloqueado: o cenario e real (ler localStorage lanca SecurityError)', bloqueado);
+    check('armazenamento bloqueado: o app abre inteiro — AOI de exemplo, plano calculado e o FIM de wire() executado',
+      ev7('state.polygon.length') === 4 && ev7('!!state.lastPlan && state.lastPlan.gsd>0') === true && !!val(doc7, 'cSw') && ev7('ls.memoria') === true);
+    check('armazenamento bloqueado: o usuario e avisado de que nada sera salvo nesta sessao',
+      !!toast7 && /bloqueou o armazenamento/.test(toast7.textContent) && toast7.classList.contains('error'));
+    const sp = ev7("(function(){ $('projName').value='Teste'; saveProject(); return $('toast').textContent; })()");
+    check('armazenamento bloqueado: salvar projeto diz que NAO salvou (nao anuncia "Projeto salvo")', /Não consegui salvar/.test(String(sp)));
+    await new Promise(r => setTimeout(r, 30));
+    check('cenario 7: nenhuma excecao nao tratada', errs7.length === 0 && rejeicoes.length === rej7);
+    errs7.forEach(e => console.error('       ' + e));
+    try { w7.close(); } catch (e) {}
+  }
 
   check('harness: nenhuma promessa rejeitada sem tratamento, em cenario algum', rejeicoes.length === 0);
   rejeicoes.slice(0, rej0).forEach(e => console.error('       ' + e));

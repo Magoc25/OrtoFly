@@ -288,6 +288,7 @@ footer{
       <input type="file" id="viewer3dInput" accept=".las,.laz,.ply,.obj,.glb,.gltf" class="hidden" />
       <div id="rasterStatus" class="spec" style="margin-top:8px"></div>
       <div id="rasterNote"></div>
+      <div id="rasterCobertura"></div>
       <div id="rasterCtrls" class="hidden" style="margin-top:8px">
         <div class="crs-box" id="crsBox">
           <div class="crs-code">🧭 Sistema de referência (CRS): <b id="crsCode">—</b></div>
@@ -342,7 +343,7 @@ footer{
       <div class="field" style="margin-top:8px">
         <label for="zonalPts">Pontos — <b>ID + coordenadas</b> · lat, lon (graus) ou E, N (metros, mesmo CRS do raster) · 1 por linha (ID opcional)</label>
         <textarea id="zonalPts" rows="4" placeholder="-7.0190, -45.4800&#10;P2, -7.0195, -45.4790&#10;ou UTM:  21  443162.71  9221928.44" style="resize:vertical;width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px;font-family:inherit;font-size:13px;font-variant-numeric:tabular-nums"></textarea>
-        <p class="hint" style="margin-top:4px">Cada linha: <b>ID + as 2 coordenadas</b> (ex.: <code>21  443162.71  9221928.44</code> ou <code>P2, -7.019, -45.480</code>). lat/lon × UTM (E, N) e a ordem são <b>detectados automaticamente</b>. O <b>raio do buffer</b> é o do <b>campo abaixo</b> — não precisa no arquivo. Para E, N, o raster deve estar no mesmo CRS dos pontos (ex.: SIRGAS 2000 / UTM). <i>(Opcional: um nº extra após as coordenadas = raio só daquele ponto.)</i></p>
+        <p class="hint" style="margin-top:4px">Cada linha: <b>ID + as 2 coordenadas</b> (ex.: <code>21  443162.71  9221928.44</code> ou <code>P2, -7.019, -45.480</code>). lat/lon × UTM (E, N) e a ordem são <b>detectados automaticamente</b>; aceita ponto ou vírgula decimal (<code>21  443162,71  9221928,44</code>). O <b>raio do buffer</b> é o do <b>campo abaixo</b> — não precisa no arquivo. Para E, N, o raster deve estar no mesmo CRS dos pontos (ex.: SIRGAS 2000 / UTM). <i>(Opcional: um nº extra após as coordenadas = raio só daquele ponto.)</i></p>
       </div>
       <div class="btn-grid">
         <button class="btn sm" id="zonalPickBtn" onclick="zonalPickToggle()">📍 Coletar no mapa</button>
@@ -455,6 +456,17 @@ footer{
           <input type="checkbox" id="cross" style="width:auto" /> Grade cruzada (cross-grid, melhor 3D)
         </label>
       </div>
+      <div class="row" style="margin-top:8px">
+        <div class="field"><label for="margem">Margem além da área</label>
+          <select id="margem" title="O que fica no limite das fotos sai deformado no ortomosaico: lá cada ponto é visto por poucas fotos, todas de um lado só. Com margem, o voo passa além da área que interessa e a borda dela sai confiável.">
+            <option value="none">Sem margem (a grade termina no limite)</option>
+            <option value="auto">Automática (1 faixa + meia foto)</option>
+            <option value="custom">Personalizada (m)…</option>
+          </select>
+        </div>
+        <div class="field" id="margemMRow" style="display:none"><label for="margemM">Margem (m)</label><input id="margemM" type="number" min="0" max="500" step="1" value="20" /></div>
+      </div>
+      <p class="hint" id="margemHint" style="margin:4px 0 0"></p>
     </div>
 
     <!-- Resultados -->
@@ -529,6 +541,10 @@ footer{
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0 2px;cursor:pointer" title="Envia rolling-shutter ao ODM. A maioria dos drones lê o sensor linha a linha (obturador eletrônico): se a foto é tirada com o drone andando, a imagem sai levemente distorcida, e sem a correção o ODM compensa com uma calibração de câmera irreal. Não use com câmera de obturador mecânico (ex.: Phantom 4 Pro/RTK, Mavic 3E) nem em missão que para em cada foto."><input type="checkbox" id="odmRS" onchange="odmRSChange()" style="width:auto" /> Corrigir obturador de rolagem (voo contínuo)</label>
         <div id="odmRSInfo" class="spec" style="margin:0 0 6px"></div>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;cursor:pointer" title="Reduz o pico de memória: envia feature-quality=medium (alinhamento com imagens menores), pc-quality=low (nuvem densa em baixa, nos modos com DSM) e max-concurrency = metade dos núcleos. O alinhamento fica um pouco menos preciso e o DSM/nuvem perdem detalhe; a resolução do ortomosaico NÃO muda. Recomendado só p/ conjuntos grandes que estouram a RAM."><input type="checkbox" id="odmLite" style="width:auto" /> Economizar RAM (feições em média · nuvem em baixa · menos threads)</label>
+        <button class="btn sm block" style="margin-top:6px" onclick="odmPickGcp()" title="Arquivo de pontos de controle no formato do ODM (gcp_list.txt). Vai junto com as fotos; é a única forma de corrigir a posição e a escala do produto.">📍 Pontos de controle (opcional) — gcp_list.txt</button>
+        <input type="file" id="odmGcp" accept=".txt,text/plain" class="hidden" />
+        <div id="odmGcpInfo" class="spec" style="margin:4px 0 2px"></div>
+        <p class="hint" style="margin:2px 0 6px">Sem pontos de controle, a posição vem do GPS das fotos: espere erro de <b>alguns metros</b> e de escala da ordem de <b>1 %</b> (mais de 2 % em área). Formato: 1ª linha com o sistema (ex.: <code>EPSG:31983</code>), depois uma linha por marcação — <code>E N altitude pixel_x pixel_y foto.JPG [nome]</code> (<a href="https://docs.opendronemap.org/gcp/" target="_blank" rel="noopener">documentação do ODM</a>).</p>
         <p class="hint" style="margin:6px 0 2px">💡 <b>Área plana</b> e só quer o mapa 2D (ortomosaico)? O <b>Rápido</b> já basta — mais rápido e leve. Precisa de <b>DSM/altimetria, nuvem densa ou 3D</b>, ou o terreno tem <b>relevo</b>? Use os modos densos.</p>
         <button class="btn primary block" id="odmCreateBtn" onclick="odmCreate()">🚀 Enviar e processar</button>
         <div id="odmEnvio" class="hidden" style="margin-top:8px">
@@ -539,12 +555,13 @@ footer{
           </div>
         </div>
         <p class="hint">Dezenas–centenas de fotos. Elas sobem em <b>lotes</b>, com o andamento na tela: se a rede oscilar, o lote é repetido sozinho, e dá para cancelar o envio.</p>
-        <p class="hint">💡 O que fica no <b>limite das fotos</b> sai deformado no ortomosaico (poucas fotos, todas de um lado só) — voe uma faixa além da área que interessa.</p>
+        <p class="hint">💡 O que fica no <b>limite das fotos</b> sai deformado no ortomosaico (poucas fotos, todas de um lado só) — voe além da área que interessa (<b>Margem além da área</b>, na aba ✈️ Voo). Ao abrir o ortomosaico, o app desenha o contorno coberto pelas fotos.</p>
       </div>
       <div class="card hidden" id="odmTaskCard">
         <h2>Tarefa</h2>
         <div id="odmTaskStatus" class="spec"></div>
         <div id="odmTaskOpts" class="spec" style="margin-top:3px"></div>
+        <div id="odmPrecisao" class="spec" style="margin-top:3px"></div>
         <div id="odmBar" style="display:none;height:8px;background:rgba(0,0,0,.18);border-radius:4px;overflow:hidden;margin-top:6px"><div id="odmBarFill" style="height:100%;width:0;background:#1a9e4b;transition:width .3s"></div></div>
         <div class="btn-grid" style="margin-top:8px">
           <button class="btn sm" onclick="odmRefresh()">↻ Atualizar</button>
@@ -597,7 +614,7 @@ footer{
   <div class="modal-content">
     <div class="modal-header"><div class="modal-title">🧪 Versão em testes (beta)</div><button class="modal-close-btn" type="button" onclick="closeBeta()">✕</button></div>
     <p style="font-size:.9rem;line-height:1.5;margin:0 0 10px">O OrtoFly já está <b>funcional</b> — use à vontade. O processamento é feito pelo <b>OpenDroneMap</b>, motor de fotogrametria usado em pesquisa e produção no mundo todo.</p>
-    <p style="font-size:.9rem;line-height:1.5;margin:0 0 10px">Como em <b>todo levantamento fotogramétrico</b>, a qualidade dos produtos (ortomosaico, DSM, nuvem de pontos, medidas e índices) depende das <b>suas fotos</b> e do <b>apoio de campo</b>. Para <b>laudos ou decisões técnicas</b>, vale conferir os resultados — de preferência com <b>pontos de controle (GCP/RTK)</b> e/ou no <b>QGIS</b>.</p>
+    <p style="font-size:.9rem;line-height:1.5;margin:0 0 10px">Como em <b>todo levantamento fotogramétrico</b>, a qualidade dos produtos (ortomosaico, DSM, nuvem de pontos, medidas e índices) depende das <b>suas fotos</b> e do <b>apoio de campo</b>. Para <b>laudos ou decisões técnicas</b>, vale conferir os resultados — de preferência com <b>pontos de controle (GCP/RTK)</b> e/ou no <b>QGIS</b>. <b>Sem pontos de controle</b>, a posição vem do GPS das fotos: espere erro de <b>alguns metros</b> e de escala da ordem de <b>1 %</b> (mais de 2 % em área) — com as mesmas fotos, três soluções diferentes ficaram a 2–6 m uma da outra. O card da tarefa mostra a precisão que o próprio ODM estimou.</p>
     <p class="hint" style="margin:0 0 14px">💬 Testou? Sua opinião ajuda muito — conte como foi e como ficaram os produtos pela aba <b>⭐ Avaliações</b> (no rodapé).</p>
     <button type="button" class="primary-btn" style="width:100%" onclick="ackBeta()">Entendi — vou validar os produtos</button>
   </div>
@@ -671,7 +688,7 @@ footer{
     <div class="modal-header"><div class="modal-title">❓ Como usar o OrtoFly</div><button class="modal-close-btn" type="button" onclick="closeAbout()">✕</button></div>
     <ol style="padding-left:18px;font-size:13.5px;color:var(--text);line-height:1.6">
       <li>Toque em <b>✏️</b> e marque os vértices da área a mapear. Toque em <b>Concluir</b>.</li>
-      <li>Escolha o <b>drone</b> e ajuste <b>altura</b>, <b>GSD</b> e <b>sobreposições</b>.</li>
+      <li>Escolha o <b>drone</b> e ajuste <b>altura</b>, <b>GSD</b> e <b>sobreposições</b>. Se a <b>borda</b> da área interessa, escolha uma <b>Margem além da área</b>: sem ela a grade termina no limite, e o que fica no limite das fotos sai deformado no ortomosaico.</li>
       <li>Veja os <b>resultados</b> (GSD, fotos, tempo, baterias) atualizarem em tempo real.</li>
       <li><b>Exporte</b> a missão: KMZ (Pilot 2), KML, GeoJSON ou CSV (Litchi).</li>
       <li><b>Salve</b> o projeto — fica no seu dispositivo. Exporte em JSON para backup.</li>
@@ -720,7 +737,7 @@ footer{
 <script src="./vendor/three/GLTFLoader.js"></script>
 <script>
 /* ═══════════════ OrtoFly — © 2026 MGC Dev (versão: só em APP_VERSION) ═══════════════ */
-const APP_VERSION = '1.26.0';
+const APP_VERSION = '1.27.0';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -735,6 +752,23 @@ function downloadBlob(blob, filename){
   a.href=url; a.download=filename; document.body.appendChild(a); a.click();
   document.body.removeChild(a); setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
+/* ---------- armazenamento local: FONTE ÚNICA (v1.27.0) ----------
+   Com cookies/dados de site bloqueados, ler `window.localStorage` (ou chamar getItem) LANÇA SecurityError.
+   Até a v1.26.0 isso acontecia dentro de wire(), antes de ligar a importação de fotos, raster e 3D: a tela
+   aparecia e nada respondia, sem mensagem. Todo acesso passa por aqui e nunca lança; sem armazenamento, os
+   valores ficam numa reserva em memória (valem até fechar a aba) e `ls.memoria` diz isso a quem precisar
+   avisar. `set` devolve true só quando gravou de verdade. */
+const ls=(()=>{
+  const mem=new Map();
+  let s=null; try{ s=window.localStorage; const k='__ortofly_teste'; s.setItem(k,'1'); s.removeItem(k); }catch(e){ s=null; }
+  return {
+    get memoria(){ return !s; },
+    get(k){ if(s){ try{ return s.getItem(k); }catch(e){ return null; } } return mem.has(k)?mem.get(k):null; },
+    set(k,v){ v=String(v); if(s){ try{ s.setItem(k,v); return true; }catch(e){ console.warn('[ls] não gravou',k,e); return false; } } mem.set(k,v); return false; },
+    del(k){ mem.delete(k); if(s){ try{ s.removeItem(k); }catch(e){} } },
+    getJSON(k,padrao){ try{ const v=this.get(k); return v==null?padrao:JSON.parse(v); }catch(e){ console.warn('[ls] valor corrompido',k,e); return padrao; } }
+  };
+})();
 const slug = s => String(s||'voo').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'').slice(0,40) || 'voo';
 
 /* ---------- banco de drones DJI ---------- */
@@ -860,8 +894,22 @@ function autoBearing(poly){ // direção do lado mais longo (graus, 0=N)
 // Teto ESCOLHIDO pelo app (não é limite do drone nem da área): acima disto a grade não é montada.
 // Fonte única — a guarda e o aviso ao usuário leem daqui, então o número dito é sempre o que vale (r71b/r112d).
 const GRADE_MAX_LINHAS=2500;
-function generateGrid(poly, lineSpacing, photoSpacing, bearingDeg){
+/* MARGEM ALÉM DA ÁREA (v1.27.0). Sem ela a grade nasce colada no limite: a faixa externa fica meia
+   distância entre faixas PARA DENTRO do polígono e cada faixa começa e termina EM CIMA do limite —
+   com 65 % de sobreposição lateral, a borda é vista por uma linha de voo só, e os cantos por ~3 fotos.
+   Foi o que deformou a borda do voo de teste (2026-11-15: o prédio dos painéis, fora da grade, saiu
+   rasgado no ODM e com buracos no Metashape — nenhuma opção de processamento resolveu).
+   `margem` = {along: metros a mais em cada ponta de cada faixa, faixas: faixas a mais de cada lado}.
+   Sem margem (ou {0,0}) a grade é a de sempre, ponto por ponto. */
+function margemDoPlano(lineSpacing, footAlong){
+  const m=($('margem')&&$('margem').value)||'none';
+  if(m==='auto') return {modo:'auto', along:footAlong/2, faixas:1};   // meia pegada no sentido do voo + 1 faixa de cada lado
+  if(m==='custom'){ const v=Math.max(0,Math.min(500,+$('margemM').value||0)); return {modo:'custom', along:v, faixas:(v>0&&lineSpacing>0)?Math.ceil(v/lineSpacing):0}; }
+  return {modo:'none', along:0, faixas:0};
+}
+function generateGrid(poly, lineSpacing, photoSpacing, bearingDeg, margem){
   if(poly.length<3 || lineSpacing<=0 || photoSpacing<=0) return null;
+  const mAlong=Math.max(0,(margem&&margem.along)||0), mFaixas=Math.max(0,Math.floor((margem&&margem.faixas)||0));
   const f=localFrame(poly); const P=poly.map(f.toXY);
   const b=bearingDeg*Math.PI/180; const dv=[Math.sin(b),Math.cos(b)]; const av=[Math.cos(b),-Math.sin(b)];
   const dot=(p,v)=>p[0]*v[0]+p[1]*v[1];
@@ -877,7 +925,25 @@ function generateGrid(poly, lineSpacing, photoSpacing, bearingDeg){
       if(t>=0 && t<1){ const Pt=[V1[0]+t*(V2[0]-V1[0]), V1[1]+t*(V2[1]-V1[1])]; hits.push([dot(Pt,dv),Pt]); }
     }
     if(hits.length<2) continue; hits.sort((m,n)=>m[0]-n[0]);
-    for(let k=0;k+1<hits.length;k+=2) segs.push({A:hits[k][1], B:hits[k+1][1]});
+    for(let k=0;k+1<hits.length;k+=2) segs.push({A:hits[k][1], B:hits[k+1][1], off});
+  }
+  if(segs.length && (mFaixas||mAlong)){
+    // (b) faixas a mais: cópias da primeira e da última faixa, deslocadas de lineSpacing para FORA
+    const desloca=(s,d)=>({A:[s.A[0]+av[0]*d,s.A[1]+av[1]*d], B:[s.B[0]+av[0]*d,s.B[1]+av[1]*d], off:s.off+d});
+    const offIni=segs[0].off, offFim=segs[segs.length-1].off;
+    const ini=segs.filter(s=>s.off===offIni), fim=segs.filter(s=>s.off===offFim), antes=[], depois=[];
+    for(let j=mFaixas;j>=1;j--) ini.forEach(s=>antes.push(desloca(s,-j*lineSpacing)));
+    for(let j=1;j<=mFaixas;j++) fim.forEach(s=>depois.push(desloca(s,j*lineSpacing)));
+    const todos=antes.concat(segs,depois);
+    // (a) cada faixa se estende `mAlong` metros nas duas pontas (A é a ponta de menor avanço em dv);
+    //     dois trechos da MESMA faixa que passam a se tocar (polígono côncavo) viram um só, sem foto repetida
+    segs.length=0;
+    for(const s of todos){
+      const A=[s.A[0]-dv[0]*mAlong, s.A[1]-dv[1]*mAlong], B=[s.B[0]+dv[0]*mAlong, s.B[1]+dv[1]*mAlong];
+      const ult=segs[segs.length-1];
+      if(ult && ult.off===s.off && dot(A,dv)<=dot(ult.B,dv)){ if(dot(B,dv)>dot(ult.B,dv)) ult.B=B; continue; }
+      segs.push({A,B,off:s.off});
+    }
   }
   // ordena os spans por offset já garantido; monta waypoints boustrophedon
   const waypoints=[], pathLL=[], pathXY=[], lineGroups=[]; let flip=false, idx=0, lenTotal=0, prev=null;
@@ -925,13 +991,15 @@ function recompute(){
   $('altGsd').textContent='GSD '+fmt(gsd,1)+' cm/px';
   $('camSpec').textContent=`Sensor ${fmt(cam.sw,1)}×${fmt(cam.sh,1)} mm · focal ${fmt(cam.focal,1)} mm · ${fmt(cam.iw*cam.ih/1e6,0)} MP (${cam.iw}×${cam.ih})`;
 
-  const plan={cam,alt,fo,so,speed,gsd,footAcross,footAlong,lineSpacing,photoSpacing};
+  const margem=margemDoPlano(lineSpacing,footAlong);
+  const plan={cam,alt,fo,so,speed,gsd,footAcross,footAlong,lineSpacing,photoSpacing,margem};
+  renderMargemHint(plan);
   if(state.polygon.length<3){ state.lastPlan=null; if(gridLayer) gridLayer.clearLayers(); renderOutputs(plan); return; }
 
   const bearing=currentBearing(state.polygon);
-  let g=generateGrid(state.polygon, lineSpacing, photoSpacing, bearing);
+  let g=generateGrid(state.polygon, lineSpacing, photoSpacing, bearing, margem);
   if(g && state.polygon.length>=3 && $('cross').checked && g && !g.tooBig){
-    const g2=generateGrid(state.polygon, lineSpacing, photoSpacing, (bearing+90)%360);
+    const g2=generateGrid(state.polygon, lineSpacing, photoSpacing, (bearing+90)%360, margem);
     if(g2 && !g2.tooBig){
       const off=g.waypoints.length;
       g2.waypoints.forEach(w=>{ w.idx+=off; g.waypoints.push(w); });
@@ -943,6 +1011,14 @@ function recompute(){
   renderGrid(g); renderOutputs(plan);
 }
 
+// a dica diz o que a margem escolhida FAZ, em metros deste plano (derivados da pegada e do espaçamento atuais)
+function renderMargemHint(plan){
+  const h=$('margemHint'), m=plan&&plan.margem; if(!h||!m) return;
+  if($('margemMRow')) $('margemMRow').style.display=(m.modo==='custom')?'':'none';
+  h.innerHTML = m.modo==='none'
+    ? '⚠️ A grade termina no limite da área: a borda do ortomosaico sai deformada (poucas fotos, todas de um lado). Escolha uma margem se a borda interessa.'
+    : 'O voo passa '+fmt(m.along,0)+' m além de cada ponta das faixas e acrescenta '+m.faixas+' faixa'+(m.faixas===1?'':'s')+' de cada lado ('+fmt(m.faixas*plan.lineSpacing,0)+' m): mais fotos e mais tempo, borda da área confiável. Os Resultados e as exportações já contam a margem.';
+}
 function renderGrid(g){
   if(!gridLayer) return;
   gridLayer.clearLayers(); if(!g || g.tooBig || !g.pathLL || !g.pathLL.length) return;
@@ -1123,12 +1199,12 @@ function exportCSV(){
 }
 
 /* ═══════════════ PROJETOS (localStorage) ═══════════════ */
-function loadProjects(){ try{ return JSON.parse(localStorage.getItem(LS+'_projects')||'[]'); }catch(e){ console.error('[Projetos] load',e); toast('Erro ao ler projetos','error'); return []; } }
+function loadProjects(){ try{ return JSON.parse(ls.get(LS+'_projects')||'[]'); }catch(e){ console.error('[Projetos] load',e); toast('Erro ao ler projetos','error'); return []; } }
 // Devolve true/false e NÃO avisa sozinho: quem chama decide o que dizer e, principalmente, o que NÃO fazer
 // em seguida. Até a v1.25.0 o erro era engolido aqui e o chamador seguia — "Projeto salvo ✅" por cima da
 // falha, e o Salvar no projeto apagava a tarefa do servidor sem o registro do projeto ter sido gravado.
-function storeProjects(arr){ try{ localStorage.setItem(LS+'_projects',JSON.stringify(arr)); return true; }catch(e){ console.error('[Projetos] store',e); return false; } }
-function snapshot(){ return {polygon:state.polygon, droneId:state.droneId, params:{alt:+$('altNum').value, fo:+$('fo').value, so:+$('so').value, speed:+$('speed').value, dir:$('dir').value, dirDeg:+$('dirDeg').value, cross:$('cross').checked,
+function storeProjects(arr){ try{ return ls.set(LS+'_projects',JSON.stringify(arr)); }catch(e){ console.error('[Projetos] store',e); return false; } }
+function snapshot(){ return {polygon:state.polygon, droneId:state.droneId, params:{alt:+$('altNum').value, fo:+$('fo').value, so:+$('so').value, speed:+$('speed').value, dir:$('dir').value, dirDeg:+$('dirDeg').value, cross:$('cross').checked, margem:$('margem').value, margemM:+$('margemM').value,
   cSw:+$('cSw').value,cSh:+$('cSh').value,cFocal:+$('cFocal').value,cIw:+$('cIw').value,cIh:+$('cIh').value}}; }
 function applySnapshot(d){
   state.polygon=(d.polygon||[]).slice(); state.droneId=d.droneId||'mavic3'; $('drone').value=state.droneId; onDroneChange(true);
@@ -1137,6 +1213,8 @@ function applySnapshot(d){
   if(p.fo){$('fo').value=p.fo;} if(p.so){$('so').value=p.so;}
   if(p.speed){$('speed').value=p.speed;} if(p.dir){$('dir').value=p.dir;} if(p.dirDeg!=null){$('dirDeg').value=p.dirDeg;}
   $('cross').checked=!!p.cross;
+  // projeto salvo antes da v1.27.0 não tem margem: abre SEM margem, que é o plano com que ele foi salvo
+  $('margem').value=['none','auto','custom'].includes(p.margem)?p.margem:'none'; if(p.margemM!=null&&isFinite(+p.margemM)) $('margemM').value=p.margemM;
   if(state.droneId==='custom'){ ['cSw','cSh','cFocal','cIw','cIh'].forEach(k=>{ if(p[k]) $(k).value=p[k]; }); }
   syncRangeLabels(); updateDirUI();
   renderAOI(); if(state.polygon.length>=3) fitAOI(); recompute();
@@ -1216,11 +1294,14 @@ function wire(){
   $('dir').addEventListener('change',()=>{ updateDirUI(); recompute(); });
   $('dirDeg').addEventListener('input',scheduleRecompute);
   $('cross').addEventListener('change',recompute);
+  $('margem').addEventListener('change',recompute);
+  $('margemM').addEventListener('input',scheduleRecompute);
   odmInitMode(); odmStartPing();
   $('odmUrl').addEventListener('input',()=>{ clearTimeout(window._odmUrlT); window._odmUrlT=setTimeout(odmPing,700); });
   $('odmImages').addEventListener('change',e=>{ odmOnImages(e.target.files); });
+  $('odmGcp').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(f) odmOnGcp(f); e.target.value=''; });
   odmInitOpcoes();
-  _odmTask=localStorage.getItem(LS+'_odm_task')||null; if(_odmTask){ _odmSaved=false; _odmMeta=odmLerMeta(_odmTask); odmTelaDaTarefa(_odmMeta); $('odmTaskCard').classList.remove('hidden'); if(odmUrlVal()) odmStartPoll(); }
+  _odmTask=ls.get(LS+'_odm_task')||null; if(_odmTask){ _odmSaved=false; _odmMeta=odmLerMeta(_odmTask); odmTelaDaTarefa(_odmMeta); $('odmTaskCard').classList.remove('hidden'); if(odmUrlVal()) odmStartPoll(); }
   window.addEventListener('beforeunload',e=>{ if(_odmEnvio || (_odmTask && !_odmSaved && !_odmSavedMode)){ e.preventDefault(); e.returnValue=''; return ''; } });   // envio em andamento também se perde ao sair
   $('importJson').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(f) importProjectFile(f); e.target.value=''; });
   $('photoInput').addEventListener('change',e=>{ const fs=e.target.files; if(fs&&fs.length) handlePhotoFiles(fs); e.target.value=''; });
@@ -1481,8 +1562,22 @@ const VEG_INDICES={
   VEG:(r,g,b)=>{const rr=r||1e-9,bb=b||1e-9;return g/((Math.pow(rr,0.667)*Math.pow(bb,0.333))||1e-9);}
 };
 const VEG_DESC={VARI:'Visible Atmospherically Resistant Index',GLI:'Green Leaf Index',NGRDI:'Normalized Green-Red Difference Index',ExG:'Excess Green',ExGR:'Excess Green minus Excess Red',MGRVI:'Modified Green-Red Vegetation Index',RGBVI:'Red-Green-Blue Vegetation Index',TGI:'Triangular Greenness Index',VEG:'Vegetativen (Hague)'};
-// extrai [R,G,B] de um pixel do raster (trata alfa/nodata/YCbCr); null = mascarado
-function _pixRGB(v){ const {gr,bands,ycc}=_rasterMeta; if(!v) return null; const a=(bands>=4)?v[3]:255; if(a===0) return null; let r=v[0],g=v[1],b=v[2]; if(r==null||g==null||b==null) return null; if(gr.noDataValue!=null&&r===gr.noDataValue&&g===gr.noDataValue&&b===gr.noDataValue) return null; if(ycc){ const Y=r,Cb=g-128,Cr=b-128; r=Y+1.402*Cr; g=Y-0.344136*Cb-0.714136*Cr; b=Y+1.772*Cb; } return [r,g,b]; }
+/* QUAL banda é alfa (v1.27.0). Até a v1.26.0 toda imagem de 4 bandas era RGB + transparência (e a de 2,
+   cinza + transparência): num GeoTIFF multiespectral R-G-B-NIR, todo pixel com NIR = 0 sumia e a banda NIR
+   não entrava na estatística. Quem diz se há alfa é o próprio arquivo, na tag ExtraSamples (TIFF 6.0):
+   1 = alfa associado, 2 = alfa não associado, 0 = amostra comum. As amostras extras são as ÚLTIMAS do
+   pixel, então a k-ésima fica em nb - nExtras + k. O ortomosaico do ODM declara ExtraSamples = 2 (medido no
+   .tif do voo de teste): para ele nada muda. Sem a tag, não há alfa. */
+function _alfaDoTiff(fd,nb){
+  const es=fd&&fd.ExtraSamples; if(es==null) return -1;
+  const lista=(typeof es==='number')?[es]:Array.from(es), k=lista.findIndex(v=>v===1||v===2);
+  if(k<0) return -1; const idx=nb-lista.length+k;
+  return (idx>=0&&idx<nb)?idx:-1;
+}
+// índice da banda de alfa do raster aberto (-1 = sem alfa); `nb` limita ao número de bandas em memória
+function _rasterAlfa(nb){ const ai=_rasterMeta&&_rasterMeta.alphaIdx; return (Number.isInteger(ai)&&ai>=0&&(nb==null||ai<nb))?ai:-1; }
+// extrai [R,G,B] de um pixel do raster (trata alfa/nodata/YCbCr); null = mascarado. `aDado`: o alfa, quando quem chama já o leu
+function _pixRGB(v,aDado){ const {gr,ycc}=_rasterMeta, ai=_rasterAlfa(); if(!v) return null; const a=(aDado!==undefined)?aDado:(ai>=0?v[ai]:255); if(a===0) return null; let r=v[0],g=v[1],b=v[2]; if(r==null||g==null||b==null) return null; if(gr.noDataValue!=null&&r===gr.noDataValue&&g===gr.noDataValue&&b===gr.noDataValue) return null; if(ycc){ const Y=r,Cb=g-128,Cr=b-128; r=Y+1.402*Cr; g=Y-0.344136*Cb-0.714136*Cr; b=Y+1.772*Cb; } return [r,g,b]; }
 function rasterStatus(t){ const e=$('rasterStatus'); if(e) e.textContent=t||''; }
 function rasterNote(html){ const e=$('rasterNote'); if(e) e.innerHTML=html?`<div class="note">${html}</div>`:''; }
 function openRaster(){ $('rasterInput').click(); }
@@ -1559,7 +1654,7 @@ async function _tiffToGeoraster(file,onProg,orcamento){
     projection:gk.ProjectedCSTypeGeoKey||gk.GeographicTypeGeoKey||4326,
     xmin:bb[0], ymax:bb[3], pixelWidth:(bb[2]-bb[0])/W, pixelHeight:(bb[3]-bb[1])/H });
   return { gr, factor:base.w/W, full:(W===base.w&&H===base.h), cheiaBytes:base.bytes,
-           ycc:base.im.fileDirectory.PhotometricInterpretation===6, srcW:base.w, srcH:base.h };
+           ycc:base.im.fileDirectory.PhotometricInterpretation===6, srcW:base.w, srcH:base.h, alphaIdx:_alfaDoTiff(base.im.fileDirectory,nb) };
 }
 function buildRasterLayer(){ const o={georaster:_rasterMeta.gr,opacity:(+$('rasterOpacity').value||100)/100,resolution:256,pane:'rasterPane'};
   const fn=_rasterColorFn();   // fonte única de cor (RGB/DSM/índice — trata YCbCr, alpha e nodata); aqui só embrulha em CSS
@@ -1575,11 +1670,11 @@ async function handleRasterFile(file,cheia){
   if(!map){ toast('Mapa indisponível','error'); return; }
   try{ rasterStatus('Lendo '+file.name+' ('+(file.size/1048576).toFixed(0)+' MB)…'); rasterNote('');
     await new Promise(r=>setTimeout(r,0));   // deixa o status aparecer antes da leitura
-    _rasterFile=file;
-    const {gr,factor,full,ycc,srcW,srcH,cheiaBytes}=await _tiffToGeoraster(file,p=>rasterStatus(`Lendo ${file.name}… ${Math.round(p*100)}%`),cheia?Infinity:0);
+    _rasterFile=file; limparCobertura();   // o contorno das fotos é de UM produto: outro raster não o herda
+    const {gr,factor,full,ycc,srcW,srcH,cheiaBytes,alphaIdx}=await _tiffToGeoraster(file,p=>rasterStatus(`Lendo ${file.name}… ${Math.round(p*100)}%`),cheia?Infinity:0);
     const bands=gr.numberOfRasters||1;
     const mn=(gr.mins&&gr.mins[0]!=null)?gr.mins[0]:gr.minValue, mx=(gr.maxs&&gr.maxs[0]!=null)?gr.maxs[0]:gr.maxValue;
-    _rasterMeta={gr,bands,mn,mx,ycc,factor,orig:{xmin:gr.xmin,xmax:gr.xmax,ymin:gr.ymin,ymax:gr.ymax}};
+    _rasterMeta={gr,bands,mn,mx,ycc,factor,alphaIdx,orig:{xmin:gr.xmin,xmax:gr.xmax,ymin:gr.ymin,ymax:gr.ymax}};
     _rasterShift={dx:0,dy:0}; _gcpTransform=null; _rasterIndex=null; _rasterIndexRange=null; _rasterUncropped=null; if(_rasterOverlay){ _rasterOverlay.remove(); _rasterOverlay=null; } if(_cropDrawing) cancelCropDraw();   // novo raster: zera ajuste por GCP, índice e recorte
     rebuildRasterLayer(true);
     $('rasterCtrls').classList.remove('hidden'); $('rasterCmapRow').classList.toggle('hidden',bands>=3);
@@ -1647,13 +1742,29 @@ function renderCRS(){
 }
 function setRasterOpacity(){ const op=(+$('rasterOpacity').value||100)/100; if(_rasterOverlay){ _rasterOverlay.setOpacity(op); if(rasterLayer) rasterLayer.setOpacity(0); } else if(rasterLayer) rasterLayer.setOpacity(op); }
 function recolorRaster(){ if(!rasterLayer||!_rasterMeta||_rasterMeta.bands>=3) return; rebuildRasterLayer(false); }
-function clearRaster(){ if(_cropDrawing) cancelCropDraw(); if(_rasterOverlay){ _rasterOverlay.remove(); _rasterOverlay=null; } if(rasterLayer){ rasterLayer.remove(); rasterLayer=null; } _rasterMeta=null; _rasterUncropped=null; _rasterShift={dx:0,dy:0}; _gcpTransform=null; _rasterIndex=null; _rasterIndexRange=null; if($('gcpStatus'))$('gcpStatus').textContent=''; if($('cropFullBtn'))$('cropFullBtn').classList.add('hidden'); $('rasterCtrls').classList.add('hidden'); rasterStatus(''); rasterNote(''); renderCRS(); }
+/* ───── Contorno da área coberta pelas fotos (v1.27.0) ─────
+   Depois de processar, nada dizia ONDE o ortomosaico deixa de ser confiável. O ODM grava a posição de
+   cada foto reconstruída em odm_report/shots.geojson (lon, lat); a envoltória convexa desses centros é a
+   região vista por fotos dos dois lados. Fora dela a borda é vista por poucas fotos, todas de um lado —
+   é onde o voo de teste (2026-11-15) saiu rasgado. O contorno vale para o produto aberto e some com ele. */
+let _cobertura=null, _coberturaLayer=null;
+function limparCobertura(){ _cobertura=null; if(_coberturaLayer){ try{ _coberturaLayer.remove(); }catch(e){} _coberturaLayer=null; } const b=$('rasterCobertura'); if(b) b.innerHTML=''; }
+function mostrarCobertura(cob){
+  limparCobertura(); if(!cob||!cob.hull||cob.hull.length<3) return;
+  _cobertura=cob.hull;
+  if(map){ try{ _coberturaLayer=L.polygon(cob.hull,{color:'#ff5d8f',weight:2,dashArray:'6,6',fill:false,interactive:false}).addTo(map); }catch(e){} }
+  const b=$('rasterCobertura'); if(!b) return;
+  b.innerHTML='<div class="note"><b>Contorno tracejado (rosa) = área coberta pelas fotos</b> ('+cob.n+' fotos, pelo relatório do ODM). Dentro do contorno o ortomosaico tem cobertura completa; <b>fora dele, as bordas podem sair deformadas</b> — não meça ali.'
+    +'<div style="margin-top:7px"><button class="btn sm" onclick="cropFromCobertura()">✂️ Recortar pela área das fotos</button></div></div>';
+}
+function cropFromCobertura(){ if(!_cobertura){ toast('Abra um ortomosaico pela aba ⚙️ Processar para ter o contorno das fotos','error'); return; } performCrop(_cobertura.slice(), true); }
+function clearRaster(){ limparCobertura(); if(_cropDrawing) cancelCropDraw(); if(_rasterOverlay){ _rasterOverlay.remove(); _rasterOverlay=null; } if(rasterLayer){ rasterLayer.remove(); rasterLayer=null; } _rasterMeta=null; _rasterUncropped=null; _rasterShift={dx:0,dy:0}; _gcpTransform=null; _rasterIndex=null; _rasterIndexRange=null; if($('gcpStatus'))$('gcpStatus').textContent=''; if($('cropFullBtn'))$('cropFullBtn').classList.add('hidden'); $('rasterCtrls').classList.add('hidden'); rasterStatus(''); rasterNote(''); renderCRS(); }
 
 /* ───── Índices de vegetação por RGB (Fase 2-B) ───── */
 function _computeIndexRange(fn){
-  const gr=_rasterMeta.gr, vals=gr.values, W=gr.width, H=gr.height, nb=gr.numberOfRasters||vals.length;
+  const gr=_rasterMeta.gr, vals=gr.values, W=gr.width, H=gr.height, nb=gr.numberOfRasters||vals.length, ai=_rasterAlfa(nb);
   const step=Math.max(1,Math.floor(Math.sqrt(W*H/50000))), arr=[];
-  for(let r=0;r<H;r+=step){ for(let c=0;c<W;c+=step){ const rgb=_pixRGB([vals[0][r][c],vals[1][r][c],vals[2][r][c],nb>=4?vals[3][r][c]:255]); if(!rgb) continue; const val=fn(rgb[0],rgb[1],rgb[2]); if(val==null||isNaN(val)||!isFinite(val)) continue; arr.push(val); } }
+  for(let r=0;r<H;r+=step){ for(let c=0;c<W;c+=step){ const rgb=_pixRGB([vals[0][r][c],vals[1][r][c],vals[2][r][c]],ai>=0?vals[ai][r][c]:255); if(!rgb) continue; const val=fn(rgb[0],rgb[1],rgb[2]); if(val==null||isNaN(val)||!isFinite(val)) continue; arr.push(val); } }
   if(!arr.length) return {mn:-1,mx:1};
   arr.sort((a,b)=>a-b); const lo=arr[Math.floor(arr.length*0.02)], hi=arr[Math.floor(arr.length*0.98)];
   return {mn:lo,mx:(hi>lo?hi:lo+1e-6)};
@@ -1786,6 +1897,7 @@ async function performCrop(polyLL,mask){
   const newW=c1-c0+1, newH=r1-r0+1, nb=gr.numberOfRasters||vals.length;
   const Ctor=(vals[0][0]&&vals[0][0].slice)?vals[0][0].constructor:null;   // tipo da linha (TypedArray) p/ economizar memória
   const singleMask=mask&&nb<3;
+  const ai=_rasterAlfa(nb); let aiNovo=ai;   // banda de alfa declarada pelo arquivo (o recorte herda; a máscara se soma a ela)
   // fatia cada linha como TypedArray (cópia da janela) — Arrays comuns estouram o worker do georaster
   const out=[]; for(let b=0;b<nb;b++){ const sband=vals[b], band=new Array(newH); for(let ri=0;ri<newH;ri++){ const srow=sband[r0+ri]; let drow; if(srow&&srow.slice){ drow=srow.slice(c0,c1+1); if(singleMask) drow=Float32Array.from(drow); } else { drow=new Float32Array(newW); for(let ci=0;ci<newW;ci++) drow[ci]=srow[c0+ci]; } band[ri]=drow; } out.push(band); }
   let ndOut=gr.noDataValue;
@@ -1794,11 +1906,11 @@ async function performCrop(polyLL,mask){
     // RGBA com alfa=0 fora da área voada, e sobrescrever `out[3]` promovia esse vazio a
     // pixel válido (medido: 3.960 px sem dado virando dado) — que depois entrava na
     // estatística zonal e nos índices como se fosse solo/planta.
-    if(nb>=3){ const AC=Ctor||Uint8Array, alpha=new Array(newH), origA=(nb>=4)?out[3]:null;
+    if(nb>=3){ const AC=Ctor||Uint8Array, alpha=new Array(newH), origA=(ai>=0)?out[ai]:null;
       for(let ri=0;ri<newH;ri++){ const Yc=gr.ymax-(r0+ri+0.5)*py, arow=new AC(newW), oa=origA?origA[ri]:null;
         for(let ci=0;ci<newW;ci++){ const Xc=gr.xmin+(c0+ci+0.5)*px; arow[ci]=_pointInPoly(Xc,Yc,polyXY)?(oa?oa[ci]:255):0; }
         alpha[ri]=arow; }
-      if(nb>=4) out[3]=alpha; else out.push(alpha); }
+      if(ai>=0) out[ai]=alpha; else { out.push(alpha); aiNovo=out.length-1; } }   // sem alfa no arquivo, a máscara vira uma banda NOVA — a 4ª banda de um R-G-B-NIR continua sendo NIR
     else { // banda única: preenche fora do polígono com nodata (sentinela se não houver)
       let sent=gr.noDataValue; if(sent==null){ let mn=Infinity; for(let ri=0;ri<newH;ri++){ const row=out[0][ri]; for(let ci=0;ci<newW;ci++){ const v=row[ci]; if(!isNaN(v)&&v<mn)mn=v; } } sent=(mn===Infinity?0:mn)-1; }
       ndOut=sent; for(let ri=0;ri<newH;ri++){ const Yc=gr.ymax-(r0+ri+0.5)*py, row=out[0][ri]; for(let ci=0;ci<newW;ci++){ const Xc=gr.xmin+(c0+ci+0.5)*px; if(!_pointInPoly(Xc,Yc,polyXY)) row[ci]=sent; } } }
@@ -1811,7 +1923,7 @@ async function performCrop(polyLL,mask){
     const mn=(newGr.mins&&newGr.mins[0]!=null)?newGr.mins[0]:newGr.minValue, mx=(newGr.maxs&&newGr.maxs[0]!=null)?newGr.maxs[0]:newGr.maxValue;
     if(_rasterOverlay){ _rasterOverlay.remove(); _rasterOverlay=null; } _rasterIndex=null; _rasterIndexRange=null;
     const sh={..._rasterShift};   // o recorte herda o georref já deslocado por GCP; orig SEM o shift p/ o "↺ Remover ajuste" continuar desfazendo
-    _rasterMeta={gr:newGr,bands:bandsNew,mn,mx,ycc:_rasterMeta.ycc,factor:_rasterMeta.factor,masked:!!mask,orig:{xmin:newGr.xmin-sh.dx,xmax:newGr.xmax-sh.dx,ymin:newGr.ymin-sh.dy,ymax:newGr.ymax-sh.dy}};   // o recorte herda a resolução em que o raster foi carregado — o aviso do rasterNote continua valendo
+    _rasterMeta={gr:newGr,bands:bandsNew,mn,mx,ycc:_rasterMeta.ycc,factor:_rasterMeta.factor,alphaIdx:aiNovo,masked:!!mask,orig:{xmin:newGr.xmin-sh.dx,xmax:newGr.xmax-sh.dx,ymin:newGr.ymin-sh.dy,ymax:newGr.ymax-sh.dy}};   // o recorte herda a resolução em que o raster foi carregado — o aviso do rasterNote continua valendo
     _rasterShift=sh;
     rebuildRasterLayer(true); refreshRasterDisplay();
     resetIndexUI(bandsNew);
@@ -1871,9 +1983,13 @@ function utmToLatLon(E,N,zone,south){
   const lon=(D-(1+2*T1+C1)*D**3/6+(5-2*C1+28*T1-3*C1*C1+8*ep2+24*T1*T1)*D**5/120)/Math.cos(phi1);
   return [lat*180/Math.PI, ((zone-1)*6-180+3)+lon*180/Math.PI];
 }
+/* CRS em GRAUS que o app reconhece (v1.27.0). Até a v1.26.0 só o 4326 era geográfico: num raster em SIRGAS
+   2000 geográfico (4674, comum em produto de órgão brasileiro) o app dizia que "não reprojeta", recusava
+   pontos em lat/lon e tomaria o raio em metros como graus. FONTE ÚNICA de _rasterCRS e lonLatToRaster. */
+const CRS_GEOGRAFICOS=new Set([4326,4674]);
 // lon/lat (graus) -> coordenadas no CRS do raster (EPSG). null = não suportado
 function lonLatToRaster(lon,lat,epsg){
-  if(epsg===4326) return [lon,lat];
+  if(CRS_GEOGRAFICOS.has(epsg)) return [lon,lat];   // SIRGAS 2000 × WGS 84: diferença submétrica, irrelevante para o que o app mede em graus
   if(epsg===3857){ const x=lon*20037508.34/180; let y=Math.log(Math.tan((90+lat)*Math.PI/360))/(Math.PI/180); return [x,y*20037508.34/180]; }
   const z=utmZoneOf(epsg); if(z) return latLonToUTM(lat,lon,z.zone,z.south);
   return null;
@@ -1885,11 +2001,27 @@ function _labelBands(n){ if(n===1) return ['Valor']; if(n===3) return ['R','G','
 function _zfmt(v){ if(v==null||isNaN(v)) return '—'; const x=Math.abs(v); return x>=1000?v.toFixed(0):x>=1?v.toFixed(2):v.toFixed(4); }
 // bandas a reportar + máscara alfa + índice ativo (comum a zonalCompute e zonalAreaStats)
 function _zonalBandSetup(gr,vals){ const nb=gr.numberOfRasters||vals.length;
-  const alphaIdx=(nb===4||nb===2)?nb-1:-1;          // RGBA / Cinza+Alfa: última banda é máscara
+  const alphaIdx=_rasterAlfa(nb);                   // a banda que o ARQUIVO declara como alfa (ExtraSamples); -1 = nenhuma
   const reportIdx=[]; for(let b=0;b<nb;b++) if(b!==alphaIdx) reportIdx.push(b);
   const idxFn=(_rasterIndex&&nb>=3)?VEG_INDICES[_rasterIndex]:null;   // índice de vegetação ativo → amostra o índice, não as bandas
   return {nb,alphaIdx,reportIdx,idxFn,labels:idxFn?[_rasterIndex]:_labelBands(reportIdx.length),nd:gr.noDataValue}; }
 
+/* Números e palavras de UMA linha digitada — FONTE ÚNICA dos pontos da estatística zonal e dos pares de
+   GCP (v1.27.0). Até a v1.26.0 a vírgula era sempre separador: "21 443162,71 9221928,44" (formato
+   brasileiro) virava 21, 443162, 71, 9221928, 44 e o ponto ia parar em outro lugar, sem erro; e os pares
+   de GCP tiravam número de dentro do rótulo ("P1" dava a coordenada 1).
+   Regra: separa por espaço, tabulação e ";"; tira a vírgula final de cada pedaço; se DOIS ou mais
+   pedaços têm a forma 123,45 e nenhum tem ponto, a vírgula é DECIMAL. Senão, ela separa (como sempre:
+   "443162,9221928" e "P2, -7.019, -45.480" continuam iguais). Pedaço que não é número é palavra —
+   rótulo, nunca fonte de número. */
+function _numerosDaLinha(txt){
+  const pedacos=String(txt||'').trim().split(/[\s;]+/).map(p=>p.replace(/,+$/,'')).filter(p=>p!=='');
+  const decimal=pedacos.filter(p=>/^[+-]?\d+,\d+$/.test(p)).length>=2 && !pedacos.some(p=>p.includes('.'));
+  const toks=decimal ? pedacos.map(p=>/^[+-]?\d+,\d+$/.test(p)?p.replace(',','.'):p) : pedacos.flatMap(p=>p.split(',')).filter(p=>p!=='');
+  const nums=[], palavras=[];
+  toks.forEach(t=>{ const v=Number(t); if(t!==''&&isFinite(v)) nums.push(v); else palavras.push(t); });
+  return {nums, palavras, decimal};
+}
 function parseZonalPoints(txt){
   const pts=[];
   // (a,b) parecem um par de coordenadas? lat/lon (≤90,≤180 em qualquer ordem) ou projetadas (ambas grandes)
@@ -1899,9 +2031,7 @@ function parseZonalPoints(txt){
   const PROSA=/^(ou|utm:?)$/i;
   (txt||'').split(/\r?\n/).forEach(line=>{
     const raw=line.trim(); if(!raw) return;
-    const toks=raw.split(/[\s,;]+/).filter(t=>t!=='');
-    const nums=[], name=[];
-    toks.forEach(t=>{ const v=Number(t); if(isFinite(v)) nums.push(v); else if(!PROSA.test(t)) name.push(t); });
+    const {nums,palavras}=_numerosDaLinha(raw), name=palavras.filter(t=>!PROSA.test(t));
     if(nums.length<2) return;
     let v0,v1,r=null,lab=name.join(' ');
     // rótulo NUMÉRICO (ex.: "21" de arquivo de topografia): se o 1º número não forma par de coordenadas
@@ -1964,7 +2094,7 @@ function zonalCompute(){
     const acc=labels.map(()=>[]);
     for(let r=r0;r<=r1;r++){ const dr=(r+0.5-crow)/rpy; const rowA=alphaIdx>=0?vals[alphaIdx][r]:null;
       for(let c=c0;c<=c1;c++){ const dc=(c+0.5-ccol)/rpx; if(dc*dc+dr*dr>1) continue;
-        if(idxFn){ const rgb=_pixRGB([vals[0][r][c],vals[1][r][c],vals[2][r][c],nb>=4?vals[3][r][c]:255]); if(!rgb) continue; const val=idxFn(rgb[0],rgb[1],rgb[2]); if(val==null||isNaN(val)||!isFinite(val)) continue; acc[0].push(val); }
+        if(idxFn){ const rgb=_pixRGB([vals[0][r][c],vals[1][r][c],vals[2][r][c]],alphaIdx>=0?vals[alphaIdx][r][c]:255); if(!rgb) continue; const val=idxFn(rgb[0],rgb[1],rgb[2]); if(val==null||isNaN(val)||!isFinite(val)) continue; acc[0].push(val); }
         else { if(rowA&&!rowA[c]) continue; for(let k=0;k<reportIdx.length;k++){ const v=vals[reportIdx[k]][r][c]; if(v==null||isNaN(v)||(nd!=null&&v===nd)) continue; acc[k].push(v); } } } }
     const bands=acc.map((vv,k)=>{ if(!vv.length) return {label:labels[k],n:0}; let s=0,mn=Infinity,mx=-Infinity; for(const v of vv){ s+=v; if(v<mn)mn=v; if(v>mx)mx=v; } const mean=s/vv.length; let sq=0; for(const v of vv) sq+=(v-mean)*(v-mean); return {label:labels[k],n:vv.length,mean,std:Math.sqrt(sq/vv.length),min:mn,max:mx,median:_median(vv)}; });
     const n=Math.max(0,...bands.map(b=>b.n||0));
@@ -2017,8 +2147,9 @@ function _zcsv(s){ s=String(s==null?'':s); return /[",\n;]/.test(s)?'"'+s.replac
 function _znum(v){ return (v==null||isNaN(v))?'':(+v); }
 function _zround(v){ return (v==null||isNaN(v))?null:Math.round(v*1e4)/1e4; }
 
-// WKT do CRS (p/ o .prj que acompanha o CSV) — WGS84/SIRGAS UTM, 4326 e 3857; null se desconhecido
+// WKT do CRS (p/ o .prj que acompanha o CSV) — WGS84/SIRGAS UTM, 4326, 4674 e 3857; null se desconhecido
 function _wktForEPSG(epsg){ epsg=+epsg||0;
+  if(epsg===4674) return 'GEOGCS["SIRGAS 2000",DATUM["Sistema_de_Referencia_Geocentrico_para_las_AmericaS_2000",SPHEROID["GRS 1980",6378137,298.257222101]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]';
   if(epsg===4326) return 'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]';
   if(epsg===3857) return 'PROJCS["WGS 84 / Pseudo-Mercator",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]],PROJECTION["Mercator_1SP"],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1]]';
   const z=utmZoneOf(epsg); if(!z) return null; const cm=(z.zone-1)*6-180+3, fn=z.south?10000000:0, sirgas=(epsg>=31978&&epsg<=31985);
@@ -2152,7 +2283,7 @@ function zonalAreaStats(){
   const acc=(k,v)=>{ cnt[k]++; sum[k]+=v; sq[k]+=v*v; if(v<mns[k])mns[k]=v; if(v>mxs[k])mxs[k]=v; if(pix%step===0) med[k].push(v); };
   for(let r=0;r<H;r++){ const rowA=alphaIdx>=0?vals[alphaIdx][r]:null;
     for(let c=0;c<W;c++,pix++){ if(rowA&&!rowA[c]) continue;
-      if(idxFn){ const rgb=_pixRGB([vals[0][r][c],vals[1][r][c],vals[2][r][c],nb>=4?vals[3][r][c]:255]); if(!rgb) continue; const v=idxFn(rgb[0],rgb[1],rgb[2]); if(v==null||isNaN(v)||!isFinite(v)) continue; acc(0,v); }
+      if(idxFn){ const rgb=_pixRGB([vals[0][r][c],vals[1][r][c],vals[2][r][c]],alphaIdx>=0?vals[alphaIdx][r][c]:255); if(!rgb) continue; const v=idxFn(rgb[0],rgb[1],rgb[2]); if(v==null||isNaN(v)||!isFinite(v)) continue; acc(0,v); }
       else { for(let k=0;k<reportIdx.length;k++){ const v=vals[reportIdx[k]][r][c]; if(v==null||isNaN(v)||(nd!=null&&v===nd)) continue; acc(k,v); } } } }
   const bands=labels.map((lab,k)=>{ if(!cnt[k]) return {label:lab,n:0}; const mean=sum[k]/cnt[k], variance=Math.max(0,sq[k]/cnt[k]-mean*mean); return {label:lab,n:cnt[k],mean,std:Math.sqrt(variance),min:mns[k],max:mxs[k],median:_median(med[k])}; });
   const n=Math.max(0,...bands.map(b=>b.n||0));
@@ -2166,12 +2297,12 @@ function zonalAreaStats(){
 
 /* ───── Ajuste por pontos de controle (GCP): corrige pontos (Garmin) ou desloca o ortomosaico ───── */
 // resolve (v0,v1) -> {X,Y} no CRS do raster carregado, detectando lat/lon vs E,N
-function _rasterCRS(){ const gr=_rasterMeta&&_rasterMeta.gr; if(!gr) return null; const epsg=+gr.projection||0; const geoRaster=(epsg===4326)||(!epsg&&Math.abs(gr.xmin)<=180&&Math.abs(gr.ymax)<=90); return {gr,epsg,geoRaster,zinfo:utmZoneOf(epsg)}; }
+function _rasterCRS(){ const gr=_rasterMeta&&_rasterMeta.gr; if(!gr) return null; const epsg=+gr.projection||0; const geoRaster=CRS_GEOGRAFICOS.has(epsg)||(!epsg&&Math.abs(gr.xmin)<=180&&Math.abs(gr.ymax)<=90); return {gr,epsg,geoRaster,zinfo:utmZoneOf(epsg)}; }
 function zResolveXY(v0,v1){ const c=_rasterCRS(); if(!c) return null;
   if(Math.abs(v0)<=90&&Math.abs(v1)<=180){ const lat=v0,lon=v1; if(c.geoRaster) return {X:lon,Y:lat}; const xy=lonLatToRaster(lon,lat,c.epsg); return xy?{X:xy[0],Y:xy[1]}:null; }
   const en=_splitEN(v0,v1); return {X:en[0],Y:en[1]}; }
 function parseGcpPairs(txt){ const out=[]; (txt||'').split(/\r?\n/).forEach(line=>{ const raw=line.trim(); if(!raw) return; const parts=raw.split(/=>|->/); if(parts.length<2) return;
-  const fn=(parts[0].match(/[+-]?\d+(?:\.\d+)?/g)||[]).map(Number), tn=(parts[1].match(/[+-]?\d+(?:\.\d+)?/g)||[]).map(Number);
+  const fn=_numerosDaLinha(parts[0]).nums, tn=_numerosDaLinha(parts[1]).nums;   // cada lado do "=>" por conta própria: vírgula decimal e rótulo ("P1") tratados como nos pontos
   if(fn.length<2||tn.length<2) return; out.push({f0:fn[0],f1:fn[1],t0:tn[0],t1:tn[1]}); }); return out; }
 // ajusta transformação de similaridade (Helmert) por mínimos quadrados; 1 par = translação
 function fitHelmert(P){ const n=P.length;
@@ -2318,8 +2449,8 @@ function showMM(title,text){ if(!$('mmModal')) return; $('mmTitle').textContent=
 function closeMM(){ $('mmModal').classList.add('hidden'); }
 function showBeta(){ const m=$('betaModal'); if(m) m.classList.remove('hidden'); }
 function closeBeta(){ const m=$('betaModal'); if(m) m.classList.add('hidden'); }
-function ackBeta(){ try{ localStorage.setItem(LS+'_beta_ack','1'); }catch(e){} closeBeta(); }
-(function(){ try{ if(!localStorage.getItem(LS+'_beta_ack')) setTimeout(showBeta, 700); }catch(e){} })();
+function ackBeta(){ ls.set(LS+'_beta_ack','1'); closeBeta(); }
+(function(){ if(!ls.get(LS+'_beta_ack')) setTimeout(showBeta, 700); })();
 
 /* --- 3D (three.js) --- */
 let _3d=null, _3dObj=null, _ptBase=0.1;
@@ -2485,7 +2616,7 @@ function odmIsLoopback(u){ return /\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\
 function odmIsWebKit(){ return /Apple/.test(navigator.vendor||''); }
 function odmRecusa(u){
   if(location.protocol!=='https:' || !/^http:/i.test(u||'')) return null;   // página http, ou NodeODM já em https: nada a recusar
-  if(odmIsWebKit() && localStorage.getItem(LS+'_odm_webkit_ok')!=='1') return 'safari';
+  if(odmIsWebKit() && ls.get(LS+'_odm_webkit_ok')!=='1') return 'safari';
   return odmIsLoopback(u) ? 'permissao' : 'http';
 }
 function odmRenderHint(){ const h=$('odmModeHint'); if(!h) return;
@@ -2495,19 +2626,19 @@ function odmRenderHint(){ const h=$('odmModeHint'); if(!h) return;
     : '☁️ <b>Servidor:</b> um NodeODM remoto que você controle (VPS/outro PC) por <b>HTTPS</b> (ex.: via Cloudflare Tunnel). Cole a URL <code>https://…</code>. <i>(Esta página é https: o navegador recusa NodeODM por <code>http://</code>. No Chrome e no Edge, só o próprio computador é exceção; no Safari, nem ele.)</i>';
 }
 function odmAuthKey(u){ return LS+'_odm_auth_'+(u||''); }
-function odmAutoAllowed(){ const u=odmUrlVal(); return !odmIsLoopback(u) || _odmAuto || localStorage.getItem(odmAuthKey(u))==='1'; }
+function odmAutoAllowed(){ const u=odmUrlVal(); return !odmIsLoopback(u) || _odmAuto || ls.get(odmAuthKey(u))==='1'; }
 function odmModeKey(m){ return LS+'_odm_url_'+(m||_odmMode); }
 function odmDefaultUrl(m){ return m==='local'?'http://127.0.0.1:3000':''; }
 function odmInitMode(){
-  const old=localStorage.getItem(LS+'_odm_url');
-  if(old!=null && localStorage.getItem(LS+'_odm_url_local')==null && localStorage.getItem(LS+'_odm_url_server')==null)
-    localStorage.setItem(LS+'_odm_url_'+(/localhost|127\.0\.0\.1/.test(old)?'local':'server'),old);
-  odmSetMode(localStorage.getItem(LS+'_odm_mode')||'local',true);
+  const old=ls.get(LS+'_odm_url');
+  if(old!=null && ls.get(LS+'_odm_url_local')==null && ls.get(LS+'_odm_url_server')==null)
+    ls.set(LS+'_odm_url_'+(/localhost|127\.0\.0\.1/.test(old)?'local':'server'),old);
+  odmSetMode(ls.get(LS+'_odm_mode')||'local',true);
 }
 function odmSetMode(m,skipSave){
-  if(!skipSave && $('odmUrl')) localStorage.setItem(odmModeKey(_odmMode),($('odmUrl').value||'').trim());
-  _odmMode=m; localStorage.setItem(LS+'_odm_mode',m);
-  const saved=localStorage.getItem(odmModeKey(m));
+  if(!skipSave && $('odmUrl')) ls.set(odmModeKey(_odmMode),($('odmUrl').value||'').trim());
+  _odmMode=m; ls.set(LS+'_odm_mode',m);
+  const saved=ls.get(odmModeKey(m));
   if($('odmUrl')){ $('odmUrl').value=(saved!=null?saved:odmDefaultUrl(m)); $('odmUrl').placeholder=odmDefaultUrl(m)||'https://seu-tunel.trycloudflare.com'; }
   if($('odmModeLocal')) $('odmModeLocal').classList.toggle('primary',m==='local');
   if($('odmModeServer')) $('odmModeServer').classList.toggle('primary',m==='server');
@@ -2583,6 +2714,48 @@ function odmOnImages(fs){
     if(_odmExif.vel!=null&&$('odmRS')) $('odmRS').checked=_odmExif.vel>ODM_RS_VEL_MIN;
     odmRenderOpcoes();
   });
+  odmRenderGcp();   // os nomes das fotos do arquivo de GCP são conferidos contra o conjunto escolhido
+}
+/* ───── Pontos de controle (v1.27.0) ─────
+   Lido no código do NodeODM 2.2.4 em 2026-11-16: todo .txt que chega junto com as imagens vai para
+   data/<uuid>/gcp (libs/taskNew.js) e o PRIMEIRO deles é passado ao ODM como --gcp (libs/Task.js);
+   `geo.txt` e `image_groups.txt` têm outro significado. Por isso o app envia sempre com o nome
+   gcp_list.txt, num lote só dele, depois das fotos — e o .txt não entra na contagem de imagens. */
+let _odmGcp=null;   // {file, txt, info} do arquivo escolhido
+function odmPickGcp(){ $('odmGcp').click(); }
+// confere o formato do ODM: 1ª linha = sistema; depois "E N altitude pixel_x pixel_y foto [nome]"
+function odmLerGcp(txt,nomesFotos){
+  const linhas=String(txt||'').split(/\r?\n/).map(l=>l.trim()).filter(l=>l&&!l.startsWith('#'));
+  if(!linhas.length) return {erro:'o arquivo está vazio'};
+  const proj=linhas[0], c0=proj.split(/\s+/), numero=x=>x!==''&&isFinite(+x);
+  if(c0.length>=6&&c0.slice(0,5).every(numero)) return {erro:'falta a 1ª linha com o sistema de coordenadas (ex.: EPSG:31983)'};
+  const pontos=new Set(), fotos=new Set(); let marcacoes=0, ruins=0, fora=0;
+  for(const l of linhas.slice(1)){
+    const c=l.split(/\s+/);
+    if(c.length<6||!c.slice(0,5).every(numero)){ ruins++; continue; }
+    marcacoes++; fotos.add(c[5]); pontos.add(c.length>=7?c[6]:c.slice(0,3).join(' '));
+    if(nomesFotos&&nomesFotos.size&&!nomesFotos.has(c[5])) fora++;
+  }
+  if(!marcacoes) return {erro:'nenhuma linha no formato "E N altitude pixel_x pixel_y foto"'};
+  return {proj, pontos:pontos.size, marcacoes, fotos:fotos.size, ruins, fora};
+}
+async function odmOnGcp(f){
+  try{ _odmGcp={file:f, txt:await _lerTexto(f)}; }catch(e){ _odmGcp=null; toast('Não consegui ler o arquivo: '+e.message,'error'); }
+  odmRenderGcp();
+}
+function odmRemoverGcp(){ _odmGcp=null; odmRenderGcp(); }
+function odmRenderGcp(){
+  const box=$('odmGcpInfo'); if(!box) return;
+  if(!_odmGcp){ box.innerHTML=''; return; }
+  const i=_odmGcp.info=odmLerGcp(_odmGcp.txt,new Set((_odmFiles||[]).map(f=>f.name)));
+  const nome=esc(_odmGcp.file.name), rem=' <button class="btn sm" onclick="odmRemoverGcp()">✕ Remover</button>';
+  if(i.erro){ box.innerHTML='❌ '+nome+': '+esc(i.erro)+' — corrija o arquivo ou remova-o para enviar a tarefa.'+rem; return; }
+  const av=[];
+  if(i.ruins) av.push(i.ruins+' linha(s) fora do formato — confira o arquivo');
+  if(i.fora) av.push(i.fora+' marcação(ões) citam fotos que não estão entre as selecionadas — confira os nomes');
+  if(i.pontos<3) av.push('só '+i.pontos+' ponto(s): para corrigir posição, escala e rotação use ao menos 3, bem distribuídos pela área');
+  box.innerHTML='📍 '+nome+': '+i.pontos+' ponto(s), '+i.marcacoes+' marcação(ões) em '+i.fotos+' foto(s) · sistema <code>'+esc(i.proj)+'</code> · vai junto com as fotos, como gcp_list.txt.'
+    +av.map(a=>'<br>⚠️ '+esc(a)).join('')+rem;
 }
 function odmResEscolha(){ const s=$('odmRes'); return (s&&s.value)||'native'; }
 // resolução (cm/px) que será PEDIDA ao ODM; null = não pedir nada (fica o padrão dele).
@@ -2612,10 +2785,10 @@ function odmRenderOpcoes(){
                             : 'As fotos indicam drone parado ou lento (~'+fmt(e.vel,1)+' m/s) — correção desnecessária.')
     : '';
 }
-function odmResChange(){ try{ localStorage.setItem(LS+'_odm_res',odmResEscolha()); }catch(e){} odmRenderOpcoes(); }
-function odmRSChange(){ try{ localStorage.setItem(LS+'_odm_rs',$('odmRS').checked?'1':'0'); }catch(e){} }
+function odmResChange(){ ls.set(LS+'_odm_res',odmResEscolha()); odmRenderOpcoes(); }
+function odmRSChange(){ ls.set(LS+'_odm_rs',$('odmRS').checked?'1':'0'); }
 function odmInitOpcoes(){
-  let res=null, rs=null; try{ res=localStorage.getItem(LS+'_odm_res'); rs=localStorage.getItem(LS+'_odm_rs'); }catch(e){}
+  let res=null, rs=null; try{ res=ls.get(LS+'_odm_res'); rs=ls.get(LS+'_odm_rs'); }catch(e){}
   const s=$('odmRes'); if(s&&res&&[...s.options].some(o=>o.value===res)) s.value=res;
   if($('odmRS')) $('odmRS').checked=(rs==='1');
   odmRenderOpcoes();
@@ -2677,8 +2850,8 @@ async function odmCarregarOpcoes(u){
 // registro do que foi pedido em cada tarefa — é dele que o Material e Métodos tira o que afirma
 let _odmMeta=null;
 function odmMetaKey(uuid){ return LS+'_odm_meta_'+uuid; }
-function odmGuardarMeta(uuid,meta){ _odmMeta=meta; try{ localStorage.setItem(odmMetaKey(uuid),JSON.stringify(meta)); }catch(e){} }
-function odmLerMeta(uuid){ try{ return JSON.parse(localStorage.getItem(odmMetaKey(uuid))||'null'); }catch(e){ return null; } }
+function odmGuardarMeta(uuid,meta){ _odmMeta=meta; ls.set(odmMetaKey(uuid),JSON.stringify(meta)); }
+function odmLerMeta(uuid){ return ls.getJSON(odmMetaKey(uuid),null); }
 const ODM_OPTS_AUTO=new Set(['pc-ept','cog','gltf']);   // o NodeODM acrescenta sozinho a toda tarefa: não são escolha do usuário
 function odmRenderTaskOpts(lista){
   const e=$('odmTaskOpts'); if(!e) return;
@@ -2686,11 +2859,11 @@ function odmRenderTaskOpts(lista){
   e.textContent=l.length?'Opções que o servidor aceitou: '+l.join(' · '):'';
 }
 async function odmTest(){ const u=odmUrlVal(); if(!u){ toast('Informe a URL do NodeODM','error'); return; }
-  localStorage.setItem(odmModeKey(_odmMode),u); odmStatus('Conectando…');
+  ls.set(odmModeKey(_odmMode),u); odmStatus('Conectando…');
   try{ const c=new AbortController(), t=setTimeout(()=>c.abort(),8000);
     const r=await fetch(u+'/info',{signal:c.signal}); clearTimeout(t); if(!r.ok) throw new Error('HTTP '+r.status); const j=await r.json(); _odmInfo=j;
-    if(odmRecusa(u)==='safari') localStorage.setItem(LS+'_odm_webkit_ok','1');   // o Safari aceitou: a observação vence a regra (r112b)
-    if(odmIsLoopback(u)){ _odmAuto=true; localStorage.setItem(odmAuthKey(u),'1'); } // autorizado: libera o status ao vivo (agora e em recargas futuras)
+    if(odmRecusa(u)==='safari') ls.set(LS+'_odm_webkit_ok','1');   // o Safari aceitou: a observação vence a regra (r112b)
+    if(odmIsLoopback(u)){ _odmAuto=true; ls.set(odmAuthKey(u),'1'); } // autorizado: libera o status ao vivo (agora e em recargas futuras)
     odmStatus(`✅ ${j.name||'NodeODM'} v${j.version||'?'} · fila: ${j.taskQueueCount!=null?j.taskQueueCount:'?'} · engine: ${j.engine||'ODM'}`);
     odmRenderHint(); odmPing();
   }catch(e){ console.error('[ODM] test',e);
@@ -2740,6 +2913,8 @@ async function odmCreate(){
   if(_odmEnvio) return;   // já há um envio em andamento: um segundo clique criaria outra tarefa e outro envio
   const u=odmUrlVal(); if(!u){ toast('Configure e teste a URL do NodeODM','error'); return; }
   if(!_odmFiles||!_odmFiles.length){ toast('Selecione as imagens','error'); return; }
+  const gcp=_odmGcp;
+  if(gcp&&(!gcp.info||gcp.info.erro)){ toast('O arquivo de pontos de controle está fora do formato — corrija ou remova (📍) antes de enviar','error'); return; }
   if(_odmFiles.length<5 && !confirm('Poucas imagens ('+_odmFiles.length+'). O ODM costuma precisar de dezenas. Continuar?')) return;
   const ctrl=new AbortController(), files=_odmFiles.slice(), total=files.length;
   let uuid=null, criada=false;
@@ -2776,14 +2951,16 @@ async function odmCreate(){
     mostra();
     try{ await Promise.all(Array.from({length:Math.min(ODM_LOTE_PARALELO,fila.length)},trabalhador)); }
     catch(e){ fila.length=0; throw e; }   // um lote desistiu: ninguém pega lote novo
+    // 2b) pontos de controle: um lote só dele, sempre com o nome que o NodeODM entende como GCP
+    if(gcp){ odmEnvioProgresso(total,total,'Enviando os pontos de controle…'); await enviarLote([new File([gcp.file],'gcp_list.txt',{type:'text/plain'})]); }
     // 3) fecha o envio — é só aqui que a tarefa passa a existir no servidor e entra na fila
     odmEnvioProgresso(total,total,'Fotos enviadas — iniciando o processamento…');
     const jc=await odmPedir(u+'/task/new/commit/'+uuid,{method:'POST',signal:ctrl.signal});
     if(!jc.uuid) throw new Error(jc.error||'o servidor não iniciou a tarefa');
     criada=true;
     _odmSaved=false; _odmSavedMode=false; _odmZip=null; _odmZipFor=null; _odmZipRaw=null; _odmResultProj=null;   // sem isso, vindo de um resultado salvo, o card da tarefa nova mostraria o zip ANTIGO e esconderia o 💾 Salvar
-    _odmTask=uuid; localStorage.setItem(LS+'_odm_task',uuid);
-    odmGuardarMeta(uuid,{...meta, options:aceitas, n:total, engineVersion:(_odmInfo&&_odmInfo.engineVersion)||null, nodeVersion:(_odmInfo&&_odmInfo.version)||null, ts:Date.now()});
+    _odmTask=uuid; ls.set(LS+'_odm_task',uuid);
+    odmGuardarMeta(uuid,{...meta, options:aceitas, n:total, gcp:gcp?{nome:gcp.file.name, pontos:gcp.info.pontos, marcacoes:gcp.info.marcacoes, proj:gcp.info.proj}:null, engineVersion:(_odmInfo&&_odmInfo.engineVersion)||null, nodeVersion:(_odmInfo&&_odmInfo.version)||null, ts:Date.now()});
     odmStatus('✅ Tarefa criada: '+uuid+odmAvisoIgnoradas(ignoradas));
     $('odmTaskCard').classList.remove('hidden'); $('odmOutputs').classList.add('hidden'); odmRenderTaskOpts(aceitas); odmStartPoll(); toast('Tarefa enviada ✅');
   }catch(e){
@@ -2817,9 +2994,9 @@ async function odmReprocessar(){
     if(!j.success) throw new Error(j.error||'o servidor não aceitou o reprocessamento');
     if(uuid!==_odmTask) return;   // o card mudou de tarefa enquanto a resposta vinha
     _odmZip=null; _odmZipFor=null; _odmZipRaw=null; _opfsLimpar(); _odmSaved=false;   // o pacote baixado é do processamento anterior
-    odmGuardarMeta(uuid,{...meta, options:aceitas, n:(_odmMeta&&_odmMeta.n)||null,
+    odmGuardarMeta(uuid,{...meta, options:aceitas, n:(_odmMeta&&_odmMeta.n)||null, gcp:(_odmMeta&&_odmMeta.gcp)||null,   // o gcp_list.txt continua na tarefa: o restart não o apaga
       engineVersion:(_odmInfo&&_odmInfo.engineVersion)||(_odmMeta&&_odmMeta.engineVersion)||null, nodeVersion:(_odmInfo&&_odmInfo.version)||(_odmMeta&&_odmMeta.nodeVersion)||null, ts:Date.now()});
-    $('odmOutputs').classList.add('hidden'); odmRenderTaskOpts(aceitas);
+    $('odmOutputs').classList.add('hidden'); odmRenderTaskOpts(aceitas); odmRenderPrecisao();   // a precisão era do processamento anterior
     odmStatus('🔁 Reprocessando com as opções da tela — as fotos não foram reenviadas.'+(menos?' ⚠️ O pacote (.zip) ainda trará '+sobra+' do processamento anterior.':'')+odmAvisoIgnoradas(ignoradas)); odmStartPoll(); toast('Reprocessamento pedido ✅');
   }catch(e){
     console.error('[ODM] restart',e);
@@ -2827,7 +3004,7 @@ async function odmReprocessar(){
   }
 }
 function odmStartPoll(){ if(_odmPoll) clearInterval(_odmPoll); odmRefresh(); _odmPoll=setInterval(odmRefresh,5000); }
-function odmClearCard(){ if(_odmPoll) clearInterval(_odmPoll); _opfsLimpar(); _odmTask=null; _odmZip=null; _odmZipFor=null; _odmZipRaw=null; _odmSavedMode=false; _odmResultProj=null; _odmSaved=false; _odmMeta=null; localStorage.removeItem(LS+'_odm_task'); $('odmTaskCard').classList.add('hidden'); $('odmOutputs').classList.add('hidden'); odmRenderTaskOpts(null); odmStatus(''); }
+function odmClearCard(){ if(_odmPoll) clearInterval(_odmPoll); _opfsLimpar(); _odmTask=null; _odmZip=null; _odmZipFor=null; _odmZipRaw=null; _odmSavedMode=false; _odmResultProj=null; _odmSaved=false; _odmMeta=null; ls.del(LS+'_odm_task'); $('odmTaskCard').classList.add('hidden'); $('odmOutputs').classList.add('hidden'); odmRenderTaskOpts(null); odmRenderPrecisao(); odmStatus(''); }
 /* O NodeODM responde HTTP 200 com {"error":"<uuid> not found"} quando a tarefa não existe mais
    (apagada pelo terminal, container recriado). Sem tratar isso o card mostrava "status
    desconhecido", consultava o servidor a cada 5 s para sempre e o aviso de saída da página
@@ -2867,7 +3044,8 @@ function odmShowOutputs(){ const box=$('odmOutputs'); if(!box) return; box.class
     '<button class="btn sm" title="Pacote .zip com TODOS os produtos do ODM (ortomosaico, DSM, nuvem, malha 3D, relatório, metadados). Veja o README para o conteúdo." onclick="odmDownload(\'all.zip\')">⬇ Tudo (.zip)</button>'+
     '</div>'+(saved
       ? '<p class="hint">Guardado no app (acessível offline). Para apagar, exclua o projeto na lista de projetos.</p>'
-      : '<div class="btn-grid" style="margin-top:8px"><button class="btn sm" title="Guarda os produtos no app e APAGA a tarefa do NodeODM (libera o disco). Fica acessível mesmo com o NodeODM desligado." onclick="odmSaveResult()">💾 Salvar no projeto</button><button class="btn sm" title="Apaga as fotos e produtos do NodeODM (libera o disco) sem salvar." onclick="odmDiscard()">🗑️ Descartar</button></div><p class="hint">⚠️ Os dados ocupam disco no NodeODM até você <b>Salvar</b> (guarda no app + libera o servidor) ou <b>Descartar</b>. <b>Não deixe para depois:</b> por padrão o NodeODM apaga sozinho as tarefas terminadas há mais de <b>2 dias</b>. Esta versão entrega tudo no <b>all.zip</b> — o app baixa e extrai.</p>'); }
+      : '<div class="btn-grid" style="margin-top:8px"><button class="btn sm" title="Guarda os produtos no app e APAGA a tarefa do NodeODM (libera o disco). Fica acessível mesmo com o NodeODM desligado." onclick="odmSaveResult()">💾 Salvar no projeto</button><button class="btn sm" title="Apaga as fotos e produtos do NodeODM (libera o disco) sem salvar." onclick="odmDiscard()">🗑️ Descartar</button></div><p class="hint">⚠️ Os dados ocupam disco no NodeODM até você <b>Salvar</b> (guarda no app + libera o servidor) ou <b>Descartar</b>. <b>Não deixe para depois:</b> por padrão o NodeODM apaga sozinho as tarefas terminadas há mais de <b>2 dias</b>. Esta versão entrega tudo no <b>all.zip</b> — o app baixa e extrai.</p>');
+  odmRenderPrecisao(true); }
 /* falha/cancelamento: mostra o motivo REAL do NodeODM (errorMessage + log do ODM), em vez de chutar "disco cheio" */
 function odmShowFailure(st,err){ const box=$('odmOutputs'); if(!box) return; box.classList.remove('hidden');
   const head=st===30?'❌ A tarefa <b>falhou</b>':'⏹️ Tarefa <b>cancelada</b>';
@@ -2883,7 +3061,58 @@ async function odmShowLog(){ const pre=$('odmLog'); if(!pre) return; const u=odm
     const data=await r.json(); const arr=Array.isArray(data)?data:String(data).split('\n');
     pre.textContent=arr.slice(-80).join('\n').trim()||'(log vazio)'; pre.scrollTop=pre.scrollHeight;
   }catch(e){ console.error('[ODM] output',e); pre.textContent='Não consegui ler o log: '+e.message+' (NodeODM ligado? tarefa ainda existe?)'; } }
-const ODM_RE={ortho:/odm_orthophoto\/odm_orthophoto\.tif$/i, dsm:/(^|\/)dsm\.tif$/i, dtm:/(^|\/)dtm\.tif$/i, laz:/georeferenced_model\.(laz|las)$/i};
+const ODM_RE={ortho:/odm_orthophoto\/odm_orthophoto\.tif$/i, dsm:/(^|\/)dsm\.tif$/i, dtm:/(^|\/)dtm\.tif$/i, laz:/georeferenced_model\.(laz|las)$/i,
+  shots:/odm_report\/shots\.geojson$/i, stats:/odm_report\/stats\.json$/i};   // relatório do ODM: posição das fotos e precisão (v1.27.0)
+// texto de um Blob/File — com reserva para quem não tem Blob.text() (WebView antiga e o jsdom do smoke)
+function _lerTexto(b){ if(b&&typeof b.text==='function') return b.text(); return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(String(fr.result)); fr.onerror=()=>rej(fr.error); fr.readAsText(b); }); }
+async function _jsonDoPacote(zip,kind){ const n=zip.names().find(k=>ODM_RE[kind].test(k)); if(!n) return null; const {blob}=await zip.extrair(n); return JSON.parse(await _lerTexto(blob)); }
+// centros das fotos reconstruídas (shots.geojson, em lon/lat) -> envoltória convexa em [lat,lon]
+async function odmLerCobertura(zip){
+  try{ const gj=await _jsonDoPacote(zip,'shots'); if(!gj) return null;
+    const pts=(gj.features||[]).map(f=>f&&f.geometry&&f.geometry.type==='Point'?f.geometry.coordinates:null)
+      .filter(c=>Array.isArray(c)&&isFinite(c[0])&&isFinite(c[1])&&Math.abs(c[1])<=90&&Math.abs(c[0])<=180).map(c=>[+c[1],+c[0]]);
+    if(pts.length<3) return null; const hull=convexHull(pts);
+    return hull.length>=3 ? {hull, n:pts.length} : null;
+  }catch(e){ console.warn('[ODM] cobertura',e); return null; } }
+/* ───── Precisão do produto (v1.27.0) ─────
+   O ODM calcula e grava a própria estimativa de erro em odm_report/stats.json, e o app não a mostrava:
+   quem mede no ortomosaico não tinha como saber que, SEM pontos de controle, a posição absoluta é a do
+   GPS das fotos. Medido em 2026-11-15 com as mesmas 34 fotos: ODM padrão, ODM com correção de obturador
+   e Metashape ficaram a 2–6 m um do outro em posição e a ~1 % em escala. Campos lidos (ODM 3.5.6):
+   odm_processing_statistics.average_gsd (GSD das FOTOS, cm — não é a resolução do ortomosaico: no
+   produto de 5 cm/px do voo de teste ele vale 1,78), reconstruction_statistics.reprojection_error_pixels,
+   has_gcp, initial/reconstructed_shots_count, gps_errors.ce90 e gcp_errors.ce90 (metros). */
+function _num(v){ const n=+v; return (v!=null&&isFinite(n))?n:null; }
+async function odmLerPrecisao(zip){
+  try{ const s=await _jsonDoPacote(zip,'stats'); if(!s) return null;
+    const rs=s.reconstruction_statistics||{}, gps=s.gps_errors||{}, gcp=s.gcp_errors||{}, ops=s.odm_processing_statistics||{};
+    const p={ gsd:_num(ops.average_gsd), reproj:_num(rs.reprojection_error_pixels), ce90gps:_num(gps.ce90), ce90gcp:_num(gcp.ce90),
+              temGcp:rs.has_gcp===true, fotosIni:_num(rs.initial_shots_count), fotosRec:_num(rs.reconstructed_shots_count) };
+    return (p.gsd!=null||p.reproj!=null||p.ce90gps!=null||p.ce90gcp!=null) ? p : null;
+  }catch(e){ console.warn('[ODM] stats',e); return null; } }
+function odmTextoPrecisao(p){
+  if(!p) return '';
+  const it=[];
+  if(p.gsd!=null) it.push('GSD das fotos '+fmt(p.gsd,2)+' cm');
+  if(p.reproj!=null) it.push('erro de reprojeção '+fmt(p.reproj,2)+' px');
+  if(p.temGcp&&p.ce90gcp!=null) it.push('erro nos pontos de controle (CE90) '+fmt(p.ce90gcp,2)+' m');
+  else if(p.ce90gps!=null) it.push('precisão horizontal estimada pelo ODM (CE90, pelo GPS das fotos) '+fmt(p.ce90gps,1)+' m');
+  let t='📊 Relatório do ODM: '+it.join(' · ');
+  if(p.fotosIni!=null&&p.fotosRec!=null&&p.fotosRec<p.fotosIni) t+=' · ⚠️ só '+fmt(p.fotosRec,0)+' de '+fmt(p.fotosIni,0)+' fotos entraram na reconstrução';
+  t+=p.temGcp ? ' — com pontos de controle.' : ' — sem pontos de controle: espere erro de posição de alguns metros e de escala da ordem de 1 % (mais de 2 % em área).';
+  return t;
+}
+// `pronto`: a tarefa terminou e o pacote ainda não foi baixado — diz onde a precisão vai aparecer
+function odmRenderPrecisao(pronto){ const e=$('odmPrecisao'); if(!e) return; const p=_odmMeta&&_odmMeta.precisao;
+  e.textContent = p ? odmTextoPrecisao(p) : (pronto ? '📊 A precisão estimada pelo ODM aparece aqui quando o pacote for baixado (ao abrir um produto ou salvar no projeto).' : ''); }
+// lê a precisão do pacote JÁ baixado e a guarda no registro da tarefa (é dele que o M&M tira o que afirma)
+async function odmCarregarPrecisao(zip,uuid){
+  const p=await odmLerPrecisao(zip); if(!p) return null;
+  if(uuid&&uuid===_odmTask&&_odmMeta) odmGuardarMeta(uuid,{..._odmMeta, precisao:p});
+  else if(_odmMeta) _odmMeta={..._odmMeta, precisao:p};
+  else _odmMeta={precisao:p};
+  odmRenderPrecisao(); return p;
+}
 /* ═══ Leitura do all.zip por FAIXA — sem carregar o pacote (v1.20.1) ═════════
    Mesmo defeito do raster (v1.20.0), num arquivo ainda maior. O caminho antigo era:
      const buf = await r.arrayBuffer();          // o pacote INTEIRO na memória
@@ -2983,6 +3212,7 @@ async function odmGetZip(){ if(_odmZip&&(_odmSavedMode||_odmZipFor===_odmTask)) 
       const zip=await zipAbrir(bruto);
       if(_odmTask!==uuid) throw new Error('a tarefa mudou durante o download');
       _odmZipRaw=bruto; _odmZip=zip; _odmZipFor=uuid; odmStatus('Pacote baixado ✅ ('+_mb(bruto.size)+' MB)');
+      await odmCarregarPrecisao(zip,uuid).catch(e=>console.warn('[ODM] precisão',e));   // o relatório já está no pacote: a precisão entra no card e no registro antes de qualquer Salvar
     })().finally(()=>{ if(_odmZipPFor===uuid){ _odmZipP=null; _odmZipPFor=null; } });
   }
   await _odmZipP; return _odmZip; }
@@ -3000,7 +3230,10 @@ async function odmFetch(asset){ const u=odmUrlVal(); const r=await fetch(u+'/tas
 async function odmOpenZip(kind,viewer){ if(!_odmSavedMode && (!odmUrlVal()||!_odmTask)) return;
   try{ const {blob,name}=await odmExtract(kind); odmStatus('Abrindo '+name+'…');
     const file=(blob instanceof File && blob.name===name) ? blob : new File([blob],name,{type:blob.type});   // reembrulhar COPIA o arquivo inteiro; o extrator já devolve File nomeado
-    if(viewer==='2d'){ setTab('imagens'); await handleRasterFile(file); } else { await handle3DFile(file); } odmStatus('');
+    if(viewer==='2d'){ setTab('imagens'); await handleRasterFile(file);
+      // o produto abriu? então desenha sobre ele o contorno coberto pelas fotos (shots.geojson do mesmo pacote)
+      if(_rasterFile===file&&_rasterMeta){ const cob=await odmLerCobertura(await odmGetZip()); if(_rasterFile===file) mostrarCobertura(cob); } }
+    else { await handle3DFile(file); } odmStatus('');
   }catch(e){ console.error('[ODM] openZip',e); toast('Falha ao abrir: '+e.message,'error'); odmStatus('❌ '+e.message,true); } }
 async function odmDownload(asset){ if(!_odmSavedMode && (!odmUrlVal()||!_odmTask)) return; toast('Baixando '+asset+'…');
   try{ let blob; if(_odmSavedMode && asset==='all.zip' && _odmZipRaw){ blob=_odmZipRaw; } else { blob=await odmFetch(asset); } downloadBlob(blob,'ortofly_'+asset); }catch(e){ console.error('[ODM] download',e); toast('Falha: '+e.message,'error'); } }
@@ -3052,9 +3285,9 @@ async function odmRemoveServer(uuid){
 // Registro das tarefas que ESTE navegador criou. Ele mora no localStorage, então tarefa criada em outro
 // navegador (ou antes de os dados do site serem apagados) não aparece aqui — por isso o Limpar tudo
 // também consulta o servidor (odmServerTasks).
-function odmTracked(){ try{ return JSON.parse(localStorage.getItem(LS+'_odm_tasks')||'[]'); }catch(e){ return []; } }
-function odmTrack(uuid){ if(!uuid) return; const a=odmTracked(); if(!a.includes(uuid)){ a.push(uuid); localStorage.setItem(LS+'_odm_tasks',JSON.stringify(a)); } }
-function odmUntrack(uuid){ localStorage.setItem(LS+'_odm_tasks',JSON.stringify(odmTracked().filter(x=>x!==uuid))); try{ localStorage.removeItem(odmMetaKey(uuid)); }catch(e){} }
+function odmTracked(){ const a=ls.getJSON(LS+'_odm_tasks',[]); return Array.isArray(a)?a:[]; }
+function odmTrack(uuid){ if(!uuid) return; const a=odmTracked(); if(!a.includes(uuid)){ a.push(uuid); ls.set(LS+'_odm_tasks',JSON.stringify(a)); } }
+function odmUntrack(uuid){ ls.set(LS+'_odm_tasks',JSON.stringify(odmTracked().filter(x=>x!==uuid))); ls.del(odmMetaKey(uuid)); }
 // O que o SERVIDOR tem (GET /task/list devolve [{uuid}]). null = não deu para listar.
 async function odmServerTasks(){
   const u=odmUrlVal(); if(!u) return null;
@@ -3129,7 +3362,7 @@ async function odmSaveResult(){
     const uuid=_odmTask; _odmSaved=true;
     const rem=await odmRemoveServer(uuid), removed=rem.ok; if(removed) odmUntrack(uuid);
     if(_odmPoll) clearInterval(_odmPoll);
-    _odmTask=null; localStorage.removeItem(LS+'_odm_task'); _odmSavedMode=true; _odmResultProj=rec.id;
+    _odmTask=null; ls.del(LS+'_odm_task'); _odmSavedMode=true; _odmResultProj=rec.id;
     odmShowOutputs();
     odmStatus('✅ Salvo no projeto "'+name+'"'+(removed?' e removido do NodeODM (disco liberado).':' — mas não removi do NodeODM ('+rem.motivo+'). Apague depois pelo 🧹 Limpar tudo.')
       +(persistente===false?' ⚠️ O navegador não garantiu guardar os dados do app: se faltar espaço no aparelho ele pode apagá-los — mantenha também o ⬇ Tudo (.zip).':''));
@@ -3153,6 +3386,7 @@ async function odmLoadSavedResult(id){
     setTab('proc'); $('odmTaskCard').classList.remove('hidden'); $('odmTaskStatus').textContent='Resultado salvo (offline) ✅';
     const ob=$('odmBar'); if(ob) ob.style.display='none';
     odmShowOutputs(); odmStatus(''); toast('Resultado carregado ✅');
+    if(!(_odmMeta&&_odmMeta.precisao)) odmCarregarPrecisao(_odmZip,null).catch(()=>{});   // resultado salvo antes da v1.27.0: o relatório está no pacote
   }catch(e){ console.error('[ODM] loadSaved',e); toast('Falha ao carregar: '+e.message,'error'); odmStatus(''); } }
 
 /* ═══════════════ PIX ═══════════════ */
@@ -3177,7 +3411,7 @@ function odmTextoMM(){
   const y=new Date().getFullYear(), m=_odmMeta, ver=odmVersaoConhecida();
   const odm='OpenDroneMap (ODM)'+(ver?' v. '+ver:' [versão não registrada: conecte ao NodeODM antes de copiar]');
   const plano='O planejamento de voo foi feito no OrtoFly (Costa, '+y+').';
-  if(!m||!m.modo) return plano+' O processamento fotogramétrico foi feito com o '+odm+'. [Crie ou abra uma tarefa na aba Processar para este texto descrever o modo e as opções realmente usados.]';
+  if(!m||!m.modo) return plano+' O processamento fotogramétrico foi feito com o '+odm+'.'+odmFrasePrecisao(m)+' [Crie ou abra uma tarefa na aba Processar para este texto descrever o modo e as opções realmente usados.]';
   const aceita=nome=>!Array.isArray(m.options)||m.options.some(o=>o&&o.name===nome);   // só afirma o que o servidor aceitou
   const n=m.n?', a partir de '+m.n+' fotografias':'';
   let t=plano+' ';
@@ -3187,6 +3421,21 @@ function odmTextoMM(){
   else t+=' O ortomosaico foi gerado na resolução padrão do ODM ('+ODM_RES_PADRAO+' cm/px)'+(m.gsd?', com fotos de GSD estimado em '+fmt(m.gsd,2)+' cm/px':'')+'.';
   if(m.rs&&aceita('rolling-shutter')) t+=' Aplicou-se a correção de obturador de rolagem (rolling shutter) do ODM.';
   if(m.lite&&aceita('feature-quality')) t+=' Para reduzir o uso de memória, a extração de feições foi feita em qualidade média'+(m.modo!=='fast'&&aceita('pc-quality')?' e a nuvem densa em qualidade baixa':'')+'.';
+  return t+odmFrasePrecisao(m);
+}
+/* precisão e pontos de controle no M&M: só o que o relatório do ODM (stats.json) ou o registro da tarefa
+   dizem. Sem o pacote baixado não há número: o texto não inventa um. Que os GCP foram USADOS, só o
+   relatório afirma (has_gcp); o registro sabe apenas que o arquivo foi enviado. */
+function odmFrasePrecisao(m){
+  const p=m&&m.precisao, g=m&&m.gcp; let t='';
+  if(g&&g.pontos&&!(p&&p.temGcp)) t+=' Foi enviado ao ODM um arquivo de pontos de controle (GCP) com '+g.pontos+' ponto(s)'+(p?', mas o relatório do processamento não registra o uso deles':'')+'.';
+  if(!p) return t;
+  const partes=[];
+  if(p.gsd!=null) partes.push('o GSD médio das fotos foi de '+fmt(p.gsd,2)+' cm/px');
+  if(p.reproj!=null) partes.push('o erro médio de reprojeção foi de '+fmt(p.reproj,2)+' px');
+  if(partes.length) t+=' Segundo o relatório do ODM, '+partes.join(' e ')+'.';
+  if(p.temGcp) t+=' O georreferenciamento usou '+(g&&g.pontos?g.pontos+' ':'')+'pontos de controle (GCP)'+(p.ce90gcp!=null?', com erro horizontal nos pontos de controle (CE90) de '+fmt(p.ce90gcp,2)+' m':'')+'.';
+  else t+=' Não foram usados pontos de controle: o georreferenciamento vem do GPS das fotos'+(p.ce90gps!=null?', com precisão horizontal estimada pelo ODM (CE90) de '+fmt(p.ce90gps,1)+' m':'')+'.';
   return t;
 }
 function citeText(){
@@ -3241,7 +3490,7 @@ const REV_SB_KEY='sb_publishable_0Saq2ZYXgGEApcbvWAahtw_VQ9b9iTq';
 let revClient=null;
 function initRevClient(){ try{ if(window.supabase&&typeof window.supabase.createClient==='function'){ revClient=window.supabase.createClient(REV_SB_URL,REV_SB_KEY); } }catch(e){ console.error('[Reviews] init:',e); } }
 initRevClient();
-let localReviews=(()=>{ try{ return JSON.parse(localStorage.getItem(LS+'_reviews')||'[]'); }catch(e){ return []; } })();
+let localReviews=(()=>{ const a=ls.getJSON(LS+'_reviews',[]); return Array.isArray(a)?a:[]; })();
 let sharedReviews=[], _revLoadOk=true;
 function mergeReviews(local,shared){ const map=new Map(); [...shared,...local].forEach(r=>map.set(r.id,r)); return [...map.values()].sort((a,b)=>new Date(b.ts||0).getTime()-new Date(a.ts||0).getTime()); }
 async function loadSharedReviews(){ if(!revClient){ _revLoadOk=false; return; } try{ const {data,error}=await revClient.from('app_reviews').select('*').eq('project_id',PROJECT_ID).order('ts',{ascending:false}).limit(200); if(!error&&data){ sharedReviews=data; _revLoadOk=true; } else { _revLoadOk=false; if(error) console.error('[Reviews] load',error); } }catch(e){ _revLoadOk=false; console.error('[Reviews] load',e); } }
@@ -3269,7 +3518,7 @@ async function submitReview(){
   if(!name){ alert('Digite seu nome.'); return; }
   const now=new Date();
   const review={id:`${PROJECT_ID}_${now.getTime()}_${Math.random().toString(36).slice(2,7)}`,name,comment,stars,donated,date:now.toLocaleDateString('pt-BR'),ts:now.toISOString()};
-  localReviews=[review,...localReviews]; try{ localStorage.setItem(LS+'_reviews',JSON.stringify(localReviews)); }catch(e){}
+  localReviews=[review,...localReviews]; ls.set(LS+'_reviews',JSON.stringify(localReviews));
   renderReviewsList();
   const result=await pushReviewToCloud(review);
   $('reviewFormMode').classList.add('hidden');
@@ -3280,13 +3529,13 @@ async function submitReview(){
 
 /* ═══════════════ Versão no rodapé + banner + ping ═══════════════ */
 (()=>{ const el=$('appVersion'); if(el) el.textContent='© MGC · v'+APP_VERSION;   // versão exibida = a do código que está rodando, nunca de um fetch cacheado (guia r38)
-  try{ localStorage.removeItem(LS+'_app_version'); }catch(e){}   // limpa o cache do esquema antigo (fetch do CHANGELOG)
+  ls.del(LS+'_app_version');   // limpa o cache do esquema antigo (fetch do CHANGELOG)
 })();
 const cmpVersion=(a,b)=>{ const pa=String(a).replace(/^v/,'').split('.').map(n=>parseInt(n,10)||0),pb=String(b).replace(/^v/,'').split('.').map(n=>parseInt(n,10)||0); for(let i=0;i<Math.max(pa.length,pb.length);i++){ const x=pa[i]||0,y=pb[i]||0; if(x>y)return 1; if(x<y)return -1; } return 0; };
 (async()=>{ if(!revClient) return; const CK=LS+'_update_check', TTL=24*60*60*1000;
-  const c=JSON.parse(localStorage.getItem(CK)||'null'); if(c&&Date.now()-c.ts<TTL) return;
+  const c=ls.getJSON(CK,null); if(c&&Date.now()-c.ts<TTL) return;   // valor corrompido não pode mais calar a checagem de versão para sempre (v1.27.0)
   try{ const {data,error}=await revClient.from('app_config').select('value').eq('project_id',PROJECT_ID).eq('key','version').single();
-    if(error||!data) return; localStorage.setItem(CK,JSON.stringify({ts:Date.now()}));
+    if(error||!data) return; ls.set(CK,JSON.stringify({ts:Date.now()}));
     const remote=String(data.value||'').replace(/^v/,'');
     if(cmpVersion(remote,APP_VERSION)<=0) return;   // banner só se a versão publicada (app_config) > a deste build (APP_VERSION)
     const b=document.createElement('div'); b.id='updateBanner';
@@ -3296,13 +3545,20 @@ const cmpVersion=(a,b)=>{ const pa=String(a).replace(/^v/,'').split('.').map(n=>
   }catch(e){}
 })();
 (async()=>{ if(!revClient) return; const today=new Date().toISOString().slice(0,10); const PK=LS+'_ping_date';
-  if(localStorage.getItem(PK)===today) return; let id=localStorage.getItem(LS+'_device_id'); if(!id){ id=crypto.randomUUID(); localStorage.setItem(LS+'_device_id',id); }
-  try{ await revClient.from('app_pings').upsert({app_name:'OrtoFly',version:APP_VERSION,device_id:id,ping_date:today},{onConflict:'app_name,device_id,ping_date',ignoreDuplicates:true}); localStorage.setItem(PK,today); }catch(e){}
+  if(ls.get(PK)===today) return; let id=ls.get(LS+'_device_id'); if(!id){ id=crypto.randomUUID(); ls.set(LS+'_device_id',id); }
+  try{ await revClient.from('app_pings').upsert({app_name:'OrtoFly',version:APP_VERSION,device_id:id,ping_date:today},{onConflict:'app_name,device_id,ping_date',ignoreDuplicates:true}); ls.set(PK,today); }catch(e){}
 })();
 
 /* ═══════════════ init ═══════════════ */
-function init(){ try{ initMap(); }catch(e){ console.error('[Map] init falhou',e); toast('Mapa indisponível (sem conexão?) — controles e cálculos seguem funcionando','error'); } wire(); recompute(); loadSampleIfEmpty();
+// cada passo da abertura isolado: um que falhe não leva junto os que vêm depois (v1.27.0 — antes, uma exceção
+// no meio de wire() deixava a tela "morta": nada respondia e nenhuma mensagem explicava)
+function _passoInit(nome,fn){ try{ fn(); return true; }catch(e){ console.error('[init] '+nome,e); return false; } }
+function init(){
+  if(!_passoInit('mapa',initMap)) toast('Mapa indisponível (sem conexão?) — controles e cálculos seguem funcionando','error');
+  const ok=[_passoInit('controles',wire), _passoInit('plano',recompute), _passoInit('exemplo',loadSampleIfEmpty)].every(Boolean);
   _opfsLimpar();   // sobras de uma sessão anterior (o all.zip e os produtos extraídos ficam em disco se a aba fecha com um resultado aberto); na abertura nada ainda aponta para elas
+  if(ls.memoria) setTimeout(()=>toast('O navegador bloqueou o armazenamento deste site — nada será salvo nesta sessão (projetos, tarefas, preferências). Exporte o projeto em JSON para não perder.','error'),800);   // depois do aviso do exemplo (700 ms)
+  else if(!ok) toast('Parte do app não abriu — recarregue a página. Se repetir, avise o autor (o console do navegador tem o detalhe).','error');
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
 if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{})); }

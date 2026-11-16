@@ -5,6 +5,25 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.27.0] — Novembro 2026
+
+### 🆕 Adicionado
+
+- **Margem além da área, no planejamento de voo.** A grade nascia colada no limite: a faixa externa ficava meia distância entre faixas **para dentro** da área e cada faixa começava e terminava **em cima** do limite — com 65 % de sobreposição lateral, a borda era vista por uma linha de voo só. Foi o que deformou a borda do voo de teste (um prédio fora da grade saiu com os painéis rasgados no ODM e com buracos num programa comercial; nenhuma opção de processamento resolveu). O novo campo **Margem além da área** (aba ✈️ Voo) tem *Sem margem*, *Automática* (1 faixa a mais de cada lado + meia foto em cada ponta) e *Personalizada (m)*; Resultados, mapa e exportações contam a margem, e ela é salva no projeto. **Nasce em "Sem margem"**: com ela, a grade é idêntica à de antes, ponto por ponto (conferido contra a v1.26.0); projeto salvo antes desta versão abre sem margem.
+- **Contorno da área coberta pelas fotos.** Ao abrir o ortomosaico (ou o DSM) pela aba Processar, o app lê do pacote a posição de cada foto reconstruída (`odm_report/shots.geojson`) e desenha, tracejada, a área coberta por elas — fora dela, a borda pode sair deformada. Botão **✂️ Recortar pela área das fotos**.
+- **Precisão do produto no card da tarefa.** O ODM calcula a própria estimativa de erro e o app não a mostrava. Ao baixar o pacote, o card passa a dizer o GSD das fotos, o erro de reprojeção e o CE90 (pelo GPS das fotos, ou nos pontos de controle quando houver) — e, sem pontos de controle, que a posição pode errar alguns metros e a escala ~1 %. Os números vão para o registro da tarefa, para o projeto salvo e para o texto de Material e Métodos.
+- **Pontos de controle (GCP) no envio.** Botão **📍 Pontos de controle** no card "Nova tarefa": o app confere o arquivo no formato do ODM (sistema na 1ª linha, uma marcação por linha), diz quantos pontos, marcações e fotos ele tem, avisa nomes de foto que não estão entre as escolhidas e envia o arquivo junto, sempre como `gcp_list.txt` (o nome que o NodeODM reconhece). Conferido com o NodeODM 2.2.4 de verdade: o arquivo não conta como foto, e o log do ODM registra *"25 GCP points will be used for georeferencing"*. O Reprocessar mantém o arquivo.
+
+### 🐛 Corrigido
+
+- **Com sinal fraco, o app demorava a abrir — e uma página de erro podia substituir o app guardado.** O service worker buscava o app na rede sem tempo-limite e guardava qualquer resposta. Medido num Chrome de verdade, com o servidor atrasando 20 s: a abertura levava **20,2 s**; com o servidor devolvendo erro 500, aparecia a página de erro **e o app saía do cache** (a próxima abertura offline mostrava só "Offline"). Agora a abertura espera a rede até **3,5 s** e usa a cópia guardada (medido: **3,7 s**; a versão nova entra no cache quando a rede responde); resposta de erro nunca entra no cache e, com cópia boa, abre a cópia; endereço com `?…` também acha o app offline.
+- **Com o armazenamento do navegador bloqueado, o app abria "morto".** Com cookies/dados de site bloqueados, ler o `localStorage` lança erro — e isso acontecia no meio da abertura, antes de ligar a importação de fotos, raster e 3D. Medido no Chrome com os cookies bloqueados: sem área de exemplo, sem plano, nada respondia e nenhuma mensagem explicava. Agora todo acesso passa por um ponto único que nunca lança: o app abre inteiro, guarda as escolhas só na memória da sessão e **avisa que nada será salvo**. Um valor corrompido também deixou de calar a checagem de nova versão para sempre.
+- **Vírgula decimal virava coordenada errada, sem aviso.** "21 443162,71 9221928,44" (formato brasileiro) era lido como cinco números, e o ponto ia parar em outro lugar. Nos pares de GCP, o número do rótulo ("P1") virava coordenada. Agora pontos e pares aceitam **vírgula ou ponto decimal** e rótulo nunca vira número; os formatos que já funcionavam continuam iguais.
+- **Toda imagem de 4 bandas era tratada como RGB + transparência.** Num GeoTIFF multiespectral R-G-B-NIR, todo pixel com NIR = 0 sumia e a banda NIR não entrava na estatística. Agora quem diz se há transparência é o próprio arquivo (tag `ExtraSamples`); o ortomosaico do ODM a declara, então para ele nada muda — conferido no ortomosaico do voo de teste: mesma contagem de pixels (10.578.074) antes e depois.
+- **SIRGAS 2000 geográfico (EPSG:4674) era tratado como sistema em metros.** O app dizia que "não reprojeta", recusava pontos em lat/lon e tomaria o raio em metros como graus. Agora 4674 é graus, como o 4326, e o export leva o `.prj` dele.
+
+---
+
 ## [1.26.0] — Novembro 2026
 
 ### 🆕 Adicionado

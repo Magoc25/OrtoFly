@@ -327,6 +327,7 @@ O número `AllocatedBaseSize` é em **MB**. Se estiver muito acima do normal (ex
 - Tudo roda **localmente** — suas fotos **não** vão para servidores externos.
 - Datasets grandes (centenas de fotos) pedem mais RAM/tempo; comece com **algumas dezenas** + **Rápido**.
 - **Resolução:** o ortomosaico sai no GSD das suas fotos (*Nativa*). Se faltar memória ou disco, troque para *Equilibrada (2× o GSD)*. Se o voo foi contínuo, deixe marcada a **correção de obturador de rolagem** que o app sugere. Detalhes em [Boas práticas e qualidade](./Boas-Praticas-e-Qualidade.md).
-- **Bordas:** o que fica no limite das fotos sai deformado — voe uma faixa além da área que interessa.
+- **Bordas:** o que fica no limite das fotos sai deformado. No planejamento (aba ✈️ Voo), escolha **Margem além da área → Automática** (1 faixa a mais de cada lado + meia foto em cada ponta) se a borda interessa. Ao abrir o ortomosaico pelo app, o **contorno tracejado** mostra a área coberta pelas fotos, com um botão para **recortar** por ele.
+- **Precisão:** ao baixar o pacote, o card da tarefa mostra o que o **próprio ODM** estimou (GSD das fotos, erro de reprojeção e CE90). **Sem pontos de controle**, espere erro de posição de **alguns metros** e de escala da ordem de **1 %** (mais de 2 % em área). Para reduzir, envie um **`gcp_list.txt`** (formato do ODM) no botão **📍 Pontos de controle** do card "Nova tarefa" — ele vai junto com as fotos.
 
 *Validado em Windows 11 + WSL2 (Ubuntu 22.04) + Docker Engine. © MGC Dev.*

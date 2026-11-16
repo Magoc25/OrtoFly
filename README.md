@@ -12,7 +12,7 @@ Desenvolvido por **Marlon Gomes da Costa (MGC Dev)**
 >
 > 💬 **Ajude a validar!** Testou? **Conte como foi** — funcionou no seu fluxo? o ortomosaico/DSM ficou coerente com a realidade medida em campo? Relatos sobre o funcionamento e a **qualidade dos produtos** são muito bem-vindos e orientam a evolução do app. Use a **avaliação dentro do app** ou [abra uma issue no GitHub](https://github.com/Magoc25/OrtoFly/issues).
 
-[![Versão](https://img.shields.io/badge/versão-1.26.0-blue)](./CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/versão-1.27.0-blue)](./CHANGELOG.md)
 [![Status](https://img.shields.io/badge/status-beta%20%C2%B7%20em%20valida%C3%A7%C3%A3o-yellow)](./TERMS.md)
 [![Licença](https://img.shields.io/badge/licença-não%20comercial-orange)](#-licença-e-termos-de-uso)
 [![PIX](https://img.shields.io/badge/apoie-PIX-brightgreen)](#-apoiar-o-projeto)
@@ -116,6 +116,7 @@ O OrtoFly **não controla o drone diretamente** — por restrições do SDK da D
 ### ⚙️ Processamento (ortomosaico métrico) — opcional
 
 - **Integração com NodeODM (OpenDroneMap)** — conecta a um servidor **local** (seu computador) ou em **VM na nuvem**, processa as suas fotos e gera **ortomosaico**, **DSM/DTM**, **nuvem de pontos** e **malha 3D** — sem enviar nada para serviços de terceiros. O ortomosaico sai **na resolução das suas fotos**: o app lê o GSD da altura de voo gravada nelas e pede essa resolução ao ODM (que, sozinho, entregaria 5 cm/px); para voo contínuo, sugere a **correção de obturador de rolagem**. Com o servidor **local**, use o **Chrome** ou o **Edge** (o Safari recusa a conexão de uma página `https://` com o `http://` do próprio computador); se a conexão falhar, a mensagem diz a causa provável no seu navegador.
+- **Precisão e pontos de controle** — o card da tarefa mostra a precisão que o próprio ODM estimou (GSD, erro de reprojeção, CE90) e o envio aceita um arquivo de **pontos de controle** (`gcp_list.txt`). Ao abrir o ortomosaico, o app desenha o **contorno da área coberta pelas fotos** e recorta por ele; no planejamento, a **margem além da área** evita a borda deformada.
 - **Fluxo de resultado limpo** — ao concluir, **salve** os produtos dentro do app (abrem offline) ou **descarte**, liberando o disco do servidor.
 
 ---
