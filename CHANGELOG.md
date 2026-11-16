@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.29.1] — Novembro 2026
+
+### 📄 Documentação
+
+- **Guia do Windows: o NodeODM fica só para o seu computador.** Os dois comandos de subir o NodeODM (Docker Desktop e WSL) passam a usar `-p 127.0.0.1:3000:3000`, como o guia do macOS e a dica do app desde a v1.28.0. O NodeODM não tem senha: com `-p 3000:3000` ele escuta em todas as conexões do PC, e quem o separa da rede passa a ser só o firewall, que muda de um PC para outro. Medido no Windows 11 com WSL no modo espelhado (o do guia): com o comando novo o NodeODM escuta só em `127.0.0.1`, o app num Chrome de verdade conecta e processa, e o IP da rede é recusado. O guia ganhou a nota de como conferir um container antigo (`docker ps`, coluna PORTS; o `netstat` do Windows não mostra a porta de dentro do WSL) e como recriá-lo. Os atalhos `.bat` não mudam. O caminho com Docker Desktop recebeu o mesmo comando, mas não foi medido.
+- **Política de Segurança:** a frase "o guia do Windows/WSL ainda traz o comando antigo" deu lugar ao que foi medido no Windows.
+
+---
+
 ## [1.29.0] — Novembro 2026
 
 ### 🆕 Adicionado

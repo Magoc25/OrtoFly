@@ -51,9 +51,9 @@ Existem **dois caminhos** — escolha **um**:
 
    🟦 **Abra o PowerShell (normal)** — *Menu Iniciar → digite `powershell` → clique em "Windows PowerShell"*. **Não** precisa ser Administrador. **Cole** o comando abaixo (clique com o **botão direito** dentro da janela = colar) e tecle **Enter**:
    ```powershell
-   docker run -d --name nodeodm --restart unless-stopped -p 3000:3000 opendronemap/nodeodm
+   docker run -d --name nodeodm --restart unless-stopped -p 127.0.0.1:3000:3000 opendronemap/nodeodm
    ```
-   *(baixa a imagem ~1,5 GB na 1ª vez e já sobe o NodeODM)*
+   *(baixa a imagem ~1,5 GB na 1ª vez e já sobe o NodeODM; o `127.0.0.1:` deixa o NodeODM só para este computador — veja o 🔒 antes de **▶ Usar no app**)*
 5. **Confira:** abra no navegador **http://127.0.0.1:3000/info** — deve aparecer um texto JSON com `"version"`. ✅
 
 ➡️ Vá para **▶ Usar no app**. *(Com Docker Desktop, o localhost funciona direto — sem ajustes de rede.)*
@@ -113,12 +113,46 @@ Aguarde **~10 segundos**.
 
 🟦 **No PowerShell (normal)** — **cole** e tecle **Enter**:
 ```powershell
-wsl -d Ubuntu -u root bash -c "systemctl start docker; docker run -d --name nodeodm --restart unless-stopped -p 3000:3000 opendronemap/nodeodm"
+wsl -d Ubuntu -u root bash -c "systemctl start docker; docker run -d --name nodeodm --restart unless-stopped -p 127.0.0.1:3000:3000 opendronemap/nodeodm"
 ```
 *(baixa a imagem ~1,5 GB na 1ª vez)*
 
 ### B.6 — Confira
 Abra no navegador **http://127.0.0.1:3000/info** → JSON com `"version"`. ✅
+
+---
+
+> 🔒 **Por que `127.0.0.1:3000:3000` e não só `3000:3000`?** O NodeODM **não tem senha** e aceita pedidos de qualquer site. Com `-p 3000:3000` ele escuta em **todas** as conexões do PC, e quem o protege da rede passa a ser só o firewall — que muda de um PC para outro (num Mac, o NodeODM respondeu pelo IP da rede local, e qualquer aparelho no mesmo Wi-Fi poderia **listar, baixar e apagar** as suas tarefas). Com `127.0.0.1:` ele só atende **este computador**, qualquer que seja o firewall, e o app funciona igual (medido no Windows 11 com WSL no modo espelhado: o navegador do PC conecta, e o NodeODM deixa de escutar no IP da rede).
+>
+> **Já tem o container antigo (instalado com `-p 3000:3000`)?** Primeiro **confira** como ele está.
+>
+> 🟦 **No PowerShell (normal)** — *Menu Iniciar → `powershell` → "Windows PowerShell"* (não precisa Administrador). **Cole** o comando do seu caminho e tecle **Enter**:
+> - **Caminho A (Docker Desktop):**
+>   ```powershell
+>   docker ps
+>   ```
+> - **Caminho B (WSL):**
+>   ```powershell
+>   wsl -d Ubuntu -u root bash -c "docker ps"
+>   ```
+>
+> Olhe a coluna **PORTS** da linha `nodeodm`: se aparecer **`0.0.0.0:3000->3000/tcp`**, ele está aberto para a rede; se aparecer **`127.0.0.1:3000->3000/tcp`**, já está certo e não há nada a fazer. *(No Caminho B, o `netstat` do Windows **não** mostra a porta do NodeODM — com o WSL no modo espelhado ela fica dentro do Linux. Por isso a conferência é pelo `docker ps`.)*
+>
+> **Para fechar o container antigo**, nesta ordem:
+> 1. **No app**, **salve ou descarte** as tarefas que ainda estão no NodeODM — recriar o container **apaga** as que ficaram nele.
+> 2. 🟦 **No PowerShell (normal)**, **cole** o comando do seu caminho e tecle **Enter** (ele remove o container antigo; a imagem baixada fica, não baixa de novo):
+>    - **Caminho A (Docker Desktop):**
+>      ```powershell
+>      docker rm -f nodeodm
+>      ```
+>    - **Caminho B (WSL):**
+>      ```powershell
+>      wsl -d Ubuntu -u root bash -c "docker rm -f nodeodm"
+>      ```
+> 3. **Rode de novo o comando de subir o NodeODM** do seu caminho — o do **passo 4 do Caminho A** ou o do **B.5** — que já vem com `127.0.0.1:`.
+> 4. **Confira de novo** com o `docker ps` acima: tem de aparecer **`127.0.0.1:3000->3000/tcp`**.
+>
+> Os atalhos **`Iniciar-NodeODM.bat`** e **`Desligar-NodeODM.bat`** **não mudam**: eles só ligam e desligam o container, que guarda a porta com que foi criado.
 
 ---
 
