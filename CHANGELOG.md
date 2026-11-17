@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.29.3] — Novembro 2026
+
+### 🐛 Correções
+
+- **Trocar de imagem da mesma área mostrava a imagem anterior.** Na aba Imagens, abrir o ortomosaico, tocar em 🗑️ Remover raster e abrir o DSM do mesmo voo (ou o contrário) costumava mostrar de novo a primeira imagem; com imagens de áreas diferentes funcionava, e fechar e abrir o app resolvia só a primeira troca. A causa estava na biblioteca que desenha o raster no mapa (georaster-layer 4.1.2): ela guarda os pedaços já desenhados num cache **único para todas as camadas**, identificado só pela posição no mapa — e duas imagens da mesma área ocupam as mesmas posições. Agora cada imagem aberta tem o seu próprio cache. Pela mesma causa, **trocar a paleta do DSM** (Terreno, Viridis, Cinza) não mudava a imagem na tela, e o ajuste por GCP e o recorte também redesenham a camada; isso também ficou corrigido. As medições (zonal, índices, recorte) nunca foram afetadas: elas usam o raster carregado, não o que está na tela.
+- **Verificação:** reproduzido num **Chrome de verdade** com o ortomosaico e o DSM do mesmo voo (roteiro novo `tests/e2e-chrome-raster.mjs`, manual): na v1.29.2, o DSM aberto depois do ortomosaico mostrava a mesma cor média do ortomosaico, e a paleta Cinza não mudava nada; nesta versão as 3 conferências passam. Smoke 219 → **221 asserções** e uma conferência nova no `check.js`; desfazendo a correção numa cópia, as três ficam vermelhas.
+
+---
+
 ## [1.29.2] — Novembro 2026
 
 ### 📄 Documentação

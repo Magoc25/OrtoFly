@@ -741,7 +741,7 @@ footer{
 <script src="./vendor/qrcode.js"></script>
 <script>
 /* ═══════════════ OrtoFly — © 2026 MGC Dev (versão: só em APP_VERSION) ═══════════════ */
-const APP_VERSION = '1.29.2';
+const APP_VERSION = '1.29.3';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 
@@ -1749,7 +1749,15 @@ async function _tiffToGeoraster(file,onProg,orcamento){
 function buildRasterLayer(){ const o={georaster:_rasterMeta.gr,opacity:(+$('rasterOpacity').value||100)/100,resolution:256,pane:'rasterPane'};
   const fn=_rasterColorFn();   // fonte única de cor (RGB/DSM/índice — trata YCbCr, alpha e nodata); aqui só embrulha em CSS
   o.pixelValuesToColorFn=v=>{ const c=fn(v); return c?`rgb(${c[0]},${c[1]},${c[2]})`:null; };
-  return new window.GeoRasterLayer(o); }
+  /* CACHE DE TILES PRÓPRIO por camada (v1.29.3). No georaster-layer 4.1.2 o `cache:{}` mora no PROTÓTIPO da classe:
+     todas as camadas dividem o mesmo objeto, com chave = tile + resolução — sem nada do raster. Duas imagens da MESMA
+     área (ortho e DSM do mesmo voo) caem nas mesmas chaves, e a segunda aparecia com os tiles da primeira; trocar a
+     paleta do DSM, o ajuste por GCP e o recorte redesenhavam a camada e recebiam os tiles velhos. Áreas diferentes
+     têm chaves diferentes, por isso só a mesma área falhava; recarregar o app zerava o cache. MEDIDO no Chrome com a
+     ortho e o DSM do voo do IFMA (tests/e2e-chrome-raster.mjs): DSM depois da ortho mostrava a ortho (cor média
+     idêntica); com o cache próprio, cada um mostra o seu. O cache continua valendo DENTRO da camada (arrastar o mapa). */
+  const lyr=new window.GeoRasterLayer(o); lyr.cache={};
+  return lyr; }
 function rebuildRasterLayer(fit){ if(rasterLayer) rasterLayer.remove(); rasterLayer=buildRasterLayer().addTo(map); if(fit){ try{ map.fitBounds(rasterLayer.getBounds()); }catch(e){} } }
 function resetIndexUI(bands){ $('indexRow').classList.toggle('hidden',(bands||0)<3); if($('indexSel'))$('indexSel').value='none'; $('indexCmapRow').classList.add('hidden'); $('indexClearBtn').classList.add('hidden'); $('indexInfo').textContent=''; }
 let _rasterFile=null;   // guardado p/ o botão "resolução cheia" reler o MESMO arquivo

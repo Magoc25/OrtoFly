@@ -1,6 +1,6 @@
 /* OrtoFly — Service Worker (a versão vive só no CACHE_NAME abaixo) */
 
-const CACHE_NAME = 'ortofly-v63';
+const CACHE_NAME = 'ortofly-v64';
 const HTML_ESPERA_MS = 3500;   // quanto a abertura espera a rede antes de usar a cópia do cache (escolha do app)
 
 // Tudo que o app precisa para funcionar OFFLINE (uso em campo, sem sinal):

@@ -187,6 +187,21 @@ else {
   else ok('raster: georreferência derivada da extensão do nível 0, não do overview');
 }
 
+/* ── 4c2) cache de tiles próprio em cada camada de raster (v1.29.3) ──────────
+   O bug: o georaster-layer 4.1.2 declara `cache:{}` no PROTÓTIPO — todas as camadas dividem o mesmo objeto, com
+   chave = tile + resolução. Ortho e DSM da mesma área caíam nas mesmas chaves: o DSM aberto depois da ortho
+   aparecia como a ortho, e trocar a paleta não mudava a imagem. Vale para TODA camada, então: (1) só
+   buildRasterLayer cria GeoRasterLayer; (2) ela dá à camada um cache novo antes de devolvê-la. O comportamento
+   (duas camadas, dois caches) é asserção do cenário 3 do smoke; no Chrome, tests/e2e-chrome-raster.mjs. */
+const fnLayer = (jsCode.match(/function buildRasterLayer\s*\(\)[\s\S]*?(?=\n(?:async )?function )/) || [])[0];
+const criaLayer = (jsCode.match(/new\s+(?:window\.)?GeoRasterLayer\s*\(/g) || []).length;
+console.log('       [captura] buildRasterLayer = ' + (fnLayer ? fnLayer.split('\n').length + ' linhas' : 'NÃO ENCONTRADA') + ' · new GeoRasterLayer( no código = ' + criaLayer);
+const cacheProprio = fnLayer && fnLayer.match(/const\s+(\w+)\s*=\s*new\s+window\.GeoRasterLayer\s*\(\s*o\s*\)\s*;\s*\1\.cache\s*=\s*\{\}\s*;[\s\S]*return\s+(\w+)\s*;/);
+if (!fnLayer) fail('raster: buildRasterLayer não encontrada — a extração secou ou a função foi renomeada');
+else if (criaLayer !== 1) fail(`raster: ${criaLayer} pontos criam GeoRasterLayer — toda camada tem de nascer em buildRasterLayer, com cache próprio`);
+else if (!cacheProprio || cacheProprio[1] !== cacheProprio[2]) fail('raster: buildRasterLayer não dá cache próprio à camada (lyr.cache={}) — imagens da mesma área voltam a mostrar os tiles da anterior');
+else ok('raster: cada camada de raster nasce com cache de tiles próprio (o do protótipo é compartilhado)');
+
 /* ── 4d) leitura do all.zip por faixa (v1.20.1) ─────────────────────────────
    Mesmo defeito do 4c, num arquivo maior: o caminho antigo media 2,80 GB de pico
    com um pacote de 887 MB, e o release não passa por aqui — o `all.zip` só é

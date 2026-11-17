@@ -410,7 +410,9 @@ async function main() {
       window.parseGeoraster = (v, m) => { const H = v[0].length, W = v[0][0].length;
         return Promise.resolve(Object.assign({ values: v, width: W, height: H, numberOfRasters: v.length,
           xmax: m.xmin + W * m.pixelWidth, ymin: m.ymax - H * m.pixelHeight, mins: [0], maxs: [255], minValue: 0, maxValue: 255 }, m)); };
-      window.GeoRasterLayer = function () { const g = L3.layerGroup(); g.getBounds = () => ({ isValid: () => true }); g.setOpacity = () => g; return g; };
+      // o cache imita o da lib (georaster-layer 4.1.2): UM objeto para todas as camadas — é o `cache:{}` do protótipo
+      window.__cacheDaLib = {};
+      window.GeoRasterLayer = function () { const g = L3.layerGroup(); g.getBounds = () => ({ isValid: () => true }); g.setOpacity = () => g; g.cache = window.__cacheDaLib; return g; };
       window.GeoTIFF = { fromBlob: () => Promise.reject(new Error('n/a')) };
     }
   });
@@ -429,6 +431,15 @@ async function main() {
   w3.__gr = gr3;
   ev3('_rasterMeta={gr:__gr,bands:4,mn:0,mx:255,ycc:false,factor:1,alphaIdx:3,orig:{xmin:__gr.xmin,xmax:__gr.xmax,ymin:__gr.ymin,ymax:__gr.ymax}}');
   ev3('rasterLayer=buildRasterLayer().addTo(map); $("rasterCtrls").classList.remove("hidden"); renderCRS()');
+
+  /* cache de tiles (v1.29.3): ortho e DSM da mesma área dividiam o cache da lib e o 2º mostrava os tiles do 1º.
+     Duas camadas seguidas (é o que abrir outro raster ou trocar a paleta faz) têm de ter caches distintos, e
+     nenhum deles pode ser o da lib. A 1ª linha confere que o duplo foi exercitado (r91): sem cache no stub,
+     "distintos" passaria de graça. */
+  const cacheLayer = ev3('(()=>{ const a=buildRasterLayer(), b=buildRasterLayer(); return { temCache: !!(a.cache&&b.cache), distintos: a.cache!==b.cache, daLib: a.cache===__cacheDaLib||b.cache===__cacheDaLib||rasterLayer.cache===__cacheDaLib }; })()');
+  check('raster: o duplo da lib entrega cache à camada (a conferência abaixo mede algo)', !!(cacheLayer && cacheLayer.temCache));
+  check('raster: cada camada tem cache de tiles PRÓPRIO — imagem da mesma área não herda os tiles da anterior',
+    !!(cacheLayer && cacheLayer.distintos && !cacheLayer.daLib));
 
   /* CRS na tela -- o que o usuario precisa ANTES de colar os pontos */
   const crsCode = txt(doc3, 'crsCode'), crsName = txt(doc3, 'crsName');
