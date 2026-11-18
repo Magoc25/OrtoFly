@@ -192,12 +192,18 @@ docker system prune -f
 - **Colima:** limpeza total da VM. 🟢 No Terminal, **cole** uma linha de cada vez e Enter:
   ```bash
   colima stop
-  colima delete
+  colima delete --data
   colima start --cpu 6 --memory 8
   docker run -d --name nodeodm --restart unless-stopped -p 127.0.0.1:3000:3000 opendronemap/nodeodm
   ```
   *(você já salva os produtos no app, então não perde resultados)*
-  > ⚠️ `colima delete` **apaga a VM, os containers, as imagens e as configurações** — mas **não desinstala** o Colima. Por isso: **(1)** no `colima start` use os **mesmos números** de `--cpu/--memory` da seção **🧠 Memória e CPU** — só `colima start` *sem flags* volta ao default **2 GB**!; **(2)** o `docker run` vai **baixar a imagem (~1,5 GB)** de novo (precisa de internet); **(3)** confira o `totalMemory` em **http://127.0.0.1:3000/info**.
+  > ⚠️ **O `--data` é o que apaga o NodeODM.** Nas versões atuais do Colima (conferido na 0.10.2), `colima delete` **sozinho** apaga a VM e as configurações, mas **guarda os containers e as imagens** num disco à parte (`~/.colima/_lima/_disks/colima/datadisk`). Sem o `--data`, o `nodeodm` antigo **volta sozinho** no `colima start`, e o `docker run` da linha seguinte dá *"Conflict. The container name "/nodeodm" is already in use"*.
+  >
+  > ⚠️ **O `colima delete --data` pergunta `[y/N]`:** responda **`y`** e Enter. Por isso cole **só ele** de cada vez: colado junto com as outras linhas, a linha seguinte vira a resposta, a pergunta entende "não" e **nada é apagado**.
+  >
+  > Depois da limpeza: **(1)** no `colima start` use os **mesmos números** de `--cpu/--memory` da seção **🧠 Memória e CPU** — só `colima start` *sem flags* volta ao default **2 GB**!; **(2)** o `docker run` vai **baixar a imagem** de novo (precisa de internet; ela ocupa ~2,7 GB no disco); **(3)** confira o `totalMemory` em **http://127.0.0.1:3000/info**.
+  >
+  > **Já rodou sem o `--data` e viu o "Conflict"?** Nada se perdeu: o NodeODM antigo está no ar (confira com `docker ps`). Para terminar a limpeza, rode de novo a partir do `colima stop`, agora com `colima delete --data`.
 
 ---
 

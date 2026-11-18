@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.29.4] — Novembro 2026
+
+### 📄 Documentação
+
+- **Guia do macOS: a limpeza total do Colima passa a usar `colima delete --data`.** O guia dizia que `colima delete` apaga a VM, os containers e as imagens. Nas versões atuais do Colima (conferido na 0.10.2), ele **guarda os containers e as imagens** num disco à parte: o NodeODM antigo voltava sozinho no `colima start`, e o `docker run` da linha seguinte dava *"Conflict. The container name "/nodeodm" is already in use"*, sem a limpeza ter liberado o disco. O guia agora usa `--data`, avisa que o comando pergunta `[y/N]` e precisa ser colado sozinho (colado junto com as outras linhas, a linha seguinte vira a resposta e nada é apagado) e diz o que fazer se o erro já apareceu. O app não mudou.
+
+---
+
 ## [1.29.3] — Novembro 2026
 
 ### 🐛 Correções
