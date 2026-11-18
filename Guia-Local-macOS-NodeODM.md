@@ -176,34 +176,38 @@ O NodeODM guarda **todas as tarefas** (fotos + intermediários + resultados) at�
 
 **No dia a dia, pelo app** (igual ao Windows): **💾 Salvar** ou **🗑️ Descartar** cada tarefa; tarefa que **falhou também ocupa disco**; aba **⚙️ Processar → 🧹 Limpar tudo do NodeODM** remove todas de uma vez — inclusive, com uma confirmação à parte, as que estão no servidor e este navegador não registrou (criadas em outro navegador, por exemplo). _(Até a v1.24.0 esses botões mostravam erro e não apagavam nada; corrigido na v1.24.1.)_
 
-**Recuperar o espaço no Mac** (de vez em quando):
+**Recuperar o espaço no Mac** (de vez em quando). A **imagem** do NodeODM (~2,7 GB) **fica instalada** — é ela que processa as próximas fotos; o que sai é só o **material das tarefas**.
 
-**Passo 1 — Apague as tarefas** (pelo app em *Limpar tudo*, ou no Terminal).
+**Passo 1 — Apague as tarefas.** O jeito mais simples é pelo app: **⚙️ Processar → 🧹 Limpar tudo do NodeODM**. Ou no Terminal:
 
 🟢 **No Terminal** — **cole** cada linha e tecle **Enter** (uma de cada vez):
 ```bash
 docker exec nodeodm sh -lc "rm -rf /var/www/data/*"
 docker restart nodeodm
-docker system prune -f
 ```
 
-**Passo 2 — Devolver o espaço do disco virtual do Docker** (ele não encolhe sozinho):
-- **Docker Desktop:** ícone 🐞 **Troubleshoot → Clean / Purge data** (ou **Settings → Resources** → reduza o **Virtual disk limit**). Versões recentes também recuperam sozinhas com o tempo.
-- **Colima:** limpeza total da VM. 🟢 No Terminal, **cole** uma linha de cada vez e Enter:
+**Passo 2 — Devolva o espaço ao Mac.** Apagar as tarefas libera o disco **dentro** do Docker, mas o Mac não recebe o espaço de volta na hora (medido: um arquivo de 3 GB apagado no container continuou ocupando 3 GB no Mac).
+- **Colima:** 🟢 no Terminal, **cole** e Enter:
   ```bash
-  colima stop
-  colima delete --data
-  colima start --cpu 6 --memory 8
-  docker run -d --name nodeodm --restart unless-stopped -p 127.0.0.1:3000:3000 opendronemap/nodeodm
+  colima ssh -- sudo fstrim -av
   ```
-  *(você já salva os produtos no app, então não perde resultados)*
-  > ⚠️ **O `--data` é o que apaga o NodeODM.** Nas versões atuais do Colima (conferido na 0.10.2), `colima delete` **sozinho** apaga a VM e as configurações, mas **guarda os containers e as imagens** num disco à parte (`~/.colima/_lima/_disks/colima/datadisk`). Sem o `--data`, o `nodeodm` antigo **volta sozinho** no `colima start`, e o `docker run` da linha seguinte dá *"Conflict. The container name "/nodeodm" is already in use"*.
-  >
-  > ⚠️ **O `colima delete --data` pergunta `[y/N]`:** responda **`y`** e Enter. Por isso cole **só ele** de cada vez: colado junto com as outras linhas, a linha seguinte vira a resposta, a pergunta entende "não" e **nada é apagado**.
-  >
-  > Depois da limpeza: **(1)** no `colima start` use os **mesmos números** de `--cpu/--memory` da seção **🧠 Memória e CPU** — só `colima start` *sem flags* volta ao default **2 GB**!; **(2)** o `docker run` vai **baixar a imagem** de novo (precisa de internet; ela ocupa ~2,7 GB no disco); **(3)** confira o `totalMemory` em **http://127.0.0.1:3000/info**.
-  >
-  > **Já rodou sem o `--data` e viu o "Conflict"?** Nada se perdeu: o NodeODM antigo está no ar (confira com `docker ps`). Para terminar a limpeza, rode de novo a partir do `colima stop`, agora com `colima delete --data`.
+  O espaço volta ao Mac na hora (medido no Colima 0.10.2: 5,7 → 2,7 GB). O comando **não apaga nada** — só avisa ao disco virtual quais partes ficaram livres. Ele também roda **sozinho uma vez por semana**; rodá-lo à mão só adianta. Para ver o espaço livre do Mac antes e depois: `df -h ~`.
+- **Docker Desktop** _(não testado pelo autor)_: o espaço volta sozinho com o tempo nas versões recentes. **Troubleshoot → Clean / Purge data** devolve na hora, mas apaga **também a imagem e o container** — depois, refaça o `docker run` da instalação.
+
+> ⚠️ **Não use `docker system prune` nesta rotina:** ele apaga **todo container parado** — com o NodeODM desligado (depois de um `docker stop`, por exemplo), ele apaga o NodeODM.
+
+**Reinstalar do zero (raramente necessário).** Só se o NodeODM quebrar e não voltar com `docker restart nodeodm`. Isso apaga a VM do Colima, o NodeODM e a imagem. 🟢 No Terminal, **cole** uma linha de cada vez e Enter:
+```bash
+colima stop
+colima delete --data
+colima start --cpu 6 --memory 8
+docker run -d --name nodeodm --restart unless-stopped -p 127.0.0.1:3000:3000 opendronemap/nodeodm
+```
+> ⚠️ **O `--data` é o que apaga o NodeODM.** Nas versões atuais do Colima (conferido na 0.10.2), `colima delete` **sozinho** apaga a VM e as configurações, mas **guarda os containers e as imagens** num disco à parte (`~/.colima/_lima/_disks/colima/datadisk`). Sem o `--data`, o `nodeodm` antigo **volta sozinho** no `colima start`, e o `docker run` da linha seguinte dá *"Conflict. The container name "/nodeodm" is already in use"* — nada se perdeu: o NodeODM antigo está no ar (confira com `docker ps`).
+>
+> ⚠️ **O `colima delete --data` pergunta `[y/N]`:** responda **`y`** e Enter. Por isso cole **só ele** de cada vez: colado junto com as outras linhas, a linha seguinte vira a resposta, a pergunta entende "não" e **nada é apagado**.
+>
+> Depois: **(1)** no `colima start` use os **mesmos números** de `--cpu/--memory` da seção **🧠 Memória e CPU** — só `colima start` *sem flags* volta ao default **2 GB**!; **(2)** o `docker run` vai **baixar a imagem** de novo (precisa de internet; ela ocupa ~2,7 GB no disco); **(3)** confira o `totalMemory` em **http://127.0.0.1:3000/info**.
 
 ---
 

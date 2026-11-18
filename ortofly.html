@@ -578,6 +578,7 @@ footer{
         <button class="btn sm block" onclick="odmCleanAll()">🧹 Limpar tudo do NodeODM (liberar disco)</button>
         <p class="hint" style="margin-top:6px">Remove do servidor <b>todas</b> as tarefas que o app criou (concluídas, falhas ou abandonadas). No <b>PC Local</b>, também oferece apagar as que estão no servidor e este navegador não registrou — sempre com uma confirmação à parte. Use quando o disco do NodeODM encher.</p>
         <p class="hint" style="margin-top:4px">⚠️ <b>Windows/WSL:</b> isso libera o disco <i>dentro</i> do servidor, mas o espaço só volta ao <b>C:</b> depois de <b>compactar o disco virtual do WSL</b> — veja a seção “Limpeza de disco” no guia do Windows.</p>
+        <p class="hint" style="margin-top:4px">⚠️ <b>Mac/Colima:</b> o espaço também não volta ao Mac na hora — no Terminal, <code>colima ssh -- sudo fstrim -av</code> devolve sem apagar nada (a imagem do NodeODM continua instalada). Veja a seção “Limpeza de disco” no guia do macOS.</p>
       </div>
     </div>
   </aside>
@@ -741,7 +742,7 @@ footer{
 <script src="./vendor/qrcode.js"></script>
 <script>
 /* ═══════════════ OrtoFly — © 2026 MGC Dev (versão: só em APP_VERSION) ═══════════════ */
-const APP_VERSION = '1.29.4';
+const APP_VERSION = '1.29.5';
 const APP_NAME    = 'OrtoFly';
 const LS = 'ortofly';
 

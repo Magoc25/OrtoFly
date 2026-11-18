@@ -5,6 +5,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.29.5] — Novembro 2026
+
+### 📄 Documentação
+
+- **Limpar o disco no Mac sem apagar a imagem do NodeODM.** Apagar as tarefas libera o disco dentro do Docker, mas o Mac não recebia o espaço de volta na hora: medido no Colima 0.10.2, um arquivo de 3 GB apagado dentro do container continuou ocupando 3 GB no Mac. O guia mandava, para isso, apagar a VM inteira e baixar a imagem (~2,7 GB) de novo. Agora o Passo 2 é **`colima ssh -- sudo fstrim -av`**, que devolve o espaço na hora (5,7 → 2,7 GB no teste) **sem apagar nada** — a imagem continua instalada para os próximos processamentos (ele também roda sozinho uma vez por semana). A reinstalação do zero (`colima delete --data`) ficou como opção à parte, só para quando o NodeODM quebrar.
+- **Saiu o `docker system prune -f` da rotina de limpeza:** ele apaga todo container parado, então, com o NodeODM desligado, apagava o NodeODM.
+- **No app**, abaixo do 🧹 Limpar tudo do NodeODM, um aviso para o **Mac/Colima** igual ao que já existia para o Windows: o espaço não volta ao Mac na hora, e o comando que o devolve.
+
+---
+
 ## [1.29.4] — Novembro 2026
 
 ### 📄 Documentação
